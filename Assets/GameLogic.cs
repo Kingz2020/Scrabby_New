@@ -162,6 +162,15 @@ public class GameLogic : MonoBehaviour
 
     public void InitGame(int maxHandSize, int boardSizeX, int boardSizeY)
     {
+        // Automatically discover active scene's BoardGen to dynamic-scale rectangular and square board dimensions
+        var boardGen = UnityEngine.Object.FindAnyObjectByType<BoardGen>();
+        if (boardGen != null)
+        {
+            boardSizeX = boardGen.RowY; // Rows
+            boardSizeY = boardGen.RowX; // Columns
+            Debug.Log($"[GameLogic] Auto-detected board dimensions from active BoardGen: {boardSizeY}x{boardSizeX} (columns x rows)");
+        }
+
         this.maxHandSize = maxHandSize;
         this.boardSizeX = boardSizeX;
         this.boardSizeY = boardSizeY;
@@ -170,7 +179,7 @@ public class GameLogic : MonoBehaviour
 
         validatedBoardTiles = new LetterInfo[boardSizeX + 2, boardSizeY + 2];
         playerHandTiles = new List<LetterInfo>();
-        boardBonusTiles = new BonusTile[boardSizeX, boardSizeY];
+        boardBonusTiles = new BonusTile[boardSizeY, boardSizeX];
 
         pendingPlayerMove = null;
         pendingAIMove = null;
@@ -251,7 +260,7 @@ public class GameLogic : MonoBehaviour
 
         playerHandTiles.Clear();
 
-        boardBonusTiles = new BonusTile[boardSizeX, boardSizeY];
+        boardBonusTiles = new BonusTile[boardSizeY, boardSizeX];
         if (bonusTileBag != null && bonusBag != null)
             bonusTileBag.ResetBonusBag(bonusBag);
 
@@ -1246,7 +1255,19 @@ public class GameLogic : MonoBehaviour
         move.isHuman = true;
         move.timeUsed = GetCurrentTimeUsed();
         move.placedTiles = new List<PlacedTile>(GetPlacedTilesThisTurn());
-        move.simulatedTiles = null;
+        
+        // Populate robust, cloned simulatedTiles data for the Human move
+        move.simulatedTiles = new List<SimPlacedTile>();
+        foreach (var pt in move.placedTiles)
+        {
+            if (pt != null && pt.letterInfo != null && pt.letterPosition != null)
+            {
+                SimPlacedTile sim = new SimPlacedTile();
+                sim.letterInfo = new LetterInfo(pt.letterInfo);
+                sim.letterPosition = new LetterPosition(pt.letterPosition.RowX, pt.letterPosition.ColY);
+                move.simulatedTiles.Add(sim);
+            }
+        }
 
         TilePlacement orientation = AllTilesInSameLine();
 
@@ -1446,43 +1467,45 @@ public class GameLogic : MonoBehaviour
 
     private void ApplyHumanWinningTiles(RoundMove winningMove)
     {
-        if (winningMove == null || winningMove.placedTiles == null)
+        if (winningMove == null || winningMove.simulatedTiles == null)
         {
-            Debug.LogWarning("Human winning move has no placedTiles.");
+            Debug.LogWarning("Human winning move has no simulatedTiles.");
             return;
         }
 
-        Debug.Log("ApplyHumanWinningTiles: starting with " + winningMove.placedTiles.Count + " tiles.");
+        Debug.Log("ApplyHumanWinningTiles: starting with " + winningMove.simulatedTiles.Count + " tiles.");
 
-        foreach (var tile in winningMove.placedTiles)
+        foreach (var simTile in winningMove.simulatedTiles)
         {
-            if (tile == null || tile.letterInfo == null || tile.letterPosition == null)
+            if (simTile == null || simTile.letterInfo == null || simTile.letterPosition == null)
             {
-                Debug.LogWarning("Null tile data in human winning move.");
+                Debug.LogWarning("Null simTile data in human winning move.");
                 continue;
             }
 
             bool removed = RemoveMatchingTileFromHandByLetter(
-                tile.letterInfo.letter,
-                tile.letterInfo.points
+                simTile.letterInfo.letter,
+                simTile.letterInfo.points
             );
 
             Debug.Log(
                 "HUMAN removing logical hand tile => " +
-                tile.letterInfo.letter + " (" + tile.letterInfo.points + "), removed = " + removed
+                simTile.letterInfo.letter + " (" + simTile.letterInfo.points + "), removed = " + removed
             );
 
-            SetBoardTile(tile);
+            // Re-apply correct validatedBoardTiles state using robust cloned data
+            simTile.letterInfo.bonusUsed = true;
+            validatedBoardTiles[simTile.letterPosition.RowX, simTile.letterPosition.ColY] = simTile.letterInfo;
 
             Debug.Log(
                 "HUMAN committed board tile => " +
-                tile.letterInfo.letter + " at row " +
-                tile.letterPosition.RowX + ", col " + tile.letterPosition.ColY
+                simTile.letterInfo.letter + " at row " +
+                simTile.letterPosition.RowX + ", col " + simTile.letterPosition.ColY
             );
 
             Singleton.Instance.UIManager.PlaceAITileOnBoard(
-                tile.letterInfo,
-                tile.letterPosition
+                simTile.letterInfo,
+                simTile.letterPosition
             );
         }
     }
@@ -1550,7 +1573,7 @@ public class GameLogic : MonoBehaviour
 
         currentRoundNumber++;
 
-        boardBonusTiles = new BonusTile[boardSizeX, boardSizeY];
+        boardBonusTiles = new BonusTile[boardSizeY, boardSizeX];
         if (bonusTileBag != null && bonusBag != null)
             bonusTileBag.ResetBonusBag(bonusBag);
 
@@ -2288,6 +2311,31 @@ public class GameLogic : MonoBehaviour
 
         Debug.Log("Hand UI rebuilt. Logical hand count = " + playerHandTiles.Count);
         Debug.Log("===== RebuildHandUIFromLogicalHand END =====");
+    }
+
+    public void ShuffleHand()
+    {
+        if (playerHandTiles == null || playerHandTiles.Count <= 1)
+            return;
+
+        // Return any temporarily placed tiles to hand first so they are included in the shuffle and we don't get duplicates
+        if (Singleton.Instance != null && Singleton.Instance.UIManager != null)
+        {
+            Singleton.Instance.UIManager.ReturnTilesToHand();
+        }
+
+        // Shuffle playerHandTiles list using Fisher-Yates shuffle algorithm
+        for (int i = playerHandTiles.Count - 1; i > 0; i--)
+        {
+            int r = UnityEngine.Random.Range(0, i + 1);
+            LetterInfo temp = playerHandTiles[i];
+            playerHandTiles[i] = playerHandTiles[r];
+            playerHandTiles[r] = temp;
+        }
+
+        // Rebuild UI in the new shuffled order
+        RebuildHandUIFromLogicalHand();
+        Debug.Log("[GameLogic] Hand shuffled and rebuilt.");
     }
 
     private void AddRoundWinnerScore(RoundMove winningMove)
@@ -3633,6 +3681,64 @@ List<SimPlacedTile> newPlacedTiles)
             return allCandidates;
         }
 
+        // Build frequency count of available letters from both AI rack and board
+        int[] availableCounts = new int[26];
+        foreach (var tile in aiTiles)
+        {
+            if (tile != null && !string.IsNullOrEmpty(tile.letter))
+            {
+                char c = char.ToUpper(tile.letter[0]);
+                if (c >= 'A' && c <= 'Z')
+                    availableCounts[c - 'A']++;
+            }
+        }
+        for (int r = 1; r <= boardSizeX; r++)
+        {
+            for (int c = 1; c <= boardSizeY; c++)
+            {
+                var tile = validatedBoardTiles[r, c];
+                if (tile != null && !string.IsNullOrEmpty(tile.letter))
+                {
+                    char ch = char.ToUpper(tile.letter[0]);
+                    if (ch >= 'A' && ch <= 'Z')
+                        availableCounts[ch - 'A']++;
+                }
+            }
+        }
+
+        // Pre-filter words to only include those constructible with the available letter pool
+        List<string> filteredWords = new List<string>();
+        int[] wordCounts = new int[26];
+        foreach (string rawWord in scrabbleWords)
+        {
+            if (string.IsNullOrWhiteSpace(rawWord)) continue;
+            string w = rawWord.Trim().ToUpper();
+            if (w.Length == 0 || w.Length > Mathf.Max(boardSizeX, boardSizeY)) continue;
+
+            System.Array.Clear(wordCounts, 0, 26);
+            bool possible = true;
+            for (int i = 0; i < w.Length; i++)
+            {
+                char c = w[i];
+                if (c < 'A' || c > 'Z')
+                {
+                    possible = false;
+                    break;
+                }
+                wordCounts[c - 'A']++;
+                if (wordCounts[c - 'A'] > availableCounts[c - 'A'])
+                {
+                    possible = false;
+                    break;
+                }
+            }
+            if (possible)
+            {
+                filteredWords.Add(w);
+            }
+        }
+        Debug.Log("GADDAG Pre-filter: reduced dictionary from " + scrabbleWords.Count + " to " + filteredWords.Count + " possible words!");
+
         int attempted = 0;
         int valid = 0;
         int skippedByPrefilter = 0;
@@ -3642,9 +3748,9 @@ List<SimPlacedTile> newPlacedTiles)
         {
             AnchorSquare anchor = anchors[a];
 
-            for (int w = 0; w < scrabbleWords.Count; w++)
+            for (int w = 0; w < filteredWords.Count; w++)
             {
-                string word = scrabbleWords[w];
+                string word = filteredWords[w];
 
                 if (string.IsNullOrWhiteSpace(word))
                     continue;

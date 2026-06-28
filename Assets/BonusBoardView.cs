@@ -21,12 +21,12 @@ public class BonusBoardView : MonoBehaviour
         {
             for (int x = 0; x < gameLogic.GetBoardSizeX(); x++)
             {
-                BonusTile bonusTile = boardBonusTiles[x, y];
+                BonusTile bonusTile = boardBonusTiles[y, x];
 
                 if (bonusTile == null)
                     continue;
 
-                GhostTile matchingGhostTile = FindGhostTileByLocation(ghostTiles, y + 1, x + 1);
+                GhostTile matchingGhostTile = FindGhostTileByLocation(ghostTiles, x + 1, y + 1);
 
                 if (matchingGhostTile == null)
                 {
