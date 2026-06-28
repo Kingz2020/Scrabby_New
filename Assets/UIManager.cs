@@ -14,6 +14,13 @@ public class UIManager: MonoBehaviour {
     [SerializeField] private TextMeshProUGUI aiScoreText;
     [SerializeField] private TextMeshProUGUI roundText;
 
+    public void SetTextReferences(TextMeshProUGUI human, TextMeshProUGUI ai, TextMeshProUGUI round)
+    {
+        humanScoreText = human;
+        aiScoreText = ai;
+        roundText = round;
+    }
+
     public void AddTileToHand(LetterInfo tileInfo) {
         /*Debug.Log("UIManager.AddTileToHand called for " + tileInfo.letter);
         GameObject tempTile = Instantiate(basicTile, handTileHolder.transform);
@@ -132,15 +139,30 @@ public class UIManager: MonoBehaviour {
     public void UpdateTotalScores(int humanScore, int aiScore)
     {
         if (humanScoreText != null)
-            humanScoreText.text = "Human: " + humanScore;
+        {
+            if (humanScoreText.gameObject.name == "DigitsText")
+                humanScoreText.text = humanScore.ToString();
+            else
+                humanScoreText.text = "Human: " + humanScore;
+        }
 
         if (aiScoreText != null)
-            aiScoreText.text = "AI: " + aiScore;
+        {
+            if (aiScoreText.gameObject.name == "DigitsText")
+                aiScoreText.text = aiScore.ToString();
+            else
+                aiScoreText.text = "AI: " + aiScore;
+        }
     }
     public void UpdateRoundText(int currentRound, int maxRounds)
     {
         if (roundText != null)
-            roundText.text = "Round: " + currentRound + " / " + maxRounds;
+        {
+            if (roundText.gameObject.name == "DigitsText")
+                roundText.text = currentRound + " / " + maxRounds;
+            else
+                roundText.text = "Round: " + currentRound + " / " + maxRounds;
+        }
     }
 
 }

@@ -6,6 +6,11 @@ public class Timer : MonoBehaviour
     [SerializeField] private TextMeshProUGUI timerText;
     [SerializeField] private float roundDuration = 70f;
 
+    public void SetTextReference(TextMeshProUGUI timer)
+    {
+        timerText = timer;
+    }
+
     private float remainingTime;
     private bool timerRunning;
 
