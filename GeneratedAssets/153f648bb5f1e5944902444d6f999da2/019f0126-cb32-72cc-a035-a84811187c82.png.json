@@ -1,0 +1,31 @@
+{
+    "asset": "153f648bb5f1e5944902444d6f999da2",
+    "fileName": "019f0126-cb32-72cc-a035-a84811187c82.png",
+    "prompt": "A clean, minimal, modern 2D triple letter bonus tile sprite for a mobile word puzzle game. Labeled exactly with the text 'TL' in uppercase. Perfect square format. Rounded square tile shape with a neutral white-to-light-gray color base (completely grayscaled/white so it can be tinted in Unity UI). Crisp, bold, highly readable, perfectly centered dark gray sans-serif text 'TL'. Simple elegant typography. Polished minimal satin-like surface with a subtle elegant soft drop shadow underneath. Clean flat vector style, centered composition, transparent background.",
+    "negativePrompt": "",
+    "model": "gemini-3.0-pro",
+    "modelName": "Gemini 3.0 Pro",
+    "customSeed": -1,
+    "w3CTraceId": "",
+    "feedback": 0,
+    "refinementMode": "Generation",
+    "pixelateTargetSize": 0,
+    "pixelateKeepImageSize": false,
+    "pixelatePixelBlockSize": 0,
+    "pixelatePixelGridSize": 0,
+    "pixelateMode": 0,
+    "pixelateOutlineThickness": 0,
+    "doodles": {
+        "m_Items": []
+    },
+    "upscaleFactor": 0,
+    "dimensions": {
+        "width": 1024,
+        "height": 1024
+    },
+    "spriteSheet": false,
+    "duration": 0.0,
+    "dynamicParams": {
+        "serializedData": []
+    }
+}

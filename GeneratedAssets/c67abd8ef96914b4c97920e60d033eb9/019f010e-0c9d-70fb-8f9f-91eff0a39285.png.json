@@ -1,0 +1,31 @@
+{
+    "asset": "c67abd8ef96914b4c97920e60d033eb9",
+    "fileName": "019f010e-0c9d-70fb-8f9f-91eff0a39285.png",
+    "prompt": "A clean, modern 2D horizontal hand tray sprite for a mobile word puzzle game. A wide horizontal tray with elegant rounded corners, colored in soft but vivid bright pastel blue. It has a visible, recessed inner horizontal area with soft inner shadows (depth effect) where puzzle tiles can sit in a row. Minimalist vector art style, clean lines, simple flat design with very subtle soft gradients, highly polished for mobile UI. No text, no letters, no numbers. Symmetric, perfectly centered wide layout. Transparent background, wide horizontal format.",
+    "negativePrompt": "",
+    "model": "gemini-3.0-pro",
+    "modelName": "Gemini 3.0 Pro",
+    "customSeed": -1,
+    "w3CTraceId": "",
+    "feedback": 0,
+    "refinementMode": "Generation",
+    "pixelateTargetSize": 0,
+    "pixelateKeepImageSize": false,
+    "pixelatePixelBlockSize": 0,
+    "pixelatePixelGridSize": 0,
+    "pixelateMode": 0,
+    "pixelateOutlineThickness": 0,
+    "doodles": {
+        "m_Items": []
+    },
+    "upscaleFactor": 0,
+    "dimensions": {
+        "width": 2048,
+        "height": 832
+    },
+    "spriteSheet": false,
+    "duration": 0.0,
+    "dynamicParams": {
+        "serializedData": []
+    }
+}

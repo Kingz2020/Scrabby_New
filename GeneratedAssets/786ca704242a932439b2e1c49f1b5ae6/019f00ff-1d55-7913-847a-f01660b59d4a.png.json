@@ -1,0 +1,31 @@
+{
+    "asset": "786ca704242a932439b2e1c49f1b5ae6",
+    "fileName": "019f00ff-1d55-7913-847a-f01660b59d4a.png",
+    "prompt": "A clean, modern 2D blank tile sprite for a mobile word puzzle. Rounded rectangle tile shape with soft, bright pastel blue color. Completely blank, with NO letters, NO numbers, NO text, and NO icons. Subtle elegant drop shadow underneath the tile. Clean vector style, minimal design, flat look with soft gradients, highly readable, suitable for mobile UI. Transparent background, square format, centered composition.",
+    "negativePrompt": "",
+    "model": "gemini-3.0-pro",
+    "modelName": "Gemini 3.0 Pro",
+    "customSeed": -1,
+    "w3CTraceId": "",
+    "feedback": 0,
+    "refinementMode": "Generation",
+    "pixelateTargetSize": 0,
+    "pixelateKeepImageSize": false,
+    "pixelatePixelBlockSize": 0,
+    "pixelatePixelGridSize": 0,
+    "pixelateMode": 0,
+    "pixelateOutlineThickness": 0,
+    "doodles": {
+        "m_Items": []
+    },
+    "upscaleFactor": 0,
+    "dimensions": {
+        "width": 1024,
+        "height": 1024
+    },
+    "spriteSheet": false,
+    "duration": 0.0,
+    "dynamicParams": {
+        "serializedData": []
+    }
+}

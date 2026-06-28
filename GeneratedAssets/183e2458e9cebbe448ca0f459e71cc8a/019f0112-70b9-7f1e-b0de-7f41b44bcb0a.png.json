@@ -1,0 +1,31 @@
+{
+    "asset": "183e2458e9cebbe448ca0f459e71cc8a",
+    "fileName": "019f0112-70b9-7f1e-b0de-7f41b44bcb0a.png",
+    "prompt": "A clean, minimal, modern 2D square board frame for a mobile word puzzle game. A perfect square outer frame with elegant rounded corners, colored in a neutral white-to-light-gray color base (completely grayscaled and white so it can be tinted in Unity UI). It has a visible, recessed inner square area with a gentle inner shadow (recessed depth effect) where puzzle tiles can sit. Minimalist flat vector style, clean lines, very soft subtle grayscaled gradients, highly polished for mobile UI. No text, no letters, no grid lines. Symmetric, perfectly centered composition. Transparent background.",
+    "negativePrompt": "",
+    "model": "gemini-3.0-pro",
+    "modelName": "Gemini 3.0 Pro",
+    "customSeed": -1,
+    "w3CTraceId": "",
+    "feedback": 0,
+    "refinementMode": "Generation",
+    "pixelateTargetSize": 0,
+    "pixelateKeepImageSize": false,
+    "pixelatePixelBlockSize": 0,
+    "pixelatePixelGridSize": 0,
+    "pixelateMode": 0,
+    "pixelateOutlineThickness": 0,
+    "doodles": {
+        "m_Items": []
+    },
+    "upscaleFactor": 0,
+    "dimensions": {
+        "width": 1024,
+        "height": 1024
+    },
+    "spriteSheet": false,
+    "duration": 0.0,
+    "dynamicParams": {
+        "serializedData": []
+    }
+}

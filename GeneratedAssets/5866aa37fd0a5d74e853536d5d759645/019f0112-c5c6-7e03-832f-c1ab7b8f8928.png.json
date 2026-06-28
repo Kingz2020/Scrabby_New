@@ -1,0 +1,31 @@
+{
+    "asset": "5866aa37fd0a5d74e853536d5d759645",
+    "fileName": "019f0112-c5c6-7e03-832f-c1ab7b8f8928.png",
+    "prompt": "A clean, minimal, modern 2D horizontal hand tray/rack sprite for a mobile word puzzle game. Wide horizontal layout with elegant rounded corners. Colored in a neutral white-to-light-gray color base (completely grayscaled and white so it can be tinted in Unity UI). It has a simple, polished, horizontal flat surface with a subtle elegant drop shadow underneath. Clean vector lines, minimal flat design with soft subtle grayscaled gradients, highly polished for mobile UI. No text, no lines. Symmetric, perfectly centered wide layout. Transparent background.",
+    "negativePrompt": "",
+    "model": "gemini-3.0-pro",
+    "modelName": "Gemini 3.0 Pro",
+    "customSeed": -1,
+    "w3CTraceId": "",
+    "feedback": 0,
+    "refinementMode": "Generation",
+    "pixelateTargetSize": 0,
+    "pixelateKeepImageSize": false,
+    "pixelatePixelBlockSize": 0,
+    "pixelatePixelGridSize": 0,
+    "pixelateMode": 0,
+    "pixelateOutlineThickness": 0,
+    "doodles": {
+        "m_Items": []
+    },
+    "upscaleFactor": 0,
+    "dimensions": {
+        "width": 2048,
+        "height": 832
+    },
+    "spriteSheet": false,
+    "duration": 0.0,
+    "dynamicParams": {
+        "serializedData": []
+    }
+}

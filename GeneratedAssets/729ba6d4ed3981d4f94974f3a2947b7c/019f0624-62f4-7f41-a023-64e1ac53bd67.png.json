@@ -1,0 +1,31 @@
+{
+    "asset": "729ba6d4ed3981d4f94974f3a2947b7c",
+    "fileName": "019f0624-62f4-7f41-a023-64e1ac53bd67.png",
+    "prompt": "A 2D game UI icon for a shuffle button that randomizes the order of letters in a Scrabble-style hand. The icon consists of two stylized fish-shaped arrows, one pointing left and one pointing right, arranged in a circular flow to visually suggest movement, rotation, and swapping. Clean and friendly flat design with no gradients, no shadows, no 3D depth, no text, and no background, just the icon on a solid transparent background. The fish/arrows are drawn in a flat, solid neutral medium-light gray color (#DCDCDC) so the icon can be color-tinted later. Friendly and casual puzzle game aesthetic.",
+    "negativePrompt": "",
+    "model": "gemini-3.1-flash",
+    "modelName": "Gemini 3.1 Nano Banana 2",
+    "customSeed": -1,
+    "w3CTraceId": "",
+    "feedback": 0,
+    "refinementMode": "Generation",
+    "pixelateTargetSize": 0,
+    "pixelateKeepImageSize": false,
+    "pixelatePixelBlockSize": 0,
+    "pixelatePixelGridSize": 0,
+    "pixelateMode": 0,
+    "pixelateOutlineThickness": 0,
+    "doodles": {
+        "m_Items": []
+    },
+    "upscaleFactor": 0,
+    "dimensions": {
+        "width": 1024,
+        "height": 1024
+    },
+    "spriteSheet": false,
+    "duration": 0.0,
+    "dynamicParams": {
+        "serializedData": []
+    }
+}

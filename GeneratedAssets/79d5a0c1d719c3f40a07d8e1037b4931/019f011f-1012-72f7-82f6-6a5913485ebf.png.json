@@ -1,0 +1,31 @@
+{
+    "asset": "79d5a0c1d719c3f40a07d8e1037b4931",
+    "fileName": "019f011f-1012-72f7-82f6-6a5913485ebf.png",
+    "prompt": "A clean, minimal, elegant vertical screen background for a mobile word puzzle game. Neutral white-to-very-light-gray tones with very soft, subtle vertical and radial gradients. No busy patterns, no textures, extremely calm and polished. Suggests gentle depth with soft, ambient occlusion-like shading around the edges, suitable for overlaying a colorful board frame and buttons. Mobile screen vertical format, minimal clean aesthetic.",
+    "negativePrompt": "",
+    "model": "gemini-3.0-pro",
+    "modelName": "Gemini 3.0 Pro",
+    "customSeed": -1,
+    "w3CTraceId": "",
+    "feedback": 0,
+    "refinementMode": "Generation",
+    "pixelateTargetSize": 0,
+    "pixelateKeepImageSize": false,
+    "pixelatePixelBlockSize": 0,
+    "pixelatePixelGridSize": 0,
+    "pixelateMode": 0,
+    "pixelateOutlineThickness": 0,
+    "doodles": {
+        "m_Items": []
+    },
+    "upscaleFactor": 0,
+    "dimensions": {
+        "width": 1152,
+        "height": 2048
+    },
+    "spriteSheet": false,
+    "duration": 0.0,
+    "dynamicParams": {
+        "serializedData": []
+    }
+}

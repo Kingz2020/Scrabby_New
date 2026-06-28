@@ -1,0 +1,31 @@
+{
+    "asset": "c9d5044a3ce3b5c41b63be079d2a4db5",
+    "fileName": "019f011e-e628-7431-8b72-3ced16dab04c.png",
+    "prompt": "A clean, minimal, modern 2D rounded rectangle play button sprite for a mobile puzzle game. Perfect square format. Rounded rectangle button shape with a neutral white-to-light-gray color base (completely grayscaled/white so it can be tinted in Unity UI). Features a bold, crisp, centered gray triangle play icon. Smooth polished surface with a subtle elegant drop shadow underneath. Clean flat vector style, highly readable, centered composition. Transparent background.",
+    "negativePrompt": "",
+    "model": "gemini-3.0-pro",
+    "modelName": "Gemini 3.0 Pro",
+    "customSeed": -1,
+    "w3CTraceId": "",
+    "feedback": 0,
+    "refinementMode": "Generation",
+    "pixelateTargetSize": 0,
+    "pixelateKeepImageSize": false,
+    "pixelatePixelBlockSize": 0,
+    "pixelatePixelGridSize": 0,
+    "pixelateMode": 0,
+    "pixelateOutlineThickness": 0,
+    "doodles": {
+        "m_Items": []
+    },
+    "upscaleFactor": 0,
+    "dimensions": {
+        "width": 1024,
+        "height": 1024
+    },
+    "spriteSheet": false,
+    "duration": 0.0,
+    "dynamicParams": {
+        "serializedData": []
+    }
+}

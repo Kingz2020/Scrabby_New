@@ -1,0 +1,31 @@
+{
+    "asset": "b4506119a144e6545b8b1022d4cb9524",
+    "fileName": "019f011e-d601-7b80-94a0-51c0196707d6.png",
+    "prompt": "A clean, minimal, modern 2D rounded rectangle blank text button sprite for a mobile puzzle game. Perfect square format. Same rounded rectangle button shape and design as the play button, but completely blank with no icons, no text, and no symbols. Neutral white-to-light-gray color base (completely grayscaled/white so it can be tinted in Unity UI). Smooth polished surface with a subtle elegant drop shadow underneath. Clean flat vector style, centered composition. Transparent background.",
+    "negativePrompt": "",
+    "model": "gemini-3.0-pro",
+    "modelName": "Gemini 3.0 Pro",
+    "customSeed": -1,
+    "w3CTraceId": "",
+    "feedback": 0,
+    "refinementMode": "Generation",
+    "pixelateTargetSize": 0,
+    "pixelateKeepImageSize": false,
+    "pixelatePixelBlockSize": 0,
+    "pixelatePixelGridSize": 0,
+    "pixelateMode": 0,
+    "pixelateOutlineThickness": 0,
+    "doodles": {
+        "m_Items": []
+    },
+    "upscaleFactor": 0,
+    "dimensions": {
+        "width": 1024,
+        "height": 1024
+    },
+    "spriteSheet": false,
+    "duration": 0.0,
+    "dynamicParams": {
+        "serializedData": []
+    }
+}

@@ -1,0 +1,31 @@
+{
+    "asset": "5eaa42411cbc2104585bf2369c4229c7",
+    "fileName": "019f0648-1600-704c-8f83-cb76b65b402f.png",
+    "prompt": "A 2D game UI square board frame or panel. Flat solid design with no 3D depth, no gradients, and no shadows. The panel is square with clean rounded corners and features an extremely thin, clean, minimalist outer border (exactly one-third of the thickness of a normal thick border to maximize the inner space). The entire panel, including the thin border, is drawn in a flat, solid, neutral very-light gray color (#E6E6E6) on a solid transparent background. Clean, casual, friendly puzzle game UI style.",
+    "negativePrompt": "",
+    "model": "gemini-3.1-flash",
+    "modelName": "Gemini 3.1 Nano Banana 2",
+    "customSeed": -1,
+    "w3CTraceId": "",
+    "feedback": 0,
+    "refinementMode": "Generation",
+    "pixelateTargetSize": 0,
+    "pixelateKeepImageSize": false,
+    "pixelatePixelBlockSize": 0,
+    "pixelatePixelGridSize": 0,
+    "pixelateMode": 0,
+    "pixelateOutlineThickness": 0,
+    "doodles": {
+        "m_Items": []
+    },
+    "upscaleFactor": 0,
+    "dimensions": {
+        "width": 1024,
+        "height": 1024
+    },
+    "spriteSheet": false,
+    "duration": 0.0,
+    "dynamicParams": {
+        "serializedData": []
+    }
+}

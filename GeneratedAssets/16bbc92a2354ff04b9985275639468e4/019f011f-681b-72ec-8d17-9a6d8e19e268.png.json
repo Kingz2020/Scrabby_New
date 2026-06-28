@@ -1,0 +1,31 @@
+{
+    "asset": "16bbc92a2354ff04b9985275639468e4",
+    "fileName": "019f011f-681b-72ec-8d17-9a6d8e19e268.png",
+    "prompt": "A clean, minimal, modern 2D triple word bonus tile sprite for a mobile word puzzle game. Perfect square format. Rounded rectangle tile shape with a neutral white-to-light-gray color base. Features a subtle, elegantly stylized \"3W\" text or icon emblem engraved or lightly embossed in the center with a very gentle soft pastel red or light-gray accent hint. Clean flat vector style, highly readable, centered composition. Transparent background.",
+    "negativePrompt": "",
+    "model": "gemini-3.0-pro",
+    "modelName": "Gemini 3.0 Pro",
+    "customSeed": -1,
+    "w3CTraceId": "",
+    "feedback": 0,
+    "refinementMode": "Generation",
+    "pixelateTargetSize": 0,
+    "pixelateKeepImageSize": false,
+    "pixelatePixelBlockSize": 0,
+    "pixelatePixelGridSize": 0,
+    "pixelateMode": 0,
+    "pixelateOutlineThickness": 0,
+    "doodles": {
+        "m_Items": []
+    },
+    "upscaleFactor": 0,
+    "dimensions": {
+        "width": 1024,
+        "height": 1024
+    },
+    "spriteSheet": false,
+    "duration": 0.0,
+    "dynamicParams": {
+        "serializedData": []
+    }
+}
