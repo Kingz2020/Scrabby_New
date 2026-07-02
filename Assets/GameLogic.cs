@@ -241,7 +241,7 @@ public class GameLogic : MonoBehaviour
         StartRound();
     }
 
-    private void StartRound()
+    private IEnumerator StartRound()
     {
         Debug.Log("StartRound START");
 
@@ -252,8 +252,6 @@ public class GameLogic : MonoBehaviour
         pendingAIMove = null;
         pendingWinningMove = null;
         currentState = TurnState.PlayerTurn;
-        //humanTotalScore = 0;
-        //aiTotalScore = 0;
 
         if (playerHandTiles == null)
             playerHandTiles = new List<LetterInfo>();
@@ -266,8 +264,10 @@ public class GameLogic : MonoBehaviour
 
         PlaceBonusTilesOnBoard();
 
+        float revealDelay = 0.3f;
+
         if (bonusBoardView != null)
-            bonusBoardView.DrawBonusTiles();
+            bonusBoardView.StartRevealBonusTiles(revealDelay);
 
         if (Singleton.Instance != null && Singleton.Instance.UIManager != null)
             Singleton.Instance.UIManager.RemoveAllHandTiles();
@@ -276,14 +276,25 @@ public class GameLogic : MonoBehaviour
         ResetDisplay();
         SaveCurrentRoundSnapshot();
 
-        if (timer != null)
-        {
-            timer.ResetTimer();
-            timer.StartTimer();
-        }
-
         if (Singleton.Instance != null && Singleton.Instance.UIManager != null)
             Singleton.Instance.UIManager.ClearRoundMessage();
+
+        Debug.Log("Before reveal wait in StartRound");
+        yield return new WaitForSeconds(1.5f);
+        Debug.Log("After reveal wait in StartRound");
+
+        if (timer != null)
+        {
+            Debug.Log("Resetting timer in StartRound");
+            timer.ResetTimer();
+
+            Debug.Log("Starting timer in StartRound");
+            timer.StartTimer();
+        }
+        else
+        {
+            Debug.LogWarning("StartRound: timer is null.");
+        }
 
         Debug.Log("StartRound END");
     }
@@ -1108,7 +1119,7 @@ public class GameLogic : MonoBehaviour
     {
         if (!roundStarted)
         {
-            StartRound();
+            StartCoroutine(StartRound());
             return;
         }
 
@@ -1457,6 +1468,22 @@ public class GameLogic : MonoBehaviour
 
         AddRoundWinnerScore(winningMove);
 
+        LetterPosition popupAnchor = GetPopupAnchorPosition(winningMove);
+        if (popupAnchor != null && Singleton.Instance != null && Singleton.Instance.UIManager != null)
+        {
+            Debug.Log(
+                "Showing validated word score popup at RowX=" + popupAnchor.RowX +
+                ", ColY=" + popupAnchor.ColY +
+                ", score=" + winningMove.score
+            );
+
+            Singleton.Instance.UIManager.ShowValidatedWordScore(popupAnchor, winningMove.score);
+        }
+        else
+        {
+            Debug.LogWarning("Could not show validated word score popup: popupAnchor or UIManager was null.");
+        }
+
         currentTurn++;
         RefillPlayerHand();
         RebuildHandUIFromLogicalHand();
@@ -1562,8 +1589,10 @@ public class GameLogic : MonoBehaviour
         return false;
     }
 
-    private void StartNextRound()
+    private IEnumerator StartNextRound()
     {
+        Debug.Log("StartNextRound START");
+
         roundFlowActive = false;
         roundRevealStep = 0;
         pendingPlayerMove = null;
@@ -1579,8 +1608,10 @@ public class GameLogic : MonoBehaviour
 
         PlaceBonusTilesOnBoard();
 
+        float revealDelay = 0.3f;
+
         if (bonusBoardView != null)
-            bonusBoardView.DrawBonusTiles();
+            bonusBoardView.StartRevealBonusTiles(revealDelay);
 
         ResetDisplay();
         SaveCurrentRoundSnapshot();
@@ -1591,11 +1622,24 @@ public class GameLogic : MonoBehaviour
             Singleton.Instance.UIManager.ClearRoundMessage();
         }
 
+        Debug.Log("Before reveal wait in StartNextRound");
+        yield return new WaitForSeconds(1.5f);
+        Debug.Log("After reveal wait in StartNextRound");
+
         if (timer != null)
         {
+            Debug.Log("Resetting timer in StartNextRound");
             timer.ResetTimer();
+
+            Debug.Log("Starting timer in StartNextRound");
             timer.StartTimer();
         }
+        else
+        {
+            Debug.LogWarning("StartNextRound: timer is null.");
+        }
+
+        Debug.Log("StartNextRound END");
     }
 
     private float GetCurrentTimeUsed()
@@ -4145,5 +4189,84 @@ List<SimPlacedTile> newPlacedTiles)
         }
 
         return true;
+    }
+    private LetterPosition GetPopupAnchorPosition(RoundMove move)
+    {
+        if (move == null || move.simulatedTiles == null || move.simulatedTiles.Count == 0)
+        {
+            Debug.LogWarning("GetPopupAnchorPosition: move or simulatedTiles is null/empty.");
+            return null;
+        }
+
+        SimPlacedTile firstValidTile = null;
+
+        foreach (SimPlacedTile simTile in move.simulatedTiles)
+        {
+            if (simTile != null && simTile.letterPosition != null)
+            {
+                firstValidTile = simTile;
+                break;
+            }
+        }
+
+        if (firstValidTile == null)
+        {
+            Debug.LogWarning("GetPopupAnchorPosition: no valid tile positions found.");
+            return null;
+        }
+
+        bool sameRow = true;
+        bool sameCol = true;
+
+        int baseRow = firstValidTile.letterPosition.RowX;
+        int baseCol = firstValidTile.letterPosition.ColY;
+
+        foreach (SimPlacedTile simTile in move.simulatedTiles)
+        {
+            if (simTile == null || simTile.letterPosition == null)
+                continue;
+
+            if (simTile.letterPosition.RowX != baseRow)
+                sameRow = false;
+
+            if (simTile.letterPosition.ColY != baseCol)
+                sameCol = false;
+        }
+
+        SimPlacedTile bestTile = firstValidTile;
+
+        foreach (SimPlacedTile simTile in move.simulatedTiles)
+        {
+            if (simTile == null || simTile.letterPosition == null)
+                continue;
+
+            if (sameRow)
+            {
+                if (simTile.letterPosition.ColY > bestTile.letterPosition.ColY)
+                    bestTile = simTile;
+            }
+            else if (sameCol)
+            {
+                if (simTile.letterPosition.RowX > bestTile.letterPosition.RowX)
+                    bestTile = simTile;
+            }
+            else
+            {
+                if (simTile.letterPosition.RowX > bestTile.letterPosition.RowX)
+                    bestTile = simTile;
+                else if (simTile.letterPosition.RowX == bestTile.letterPosition.RowX &&
+                         simTile.letterPosition.ColY > bestTile.letterPosition.ColY)
+                    bestTile = simTile;
+            }
+        }
+
+        Debug.Log(
+            "GetPopupAnchorPosition selected RowX=" + bestTile.letterPosition.RowX +
+            ", ColY=" + bestTile.letterPosition.ColY +
+            ", sameRow=" + sameRow +
+            ", sameCol=" + sameCol
+        );
+
+        return bestTile.letterPosition;
     }
 }
