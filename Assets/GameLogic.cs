@@ -1252,7 +1252,7 @@ public class GameLogic : MonoBehaviour
                 }
                 else
                 {
-                    StartNextRound();
+                    StartCoroutine(StartNextRound());
                 }
 
                 Debug.Log("Applied winning move. Checked for game over.");
