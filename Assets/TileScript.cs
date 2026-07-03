@@ -13,9 +13,10 @@ public class TileScript : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDr
 
     private Vector3 origin;
     private bool snapTileBack;
-    
     private Transform originalParent;
     private Vector3 dragOffset;
+
+    [SerializeField] private bool isLockedOnBoard = false;
 
     public void InitTile(LetterInfo tileInfo)
     {
@@ -24,13 +25,20 @@ public class TileScript : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDr
         textPoints.text = placedTile.letterInfo.points.ToString();
     }
 
+    public void SetLockedOnBoard(bool locked)
+    {
+        isLockedOnBoard = locked;
+    }
+
     public void OnBeginDrag(PointerEventData eventData)
     {
+        if (isLockedOnBoard)
+            return;
+
         background.raycastTarget = false;
         origin = transform.position;
         originalParent = transform.parent;
 
-        // Calculate dragging offset in screen space to prevent sudden pivot snapping
         dragOffset = transform.position - (Vector3)eventData.position;
 
         Singleton.Instance.DropManager.isCurrentlyDragging = true;
@@ -38,7 +46,6 @@ public class TileScript : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDr
 
         snapTileBack = Singleton.Instance.DropManager.RemovedPlacedTile(placedTile);
 
-        // Move to topmost canvas so it floats above all other UI elements and is free from layout group constraints
         Canvas canvas = GetComponentInParent<Canvas>();
         if (canvas != null)
         {
@@ -49,11 +56,17 @@ public class TileScript : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDr
 
     public void OnDrag(PointerEventData eventData)
     {
+        if (isLockedOnBoard)
+            return;
+
         transform.position = (Vector3)eventData.position + dragOffset;
     }
 
     public void OnEndDrag(PointerEventData eventData)
     {
+        if (isLockedOnBoard)
+            return;
+
         background.raycastTarget = true;
         Singleton.Instance.DropManager.isCurrentlyDragging = false;
 
@@ -61,7 +74,6 @@ public class TileScript : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDr
 
         if (targetLocation == null)
         {
-            // Return to original parent inside hand/board
             transform.SetParent(originalParent);
             transform.position = origin;
 
@@ -79,7 +91,6 @@ public class TileScript : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDr
         foreach (Transform child in targetLocation.transform)
         {
             TileScript childTile = child.GetComponent<TileScript>();
-
             if (childTile != null && childTile != this)
             {
                 existingTile = childTile;
@@ -89,7 +100,6 @@ public class TileScript : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDr
 
         if (existingTile != null)
         {
-            // Return to original parent inside hand/board
             transform.SetParent(originalParent);
             transform.position = origin;
 
@@ -103,7 +113,6 @@ public class TileScript : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDr
             return;
         }
 
-        // Reset target location visuals before clearing it
         targetLocation.ResetVisuals();
 
         placedTile.letterPosition = targetLocation.letterPosition;

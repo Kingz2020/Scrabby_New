@@ -128,6 +128,7 @@ public class UIManager : MonoBehaviour
                 if (tileScript != null)
                 {
                     tileScript.InitTile(tileInfo);
+                    tileScript.SetLockedOnBoard(true);
                 }
 
                 PlacedTile placedTile = tempTile.GetComponent<PlacedTile>();
@@ -146,7 +147,6 @@ public class UIManager : MonoBehaviour
             letterPosition.RowX + ", col " + letterPosition.ColY
         );
     }
-
     private GhostTile FindGhostTileByLetterPosition(LetterPosition letterPosition)
     {
         if (letterPosition == null || gameBoard == null)
