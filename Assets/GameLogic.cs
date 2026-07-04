@@ -4260,6 +4260,7 @@ List<SimPlacedTile> newPlacedTiles)
 
         GenerateLeftPart(
             anchor,
+            anchor.col,
             aiGaddagLexicon.Root,
             rack,
             leftLimit,
@@ -4288,6 +4289,7 @@ List<SimPlacedTile> newPlacedTiles)
 
     private void GenerateLeftPart(
     AnchorSquare anchor,
+    int col,
     GaddagNode node,
     List<LetterInfo> rack,
     int limit,
@@ -4298,49 +4300,90 @@ List<SimPlacedTile> newPlacedTiles)
         if (node == null || node.edges == null || state == null || rack == null)
             return;
 
-        if (node.edges.TryGetValue(GaddagLexicon.Separator, out var sepNode))
-        {
-            GenerateRightPart(
-                state.anchorRow,
-                state.leftMostCol,
-                sepNode,
-                rack,
-                state,
-                ref bestMove,
-                ref candidateCount);
-        }
-
-        if (limit <= 0)
+        if (col < 1)
             return;
 
-        int nextCol = state.leftMostCol - 1;
-        if (!IsInBounds(state.anchorRow, nextCol) || validatedBoardTiles[state.anchorRow, nextCol] != null)
-            return;
-
-        foreach (var edge in node.edges)
+        // 1. If this square is empty
+        if (validatedBoardTiles[state.anchorRow, col] == null)
         {
-            char c = edge.Key;
-            if (c == GaddagLexicon.Separator)
-                continue;
-
-            LetterInfo tile = RemoveRackTile(rack, c);
-            if (tile == null)
-                continue;
-
-            state.placedTiles.Add(new SimPlacedTile
+            // A. Check if path has Separator
+            if (node.edges.TryGetValue(GaddagLexicon.Separator, out var sepNode))
             {
-                letterInfo = tile,
-                letterPosition = new LetterPosition(state.anchorRow, nextCol)
-            });
+                GenerateRightPart(
+                    state.anchorRow,
+                    anchor.col + 1,
+                    sepNode,
+                    rack,
+                    state,
+                    ref bestMove,
+                    ref candidateCount);
+            }
 
-            int oldLeftMost = state.leftMostCol;
-            state.leftMostCol = nextCol;
+            // B. Go left if limit allows
+            bool canGoLeft = (col == anchor.col) || (limit > 0);
 
-            GenerateLeftPart(anchor, edge.Value, rack, limit - 1, state, ref bestMove, ref candidateCount);
+            if (canGoLeft)
+            {
+                int nextLimit = (col == anchor.col) ? limit : (limit - 1);
 
-            state.leftMostCol = oldLeftMost;
-            state.placedTiles.RemoveAt(state.placedTiles.Count - 1);
-            rack.Add(tile);
+                foreach (var edge in node.edges)
+                {
+                    char c = edge.Key;
+                    if (c == GaddagLexicon.Separator)
+                        continue;
+
+                    LetterInfo tile = RemoveRackTile(rack, c);
+                    if (tile == null)
+                        continue;
+
+                    if (!PassCrossCheck(state.anchorRow, col, c))
+                    {
+                        rack.Add(tile);
+                        continue;
+                    }
+
+                    state.placedTiles.Add(new SimPlacedTile
+                    {
+                        letterInfo = tile,
+                        letterPosition = new LetterPosition(state.anchorRow, col)
+                    });
+
+                    GenerateLeftPart(
+                        anchor,
+                        col - 1,
+                        edge.Value,
+                        rack,
+                        nextLimit,
+                        state,
+                        ref bestMove,
+                        ref candidateCount);
+
+                    state.placedTiles.RemoveAt(state.placedTiles.Count - 1);
+                    rack.Add(tile);
+                }
+            }
+        }
+        // 2. If this square is occupied on the board
+        else
+        {
+            var boardTile = validatedBoardTiles[state.anchorRow, col];
+            if (boardTile != null && !string.IsNullOrEmpty(boardTile.letter))
+            {
+                char boardChar = char.ToUpper(boardTile.letter[0]);
+
+                if (node.edges.TryGetValue(boardChar, out var nextNode))
+                {
+                    GenerateLeftPart(
+                        anchor,
+                        col - 1,
+                        nextNode,
+                        rack,
+                        limit,
+                        state,
+                        ref bestMove,
+                        ref candidateCount);
+                }
+            }
         }
     }
 
@@ -4383,64 +4426,94 @@ List<SimPlacedTile> newPlacedTiles)
         if (node == null || node.edges == null || state == null || rack == null)
             return;
 
-        // 1. word completion
-        if (node.isTerminal)
+        if (col > boardSizeY)
         {
-            RoundMove move = BuildMove(state);
-
-            if (move != null)
+            if (node.isTerminal)
             {
-                candidateCount++;
-                if (bestMove == null || IsBetterAIMove(move, bestMove))
+                RoundMove move = BuildMove(state);
+                if (move != null)
                 {
-                    bestMove = move;
+                    candidateCount++;
+                    if (bestMove == null || IsBetterAIMove(move, bestMove))
+                    {
+                        bestMove = move;
+                    }
                 }
             }
-        }
-
-        // 2. board continuation
-        if (IsInBounds(row, col) &&
-            validatedBoardTiles[row, col] != null &&
-            !string.IsNullOrEmpty(validatedBoardTiles[row, col].letter))
-        {
-            char boardChar = char.ToUpper(validatedBoardTiles[row, col].letter[0]);
-
-            if (node.edges.TryGetValue(boardChar, out var next))
-            {
-                GenerateRightPart(row, col + 1, next, rack, state, ref bestMove, ref candidateCount);
-            }
-
             return;
         }
 
-        // 3. empty square → try rack letters
-        foreach (var edge in node.edges)
+        // 1. If this square is empty
+        if (validatedBoardTiles[row, col] == null)
         {
-            char c = edge.Key;
-
-            if (c == GaddagLexicon.Separator)
-                continue;
-
-            LetterInfo tile = RemoveRackTile(rack, c);
-            if (tile == null)
-                continue;
-
-            if (!PassCrossCheck(row, col, c))
+            if (node.isTerminal)
             {
-                rack.Add(tile);
-                continue;
+                RoundMove move = BuildMove(state);
+                if (move != null)
+                {
+                    candidateCount++;
+                    if (bestMove == null || IsBetterAIMove(move, bestMove))
+                    {
+                        bestMove = move;
+                    }
+                }
             }
 
-            state.placedTiles.Add(new SimPlacedTile
+            foreach (var edge in node.edges)
             {
-                letterInfo = tile,
-                letterPosition = new LetterPosition(row, col)
-            });
+                char c = edge.Key;
+                if (c == GaddagLexicon.Separator)
+                    continue;
 
-            GenerateRightPart(row, col + 1, edge.Value, rack, state, ref bestMove, ref candidateCount);
+                LetterInfo tile = RemoveRackTile(rack, c);
+                if (tile == null)
+                    continue;
 
-            state.placedTiles.RemoveAt(state.placedTiles.Count - 1);
-            rack.Add(tile);
+                if (!PassCrossCheck(row, col, c))
+                {
+                    rack.Add(tile);
+                    continue;
+                }
+
+                state.placedTiles.Add(new SimPlacedTile
+                {
+                    letterInfo = tile,
+                    letterPosition = new LetterPosition(row, col)
+                });
+
+                GenerateRightPart(
+                    row,
+                    col + 1,
+                    edge.Value,
+                    rack,
+                    state,
+                    ref bestMove,
+                    ref candidateCount);
+
+                state.placedTiles.RemoveAt(state.placedTiles.Count - 1);
+                rack.Add(tile);
+            }
+        }
+        // 2. If this square is occupied on the board
+        else
+        {
+            var boardTile = validatedBoardTiles[row, col];
+            if (boardTile != null && !string.IsNullOrEmpty(boardTile.letter))
+            {
+                char boardChar = char.ToUpper(boardTile.letter[0]);
+
+                if (node.edges.TryGetValue(boardChar, out var nextNode))
+                {
+                    GenerateRightPart(
+                        row,
+                        col + 1,
+                        nextNode,
+                        rack,
+                        state,
+                        ref bestMove,
+                        ref candidateCount);
+                }
+            }
         }
     }
 
