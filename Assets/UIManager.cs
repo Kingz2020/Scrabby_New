@@ -357,7 +357,7 @@ public class UIManager : MonoBehaviour
             else
             {
                 // Bright yellow color for tentative, unvalidated player move
-                popupText.color = new Color32(255, 220, 0, 255);
+                popupText.color = new Color32(0, 0, 0, 255);
             }
             
             popupText.alignment = TextAlignmentOptions.Center;
