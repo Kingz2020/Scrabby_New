@@ -5,8 +5,8 @@ public class ValidatedScorePopup : MonoBehaviour
 {
     [SerializeField] private CanvasGroup canvasGroup;
     [SerializeField] private RectTransform rectTransform;
-    [SerializeField] private Vector2 floatOffset = new Vector2(60f, 60f);
-    [SerializeField] private float fadeDuration = 0.75f;
+    public Vector2 floatOffset = new Vector2(40f, 40f);
+    public float fadeDuration = 1.5f;
 
     public void Play(float lifetime)
     {

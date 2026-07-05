@@ -179,10 +179,28 @@ public class UIManager : MonoBehaviour
 
         Debug.Log("letterPosition row=" + letterPosition.RowX + " col=" + letterPosition.ColY + " score=" + score);
 
+        // Fallback for unassigned prefab
+        if (validatedScorePopupPrefab == null)
+        {
+#if UNITY_EDITOR
+            validatedScorePopupPrefab = UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>("Assets/ValidatedScorePopup.prefab");
+#endif
+        }
+
         if (validatedScorePopupPrefab == null)
         {
             Debug.LogWarning("ShowValidatedWordScore missing validatedScorePopupPrefab reference.");
             return;
+        }
+
+        // Fallback for unassigned canvas rect
+        if (overlayCanvasRect == null)
+        {
+            Canvas canvas = FindAnyObjectByType<Canvas>();
+            if (canvas != null)
+            {
+                overlayCanvasRect = canvas.GetComponent<RectTransform>();
+            }
         }
 
         if (overlayCanvasRect == null)
@@ -206,76 +224,164 @@ public class UIManager : MonoBehaviour
 
         GameObject popup = Instantiate(validatedScorePopupPrefab, overlayCanvasRect);
         Debug.Log("Popup instantiated: " + popup.name);
-        Debug.Log("Popup parent: " + popup.transform.parent.name);
 
         RectTransform popupRect = popup.GetComponent<RectTransform>();
-        if (popupRect == null)
+        Transform imgChild = popup.transform.Find("Image");
+
+        if (popupRect == null || imgChild == null)
         {
-            Debug.LogWarning("Validated score popup prefab is missing RectTransform.");
+            Debug.LogWarning("Popup does not have the expected RectTransform or 'Image' child.");
             Destroy(popup);
             return;
         }
 
         popupRect.localScale = Vector3.one;
-        popupRect.position = ghostTile.transform.position + (Vector3)validatedScorePopupOffset;
 
-        Debug.Log("Popup position set to: " + popupRect.position);
-        Debug.Log("Popup localPosition after set: " + popupRect.localPosition);
-        Debug.Log("Popup anchoredPosition after set: " + popupRect.anchoredPosition);
-        Debug.Log("Popup localScale after set: " + popupRect.localScale);
-
-        TextMeshProUGUI popupText = popup.GetComponentInChildren<TextMeshProUGUI>(true);
-        if (popupText != null)
+        // Position the root popup exactly on the bottom-right corner of the tile in world space
+        Vector3[] corners = new Vector3[4];
+        RectTransform ghostRect = ghostTile.GetComponent<RectTransform>();
+        if (ghostRect != null)
         {
-            popupText.gameObject.SetActive(true);
-            popupText.text = "+" + score;
-            popupText.fontSize = 80;
-            popupText.color = Color.black;
-
-            RectTransform textRect = popupText.GetComponent<RectTransform>();
-            if (textRect != null)
-            {
-                textRect.anchorMin = new Vector2(0.5f, 0.5f);
-                textRect.anchorMax = new Vector2(0.5f, 0.5f);
-                textRect.pivot = new Vector2(0.5f, 0.5f);
-                textRect.anchoredPosition = Vector2.zero;
-                textRect.sizeDelta = new Vector2(200f, 100f);
-
-                Debug.Log("Popup text rect size: " + textRect.sizeDelta);
-                Debug.Log("Popup text anchoredPosition: " + textRect.anchoredPosition);
-            }
-
-            Debug.Log("Popup text set to: " + popupText.text);
-            Debug.Log("Popup text color: " + popupText.color);
-            Debug.Log("Popup text font size: " + popupText.fontSize);
-            Debug.Log("Popup text activeSelf: " + popupText.gameObject.activeSelf);
-            Debug.Log("Popup text activeInHierarchy: " + popupText.gameObject.activeInHierarchy);
+            ghostRect.GetWorldCorners(corners);
+            popupRect.position = corners[3]; // corners[3] is bottom-right corner in world space!
         }
         else
         {
-            Debug.LogWarning("Validated score popup prefab is missing TextMeshProUGUI in children.");
+            popupRect.position = ghostTile.transform.position;
+        }
+
+        // Sizing the popup container to be very large (400x250) so the massive 104f font has plenty of space and won't clip
+        popupRect.sizeDelta = new Vector2(400f, 250f);
+
+        float tileWidth = ghostRect != null ? ghostRect.sizeDelta.x : 100f;
+        float tileHeight = ghostRect != null ? ghostRect.sizeDelta.y : 100f;
+
+        // Make the background a beautifully sized circular/square score badge (60% of tile size)
+        float badgeSize = Mathf.Min(tileWidth, tileHeight) * 0.60f;
+        
+        RectTransform imgRt = imgChild.GetComponent<RectTransform>();
+        if (imgRt != null)
+        {
+            imgRt.anchorMin = new Vector2(0.5f, 0.5f);
+            imgRt.anchorMax = new Vector2(0.5f, 0.5f);
+            imgRt.pivot = new Vector2(0.5f, 0.5f);
+            imgRt.anchoredPosition = Vector2.zero; // Perfectly centered inside the popup container
+            imgRt.sizeDelta = new Vector2(badgeSize, badgeSize);
+            imgRt.localScale = Vector3.one;
+        }
+
+        // Configure the background image on imgChild
+        UnityEngine.UI.Image imgComp = imgChild.GetComponent<UnityEngine.UI.Image>();
+        if (imgComp == null)
+        {
+            imgComp = imgChild.gameObject.AddComponent<UnityEngine.UI.Image>();
+        }
+
+        if (imgComp != null)
+        {
+            // Solid high-contrast bright golden yellow/orange tile color
+            imgComp.color = new Color(0.95f, 0.75f, 0.15f, 1f);
+            imgComp.raycastTarget = false;
+        }
+
+        // Add a clean dark outline around the badge background so it pops out clearly
+        UnityEngine.UI.Outline shapeOutline = imgChild.GetComponent<UnityEngine.UI.Outline>();
+        if (shapeOutline == null)
+        {
+            shapeOutline = imgChild.gameObject.AddComponent<UnityEngine.UI.Outline>();
+        }
+        shapeOutline.effectColor = new Color(0.1f, 0.1f, 0.1f, 0.9f);
+        shapeOutline.effectDistance = new Vector2(1.5f, -1.5f);
+
+        // Configure the text component (disable the parent TextMeshProUGUI and create a child TextMeshProUGUI as a sibling to the image)
+        TextMeshProUGUI rootText = popup.GetComponent<TextMeshProUGUI>();
+        TMP_FontAsset fontAsset = null;
+        Material fontMaterial = null;
+        if (rootText != null)
+        {
+            fontAsset = rootText.font;
+            fontMaterial = rootText.fontSharedMaterial;
+            rootText.enabled = false; // Disable parent text renderer so it doesn't render behind the image
+        }
+
+        // Create a new TextMeshProUGUI child under the root popup so it is guaranteed to draw ON TOP of the background (Sibling Index Order)
+        GameObject textGo = new GameObject("BadgeText");
+        textGo.transform.SetParent(popup.transform, false);
+        textGo.transform.SetAsLastSibling(); // Render last = render on top!
+
+        RectTransform textRt = textGo.AddComponent<RectTransform>();
+        if (textRt != null)
+        {
+            textRt.anchorMin = Vector2.zero;
+            textRt.anchorMax = Vector2.one;
+            textRt.pivot = new Vector2(0.5f, 0.5f);
+            textRt.offsetMin = Vector2.zero;
+            textRt.offsetMax = Vector2.zero;
+            textRt.anchoredPosition = Vector2.zero;
+        }
+
+        TextMeshProUGUI popupText = textGo.AddComponent<TextMeshProUGUI>();
+        if (popupText != null)
+        {
+            if (fontAsset != null)
+            {
+                popupText.font = fontAsset;
+            }
+            if (fontMaterial != null)
+            {
+                popupText.fontSharedMaterial = fontMaterial;
+            }
+
+            popupText.gameObject.SetActive(true);
+            
+            // Set the clean text score directly
+            popupText.text = "+" + score;
+            
+            // Set font size to exactly 104f (which is twice the lettering size of the tiles, 52 * 2 = 104)
+            popupText.fontSize = 104f; 
+            popupText.fontStyle = FontStyles.Bold;
+            
+            // Bright, highly visible positive dark/forest green color so it feels like a winning score!
+            popupText.color = new Color32(0, 180, 40, 255); 
+            popupText.alignment = TextAlignmentOptions.Center;
+            
+            popupText.enableAutoSizing = false; // Disable auto-sizing so it stays exactly at the massive 104f font size
+            popupText.textWrappingMode = TextWrappingModes.NoWrap;
+            popupText.overflowMode = TextOverflowModes.Overflow;
+
+            // Use TextMeshPro's native high-quality shader outlines to add a strong black outer border to keep it super legible!
+            popupText.outlineColor = new Color32(0, 0, 0, 255); // Solid black outline
+            popupText.outlineWidth = 0.25f; // Strong, highly visible border thickness
+
+            Debug.Log("Popup text set to: " + popupText.text);
+        }
+        else
+        {
+            Debug.LogWarning("Failed to create child TextMeshProUGUI on badge.");
         }
 
         CanvasGroup popupCanvasGroup = popup.GetComponent<CanvasGroup>();
-        if (popupCanvasGroup != null)
+        if (popupCanvasGroup == null)
         {
-            Debug.Log("Popup CanvasGroup alpha at spawn: " + popupCanvasGroup.alpha);
+            popupCanvasGroup = popup.AddComponent<CanvasGroup>();
         }
-        else
-        {
-            Debug.LogWarning("Validated score popup prefab is missing CanvasGroup.");
-        }
+        popupCanvasGroup.alpha = 1f;
 
+        // Run the fade animation on the root container
         ValidatedScorePopup popupScript = popup.GetComponent<ValidatedScorePopup>();
         if (popupScript != null)
         {
-            Debug.Log("Playing popup animation for lifetime: " + validatedScorePopupLifetime);
-            popupScript.Play(validatedScorePopupLifetime);
+            float slowLifetime = 4.0f; // Remains on screen for 4 full seconds
+            popupScript.floatOffset = new Vector2(30f, 60f); // Float gently upwards
+            popupScript.fadeDuration = 2.0f; // Remain fully solid for the first 2 seconds, then slowly fade out over the last 2 seconds
+
+            Debug.Log("Playing popup animation for lifetime: " + slowLifetime);
+            popupScript.Play(slowLifetime);
         }
         else
         {
             Debug.LogWarning("ValidatedScorePopup script not found on popup. Destroying after lifetime only.");
-            Destroy(popup, validatedScorePopupLifetime);
+            Destroy(popup, 4.0f);
         }
     }
 

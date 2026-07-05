@@ -1561,6 +1561,9 @@ public class GameLogic : MonoBehaviour
     {
         Debug.Log("StartNextRound START");
 
+        // Wait 1.5 seconds for the validated word score popup to display and fully fade out
+        yield return new WaitForSeconds(1.5f);
+
         roundFlowActive = false;
         roundRevealStep = 0;
         pendingPlayerMove = null;
@@ -4154,75 +4157,81 @@ List<SimPlacedTile> newPlacedTiles)
             return null;
         }
 
-        SimPlacedTile firstValidTile = null;
+        TilePlacement orientation = InferMoveOrientationFromSimTiles(move.simulatedTiles);
 
-        foreach (SimPlacedTile simTile in move.simulatedTiles)
+        // Since the move has already been applied, the word's letters are in validatedBoardTiles.
+        // We find the bottom-rightmost tile of the entire word on the board.
+        int anyRow = move.simulatedTiles[0].letterPosition.RowX;
+        int anyCol = move.simulatedTiles[0].letterPosition.ColY;
+
+        if (orientation == TilePlacement.Horizontal)
         {
-            if (simTile != null && simTile.letterPosition != null)
+            int firstCol = GetFirstLetterIndex(TilePlacement.Horizontal, validatedBoardTiles, anyRow, anyCol);
+            int maxCol = firstCol;
+            while (maxCol < boardSizeY && validatedBoardTiles[anyRow, maxCol + 1] != null)
             {
-                firstValidTile = simTile;
-                break;
+                maxCol++;
             }
+            return new LetterPosition(anyRow, maxCol);
         }
-
-        if (firstValidTile == null)
+        else if (orientation == TilePlacement.Vertical)
         {
-            Debug.LogWarning("GetPopupAnchorPosition: no valid tile positions found.");
-            return null;
+            int firstRow = GetFirstLetterIndex(TilePlacement.Vertical, validatedBoardTiles, anyRow, anyCol);
+            int maxRow = firstRow;
+            while (maxRow < boardSizeX && validatedBoardTiles[maxRow + 1, anyCol] != null)
+            {
+                maxRow++;
+            }
+            return new LetterPosition(maxRow, anyCol);
+        }
+        else if (orientation == TilePlacement.SingleTile)
+        {
+            bool hasVertical =
+                (anyRow > 1 && validatedBoardTiles[anyRow - 1, anyCol] != null) ||
+                (anyRow < boardSizeX && validatedBoardTiles[anyRow + 1, anyCol] != null);
+
+            if (hasVertical)
+            {
+                int firstRow = GetFirstLetterIndex(TilePlacement.Vertical, validatedBoardTiles, anyRow, anyCol);
+                int maxRow = firstRow;
+                while (maxRow < boardSizeX && validatedBoardTiles[maxRow + 1, anyCol] != null)
+                {
+                    maxRow++;
+                }
+                return new LetterPosition(maxRow, anyCol);
+            }
+
+            bool hasHorizontal =
+                (anyCol > 1 && validatedBoardTiles[anyRow, anyCol - 1] != null) ||
+                (anyCol < boardSizeY && validatedBoardTiles[anyRow, anyCol + 1] != null);
+
+            if (hasHorizontal)
+            {
+                int firstCol = GetFirstLetterIndex(TilePlacement.Horizontal, validatedBoardTiles, anyRow, anyCol);
+                int maxCol = firstCol;
+                while (maxCol < boardSizeY && validatedBoardTiles[anyRow, maxCol + 1] != null)
+                {
+                    maxCol++;
+                }
+                return new LetterPosition(anyRow, maxCol);
+            }
+
+            return move.simulatedTiles[0].letterPosition;
         }
 
-        bool sameRow = true;
-        bool sameCol = true;
-
-        int baseRow = firstValidTile.letterPosition.RowX;
-        int baseCol = firstValidTile.letterPosition.ColY;
-
+        // Fallback
+        SimPlacedTile bestTile = move.simulatedTiles[0];
         foreach (SimPlacedTile simTile in move.simulatedTiles)
         {
             if (simTile == null || simTile.letterPosition == null)
                 continue;
 
-            if (simTile.letterPosition.RowX != baseRow)
-                sameRow = false;
-
-            if (simTile.letterPosition.ColY != baseCol)
-                sameCol = false;
+            if (simTile.letterPosition.RowX > bestTile.letterPosition.RowX)
+                bestTile = simTile;
+            else if (simTile.letterPosition.RowX == bestTile.letterPosition.RowX &&
+                     simTile.letterPosition.ColY > bestTile.letterPosition.ColY)
+                bestTile = simTile;
         }
-
-        SimPlacedTile bestTile = firstValidTile;
-
-        foreach (SimPlacedTile simTile in move.simulatedTiles)
-        {
-            if (simTile == null || simTile.letterPosition == null)
-                continue;
-
-            if (sameRow)
-            {
-                if (simTile.letterPosition.ColY > bestTile.letterPosition.ColY)
-                    bestTile = simTile;
-            }
-            else if (sameCol)
-            {
-                if (simTile.letterPosition.RowX > bestTile.letterPosition.RowX)
-                    bestTile = simTile;
-            }
-            else
-            {
-                if (simTile.letterPosition.RowX > bestTile.letterPosition.RowX)
-                    bestTile = simTile;
-                else if (simTile.letterPosition.RowX == bestTile.letterPosition.RowX &&
-                         simTile.letterPosition.ColY > bestTile.letterPosition.ColY)
-                    bestTile = simTile;
-            }
-        }
-
-        Debug.Log(
-            "GetPopupAnchorPosition selected RowX=" + bestTile.letterPosition.RowX +
-            ", ColY=" + bestTile.letterPosition.ColY +
-            ", sameRow=" + sameRow +
-            ", sameCol=" + sameCol
-        );
-
         return bestTile.letterPosition;
     }
 
