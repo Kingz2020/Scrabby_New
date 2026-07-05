@@ -289,30 +289,27 @@ public class GameLogic : MonoBehaviour
 
         yield return StartCoroutine(RefillPlayerHandAnimated(2f));
         ResetDisplay();
+
+        yield return null; // lets the frame render fully before expensive rack validation
+
+        yield return StartCoroutine(EnsurePlayableInitialRack(0f));
+        ResetDisplay();
+
         SaveCurrentRoundSnapshot();
 
         if (Singleton.Instance != null && Singleton.Instance.UIManager != null)
             Singleton.Instance.UIManager.ClearRoundMessage();
 
-        Debug.Log("Before reveal wait in StartRound");
         yield return new WaitForSeconds(1.5f);
-        Debug.Log("After reveal wait in StartRound");
 
         if (timer != null)
         {
-            Debug.Log("Resetting timer in StartRound");
             timer.ResetTimer();
-            Debug.Log("Starting timer in StartRound");
             timer.StartTimer();
-        }
-        else
-        {
-            Debug.LogWarning("StartRound: timer is null.");
         }
 
         Debug.Log("StartRound END");
     }
-
     public int GetMaxHandSize()
     {
         return maxHandSize;
@@ -5191,5 +5188,110 @@ private string BuildWordString(List<LetterInfo> wordTiles)
         }
 
         Debug.Log("RefillPlayerHandAnimated END");
+    }
+    private bool InitialRackHasPlayableWord()
+    {
+        if (playerHandTiles == null || playerHandTiles.Count == 0 || scrabbleWords == null || scrabbleWords.Count == 0)
+            return false;
+
+        Dictionary<char, int> rackCounts = new Dictionary<char, int>();
+
+        for (int i = 0; i < playerHandTiles.Count; i++)
+        {
+            LetterInfo tile = playerHandTiles[i];
+            if (tile == null || string.IsNullOrEmpty(tile.letter))
+                continue;
+
+            char c = char.ToUpper(tile.letter[0]);
+
+            if (!rackCounts.ContainsKey(c))
+                rackCounts[c] = 0;
+
+            rackCounts[c]++;
+        }
+
+        for (int i = 0; i < scrabbleWords.Count; i++)
+        {
+            string word = scrabbleWords[i];
+            if (string.IsNullOrWhiteSpace(word))
+                continue;
+
+            word = word.Trim().ToUpper();
+
+            if (word.Length < 2 || word.Length > playerHandTiles.Count)
+                continue;
+
+            if (CanBuildWordFromRackCounts(word, rackCounts))
+                return true;
+        }
+
+        return false;
+    }
+
+    private IEnumerator EnsurePlayableInitialRack(float refillDuration = 2f, int maxAttempts = 10)
+    {
+        int attempt = 0;
+
+        while (attempt < maxAttempts)
+        {
+            attempt++;
+
+            if (InitialRackHasPlayableWord())
+            {
+                Debug.Log("Initial rack is playable on attempt " + attempt);
+                yield break;
+            }
+
+            Debug.LogWarning("Initial rack had no playable word. Redrawing rack. Attempt " + attempt);
+
+            if (Singleton.Instance != null && Singleton.Instance.UIManager != null)
+                Singleton.Instance.UIManager.RemoveAllHandTiles();
+
+            if (playerHandTiles != null)
+            {
+                foreach (LetterInfo tile in playerHandTiles)
+                {
+                    if (tile != null)
+                        AddLetterToBag(tile);
+                }
+
+                playerHandTiles.Clear();
+            }
+
+            yield return StartCoroutine(RefillPlayerHandAnimated(refillDuration));
+            ResetDisplay();
+        }
+
+        Debug.LogWarning("EnsurePlayableInitialRack reached maxAttempts. Keeping last rack.");
+    }
+    private void ReturnCurrentHandToTileBag()
+    {
+        if (playerHandTiles == null)
+            return;
+
+        for (int i = 0; i < playerHandTiles.Count; i++)
+        {
+            LetterInfo tile = playerHandTiles[i];
+            if (tile != null)
+                AddLetterToBag(tile);
+        }
+
+        playerHandTiles.Clear();
+
+        if (Singleton.Instance != null && Singleton.Instance.UIManager != null)
+            Singleton.Instance.UIManager.RemoveAllHandTiles();
+
+        ResetDisplay();
+    }
+    public void AddLetterToBag(LetterInfo tile)
+    {
+        if (tile == null || _tileBag == null)
+            return;
+
+        List<LetterInfo> bagLetters = _tileBag.GetLetters();
+        if (bagLetters == null)
+            return;
+
+        bagLetters.Add(tile);
     }
 }
