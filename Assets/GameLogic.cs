@@ -1065,46 +1065,7 @@ public class GameLogic : MonoBehaviour
         return boardBonusTiles;
     }
 
-    public void EndTurnSingleGuess()
-    {
-        if (!roundStarted)
-        {
-            StartCoroutine(StartRound());
-            return;
-        }
-
-        if (roundFlowActive)
-        {
-            AdvanceRoundReveal();
-            return;
-        }
-
-        if (currentState != TurnState.PlayerTurn)
-            return;
-
-        currentState = TurnState.Busy;
-        roundFlowActive = true;
-        roundRevealStep = 0;
-
-        if (timer != null)
-            timer.StopTimer();
-
-        pendingPlayerMove = EvaluatePlayerSubmission();
-        pendingAIMove = null;
-        pendingWinningMove = null;
-
-        if (pendingPlayerMove != null && pendingPlayerMove.isValid)
-        {
-            LetterPosition popupAnchor = GetPendingMoveAnchorPosition(pendingPlayerMove);
-            if (popupAnchor != null && Singleton.Instance != null && Singleton.Instance.UIManager != null)
-            {
-                Singleton.Instance.UIManager.ShowValidatedWordScore(popupAnchor, pendingPlayerMove.score, isWinningMove: false);
-            }
-        }
-
-        if (Singleton.Instance != null && Singleton.Instance.UIManager != null)
-            Singleton.Instance.UIManager.ShowRoundMessage("Press EndTurn to reveal your result.");
-    }
+    
 
     private void AdvanceRoundReveal()
     {
@@ -1236,6 +1197,7 @@ public class GameLogic : MonoBehaviour
                 break;
         }
     }
+    
 
     private RoundMove EvaluatePlayerSubmission()
     {
@@ -5103,5 +5065,73 @@ private string BuildWordString(List<LetterInfo> wordTiles)
             total += 50;
 
         return total;
+    }
+
+    public void EndTurnSingleGuess()
+    {
+        if (!roundStarted)
+        {
+            StartCoroutine(StartRound());
+            return;
+        }
+
+        if (roundFlowActive)
+            return;
+
+        if (currentState != TurnState.PlayerTurn)
+            return;
+
+        currentState = TurnState.Busy;
+        roundFlowActive = true;
+        roundRevealStep = 0;
+
+        if (timer != null)
+            timer.StopTimer();
+
+        pendingPlayerMove = EvaluatePlayerSubmission();
+        pendingAIMove = null;
+        pendingWinningMove = null;
+
+        if (pendingPlayerMove != null && pendingPlayerMove.isValid)
+        {
+            LetterPosition popupAnchor = GetPendingMoveAnchorPosition(pendingPlayerMove);
+            if (popupAnchor != null && Singleton.Instance != null && Singleton.Instance.UIManager != null)
+            {
+                Singleton.Instance.UIManager.ShowValidatedWordScore(
+                    popupAnchor,
+                    pendingPlayerMove.score,
+                    isWinningMove: false
+                );
+            }
+        }
+
+        if (Singleton.Instance != null && Singleton.Instance.UIManager != null)
+        {
+            Singleton.Instance.UIManager.ShowRoundMessage("Checking your word...");
+        }
+
+        StartCoroutine(AutoAdvanceRoundFlow());
+    }
+
+    private IEnumerator AutoAdvanceRoundFlow()
+    {
+        yield return new WaitForSeconds(0.8f);
+
+        while (roundFlowActive)
+        {
+            AdvanceRoundReveal();
+
+            if (!roundFlowActive)
+                yield break;
+
+            if (roundRevealStep >= 3)
+            {
+                yield return new WaitForSeconds(0.8f);
+                AdvanceRoundReveal();
+                yield break;
+            }
+
+            yield return new WaitForSeconds(0.8f);
+        }
     }
 }
