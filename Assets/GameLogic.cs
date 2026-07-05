@@ -287,7 +287,7 @@ public class GameLogic : MonoBehaviour
         if (Singleton.Instance != null && Singleton.Instance.UIManager != null)
             Singleton.Instance.UIManager.RemoveAllHandTiles();
 
-        RefillPlayerHand();
+        yield return StartCoroutine(RefillPlayerHandAnimated(2f));
         ResetDisplay();
         SaveCurrentRoundSnapshot();
 
@@ -302,7 +302,6 @@ public class GameLogic : MonoBehaviour
         {
             Debug.Log("Resetting timer in StartRound");
             timer.ResetTimer();
-
             Debug.Log("Starting timer in StartRound");
             timer.StartTimer();
         }
@@ -1532,7 +1531,6 @@ public class GameLogic : MonoBehaviour
     {
         Debug.Log("StartNextRound START");
 
-        // Wait 1.5 seconds for the validated word score popup to display and fully fade out
         yield return new WaitForSeconds(1.5f);
 
         roundFlowActive = false;
@@ -1540,11 +1538,9 @@ public class GameLogic : MonoBehaviour
         pendingPlayerMove = null;
         pendingAIMove = null;
         pendingWinningMove = null;
-
         aiEvaluationRunning = false;
         aiEvaluationFinished = false;
         aiBestMoveSoFar = null;
-
         currentState = TurnState.PlayerTurn;
 
         currentRoundNumber++;
@@ -1556,10 +1552,18 @@ public class GameLogic : MonoBehaviour
         PlaceBonusTilesOnBoard();
 
         float revealDelay = 0.3f;
-
         if (bonusBoardView != null)
             bonusBoardView.StartRevealBonusTiles(revealDelay);
 
+        if (Singleton.Instance != null && Singleton.Instance.UIManager != null)
+            Singleton.Instance.UIManager.RemoveAllHandTiles();
+
+        if (playerHandTiles == null)
+            playerHandTiles = new List<LetterInfo>();
+
+        playerHandTiles.Clear();
+
+        yield return StartCoroutine(RefillPlayerHandAnimated(2f));
         ResetDisplay();
         SaveCurrentRoundSnapshot();
 
@@ -1577,7 +1581,6 @@ public class GameLogic : MonoBehaviour
         {
             Debug.Log("Resetting timer in StartNextRound");
             timer.ResetTimer();
-
             Debug.Log("Starting timer in StartNextRound");
             timer.StartTimer();
         }
@@ -1588,7 +1591,6 @@ public class GameLogic : MonoBehaviour
 
         Debug.Log("StartNextRound END");
     }
-
     private float GetCurrentTimeUsed()
     {
         if (timer == null)
@@ -5133,5 +5135,61 @@ private string BuildWordString(List<LetterInfo> wordTiles)
 
             yield return new WaitForSeconds(0.8f);
         }
+    }
+    private IEnumerator RefillPlayerHandAnimated(float totalDuration = 2f)
+    {
+        Debug.Log("RefillPlayerHandAnimated START");
+
+        if (playerHandTiles == null)
+        {
+            Debug.LogError("playerHandTiles is null in RefillPlayerHandAnimated.");
+            yield break;
+        }
+
+        if (_tileBag == null)
+        {
+            Debug.LogError("_tileBag is null in RefillPlayerHandAnimated.");
+            yield break;
+        }
+
+        if (playerHandTiles.Count >= maxHandSize)
+        {
+            Debug.Log("Hand already full or overfull. No animated refill performed.");
+            yield break;
+        }
+
+        int availableInBag = _tileBag.GetLetters().Count;
+        int tilesMissing = maxHandSize - playerHandTiles.Count;
+        int tilesToDraw = Mathf.Min(tilesMissing, availableInBag);
+
+        if (tilesToDraw <= 0)
+            yield break;
+
+        float delayBetweenTiles = totalDuration / tilesToDraw;
+
+        for (int i = 0; i < tilesToDraw; i++)
+        {
+            if (playerHandTiles.Count >= maxHandSize)
+                yield break;
+
+            LetterInfo tile = _tileBag.DrawLetterTileFromBag();
+            if (tile == null)
+            {
+                Debug.LogWarning("DrawLetterTileFromBag returned null during animated refill.");
+                yield break;
+            }
+
+            playerHandTiles.Add(tile);
+
+            if (Singleton.Instance != null && Singleton.Instance.UIManager != null)
+                Singleton.Instance.UIManager.AddTileToHand(tile);
+
+            ResetDisplay();
+
+            if (i < tilesToDraw - 1)
+                yield return new WaitForSeconds(delayBetweenTiles);
+        }
+
+        Debug.Log("RefillPlayerHandAnimated END");
     }
 }
