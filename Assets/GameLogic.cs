@@ -1093,6 +1093,15 @@ public class GameLogic : MonoBehaviour
         pendingAIMove = null;
         pendingWinningMove = null;
 
+        if (pendingPlayerMove != null && pendingPlayerMove.isValid)
+        {
+            LetterPosition popupAnchor = GetPendingMoveAnchorPosition(pendingPlayerMove);
+            if (popupAnchor != null && Singleton.Instance != null && Singleton.Instance.UIManager != null)
+            {
+                Singleton.Instance.UIManager.ShowValidatedWordScore(popupAnchor, pendingPlayerMove.score, isWinningMove: false);
+            }
+        }
+
         if (Singleton.Instance != null && Singleton.Instance.UIManager != null)
             Singleton.Instance.UIManager.ShowRoundMessage("Press EndTurn to reveal your result.");
     }
@@ -4231,6 +4240,36 @@ List<SimPlacedTile> newPlacedTiles)
             else if (simTile.letterPosition.RowX == bestTile.letterPosition.RowX &&
                      simTile.letterPosition.ColY > bestTile.letterPosition.ColY)
                 bestTile = simTile;
+        }
+        return bestTile.letterPosition;
+    }
+
+
+    private LetterPosition GetPendingMoveAnchorPosition(RoundMove move)
+    {
+        if (move == null || move.simulatedTiles == null || move.simulatedTiles.Count == 0)
+        {
+            return null;
+        }
+
+        SimPlacedTile bestTile = move.simulatedTiles[0];
+        foreach (SimPlacedTile simTile in move.simulatedTiles)
+        {
+            if (simTile == null || simTile.letterPosition == null)
+                continue;
+
+            // Find bottom-rightmost tile
+            if (simTile.letterPosition.RowX > bestTile.letterPosition.RowX)
+            {
+                bestTile = simTile;
+            }
+            else if (simTile.letterPosition.RowX == bestTile.letterPosition.RowX)
+            {
+                if (simTile.letterPosition.ColY > bestTile.letterPosition.ColY)
+                {
+                    bestTile = simTile;
+                }
+            }
         }
         return bestTile.letterPosition;
     }

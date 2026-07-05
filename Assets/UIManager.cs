@@ -167,7 +167,7 @@ public class UIManager : MonoBehaviour
         return null;
     }
 
-    public void ShowValidatedWordScore(LetterPosition letterPosition, int score)
+    public void ShowValidatedWordScore(LetterPosition letterPosition, int score, bool isWinningMove = true)
     {
         Debug.Log("ShowValidatedWordScore CALLED");
 
@@ -177,7 +177,7 @@ public class UIManager : MonoBehaviour
             return;
         }
 
-        Debug.Log("letterPosition row=" + letterPosition.RowX + " col=" + letterPosition.ColY + " score=" + score);
+        Debug.Log("letterPosition row=" + letterPosition.RowX + " col=" + letterPosition.ColY + " score=" + score + " isWinningMove=" + isWinningMove);
 
         // Fallback for unassigned prefab
         if (validatedScorePopupPrefab == null)
@@ -279,8 +279,16 @@ public class UIManager : MonoBehaviour
 
         if (imgComp != null)
         {
-            // Solid high-contrast bright golden yellow/orange tile color
-            imgComp.color = new Color(0.95f, 0.75f, 0.15f, 1f);
+            if (isWinningMove)
+            {
+                // Solid high-contrast bright golden yellow/orange tile color for validated winning moves
+                imgComp.color = new Color(0.95f, 0.75f, 0.15f, 1f);
+            }
+            else
+            {
+                // Sleek, high-contrast dark slate charcoal background for tentative moves so yellow text pops out!
+                imgComp.color = new Color(0.12f, 0.12f, 0.12f, 0.95f);
+            }
             imgComp.raycastTarget = false;
         }
 
@@ -341,8 +349,17 @@ public class UIManager : MonoBehaviour
             popupText.fontSize = 104f; 
             popupText.fontStyle = FontStyles.Bold;
             
-            // Bright, highly visible positive dark/forest green color so it feels like a winning score!
-            popupText.color = new Color32(0, 180, 40, 255); 
+            if (isWinningMove)
+            {
+                // Bright, highly visible positive dark/forest green color so it feels like a winning score!
+                popupText.color = new Color32(0, 180, 40, 255); 
+            }
+            else
+            {
+                // Bright yellow color for tentative, unvalidated player move
+                popupText.color = new Color32(255, 220, 0, 255);
+            }
+            
             popupText.alignment = TextAlignmentOptions.Center;
             
             popupText.enableAutoSizing = false; // Disable auto-sizing so it stays exactly at the massive 104f font size
