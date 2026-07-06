@@ -427,7 +427,7 @@ MonoBehaviour:
   blankPrefab: {fileID: 1380289518181495519, guid: b6c072812b3b48f42b4df7a43c02b749, type: 3}
   doubleLetterPrefab: {fileID: 5775827193052392173, guid: 4bb881973c8dc3f46b0bcdbae638e7fb, type: 3}
   tripleLetterPrefab: {fileID: 3845075162815433937, guid: 297e7ecdf30633c4b8807c88a5047de0, type: 3}
-  doubleWordPrefab: {fileID: 2992042432719146504, guid: abe6eb1a0606c7f44822c0a4c14239b4, type: 3}
+  doubleWordPrefab: {fileID: 2992042432719146504, guid: b0e59d86251fb6941a5fea137055c642, type: 3}
   tripleWordPrefab: {fileID: 2280696520168307146, guid: 7f410bbdf17cc254cb7011aa934039a4, type: 3}
 --- !u!1 &124749001
 GameObject:
@@ -6704,6 +6704,10 @@ MonoBehaviour:
   humanScoreText: {fileID: 1858605108}
   aiScoreText: {fileID: 1746441066}
   roundText: {fileID: 486172163}
+  overlayCanvasRect: {fileID: 0}
+  validatedScorePopupPrefab: {fileID: 0}
+  validatedScorePopupOffset: {x: 40, y: -40}
+  validatedScorePopupLifetime: 1.5
 --- !u!1 &1664243237
 GameObject:
   m_ObjectHideFlags: 0
