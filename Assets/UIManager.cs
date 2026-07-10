@@ -31,7 +31,7 @@ public class UIManager : MonoBehaviour
 
     public void AddTileToHand(LetterInfo tileInfo)
     {
-        Debug.Log("UIManager.AddTileToHand called for " + tileInfo.letter);
+        //Debug.Log("UIManager.AddTileToHand called for " + tileInfo.letter);
         GameObject tempTile = Instantiate(basicTile);
         tempTile.transform.SetParent(handTileHolder.transform, false);
         tempTile.GetComponent<TileScript>().InitTile(tileInfo);
