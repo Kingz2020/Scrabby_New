@@ -1653,188 +1653,6 @@ public class GameLogic : MonoBehaviour
         return clone;
     }
 
-    
-
-    private RoundMove FindBestConnectedPlacement(List<LetterInfo> aiTiles, BonusTile[,] aiBonusBoard)
-    {
-        Debug.Log("===== FindBestConnectedPlacement START =====");
-
-        if (aiTiles == null || aiTiles.Count == 0)
-        {
-            Debug.LogWarning("AI has no tiles.");
-            return null;
-        }
-
-        List<string> rackLetters = new List<string>();
-        foreach (LetterInfo t in aiTiles)
-        {
-            rackLetters.Add(t.letter);
-        }
-        string rackString = string.Join(",", rackLetters.ToArray());
-        Debug.Log("FindBestConnectedPlacement: AI rack = [" + rackString + "]");
-
-        //List<string> possibleWords = FindPossibleAIWords(aiTiles);
-        List<string> possibleWords = FindPossibleAIWords_Gaddag(aiTiles);
-        Debug.Log("Connected-placement rack-only word count = " + possibleWords.Count);
-
-        List<string> boardWords = CollectExistingBoardWords();
-        Debug.Log("Existing board words count = " + boardWords.Count);
-
-        HashSet<string> uniqueWords = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        foreach (string w in possibleWords)
-        {
-            if (!string.IsNullOrEmpty(w))
-                uniqueWords.Add(w.ToUpper());
-        }
-
-        foreach (string baseWord in boardWords)
-        {
-            if (string.IsNullOrEmpty(baseWord))
-                continue;
-
-            List<string> extensions = FindExtensionsForBaseWord(baseWord, aiTiles);
-            Debug.Log(
-                "Found " + extensions.Count +
-                " extension word(s) for base word '" + baseWord + "'"
-            );
-
-            foreach (string ext in extensions)
-            {
-                if (string.IsNullOrEmpty(ext))
-                    continue;
-
-                string upperExt = ext.ToUpper();
-                if (!uniqueWords.Contains(upperExt))
-                {
-                    uniqueWords.Add(upperExt);
-                    possibleWords.Add(upperExt);
-                }
-            }
-        }
-
-        Debug.Log("Total connected-placement possible words (rack + extensions) = " + possibleWords.Count);
-
-        RoundMove bestMove = null;
-        int candidateAttempts = 0;
-        int validCandidates = 0;
-
-        for (int boardRow = 1; boardRow <= boardSizeX; boardRow++)
-        {
-            for (int boardCol = 1; boardCol <= boardSizeY; boardCol++)
-            {
-                LetterInfo anchorTile = validatedBoardTiles[boardRow, boardCol];
-                if (anchorTile == null || string.IsNullOrEmpty(anchorTile.letter))
-                    continue;
-
-                char anchorChar = char.ToUpper(anchorTile.letter[0]);
-
-                Debug.Log("Testing anchor tile '" + anchorChar + "' at [" + boardRow + "," + boardCol + "]");
-
-                foreach (string word in possibleWords)
-                {
-                    if (string.IsNullOrEmpty(word))
-                        continue;
-
-                    string upperWord = word.ToUpper();
-
-                    for (int letterIndex = 0; letterIndex < upperWord.Length; letterIndex++)
-                    {
-                        if (upperWord[letterIndex] != anchorChar)
-                            continue;
-
-                        int horizontalStartRow = boardRow;
-                        int horizontalStartCol = boardCol - letterIndex;
-
-                        if (horizontalStartCol >= 1 &&
-                            horizontalStartCol + upperWord.Length - 1 <= boardSizeY)
-                        {
-                            candidateAttempts++;
-
-                            RoundMove horizontalCandidate = TryBuildConnectedAIMove(
-                                upperWord,
-                                horizontalStartRow,
-                                horizontalStartCol,
-                                TilePlacement.Horizontal,
-                                aiTiles,
-                                aiBonusBoard
-                            );
-
-                            if (horizontalCandidate != null && horizontalCandidate.isValid)
-                            {
-                                validCandidates++;
-                                Debug.Log(
-                                    "Valid anchored H candidate => word " + horizontalCandidate.word +
-                                    ", row " + horizontalStartRow +
-                                    ", startCol " + horizontalStartCol +
-                                    ", score " + horizontalCandidate.score
-                                );
-
-                                if (bestMove == null || IsBetterAIMove(horizontalCandidate, bestMove))
-                                {
-                                    bestMove = horizontalCandidate;
-                                    Debug.Log(
-                                        "New best connected AI move => " +
-                                        bestMove.word + " score " + bestMove.score
-                                    );
-                                }
-                            }
-                        }
-
-                        int verticalStartRow = boardRow - letterIndex;
-                        int verticalStartCol = boardCol;
-
-                        if (verticalStartRow >= 1 &&
-                            verticalStartRow + upperWord.Length - 1 <= boardSizeX)
-                        {
-                            candidateAttempts++;
-
-                            RoundMove verticalCandidate = TryBuildConnectedAIMove(
-                                upperWord,
-                                verticalStartRow,
-                                verticalStartCol,
-                                TilePlacement.Vertical,
-                                aiTiles,
-                                aiBonusBoard
-                            );
-
-                            if (verticalCandidate != null && verticalCandidate.isValid)
-                            {
-                                validCandidates++;
-                                Debug.Log(
-                                    "Valid anchored V candidate => word " + verticalCandidate.word +
-                                    ", startRow " + verticalStartRow +
-                                    ", col " + verticalStartCol +
-                                    ", score " + verticalCandidate.score
-                                );
-
-                                if (bestMove == null || IsBetterAIMove(verticalCandidate, bestMove))
-                                {
-                                    bestMove = verticalCandidate;
-                                    Debug.Log(
-                                        "New best connected AI move => " +
-                                        bestMove.word + " score " + bestMove.score
-                                    );
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        Debug.Log("Connected-placement candidate attempts = " + candidateAttempts);
-        Debug.Log("Connected-placement valid candidates = " + validCandidates);
-
-        if (bestMove == null)
-            Debug.LogWarning("FindBestConnectedPlacement found no legal connected move.");
-        else
-            Debug.Log("FindBestConnectedPlacement chose word " + bestMove.word + " score " + bestMove.score);
-
-        Debug.Log("===== FindBestConnectedPlacement END =====");
-        return bestMove;
-    }
-
-    
     private RoundMove FindBestFirstTurnPlacement(string word, List<LetterInfo> aiTiles, BonusTile[,] aiBonusBoard)
     {
         //Debug.Log("=== FindBestFirstTurnPlacement START for word '" + word + "' ===");
@@ -3571,8 +3389,64 @@ List<SimPlacedTile> newPlacedTiles)
         return CanBuildWordFromTiles(word, tiles);
     }
 
+    private class BoardLineContext
+    {
+        public TilePlacement direction;
+        public int index; // 1-based row index for Horizontal, col index for Vertical
+        public int lineLength; // boardSizeY for Horizontal, boardSizeX for Vertical
+        public char[] fixedLetters; // 1-based
+        public HashSet<char>[] crossChecks; // 1-based
+        public bool[] isAnchor; // 1-based
+        public AnchorSquare[] anchorAtPos; // 1-based
+        public List<int> anchorIndices = new List<int>(); // 1-based
+    }
+
+    private bool PrefilterPlacement(
+        BoardLineContext line,
+        string word,
+        int startPos,
+        int[] rackLetters,
+        int[] neededRackScratch)
+    {
+        int L = word.Length;
+        if (startPos < 1 || startPos + L - 1 > line.lineLength)
+            return false;
+
+        System.Array.Clear(neededRackScratch, 0, 26);
+
+        for (int i = 0; i < L; i++)
+        {
+            int p = startPos + i;
+            char wChar = word[i];
+            char fChar = line.fixedLetters[p];
+
+            if (fChar != '\0')
+            {
+                if (fChar != wChar)
+                    return false;
+            }
+            else
+            {
+                var checks = line.crossChecks[p];
+                if (checks != null && checks.Count > 0 && !checks.Contains(wChar))
+                    return false;
+
+                int charIdx = wChar - 'A';
+                if (charIdx < 0 || charIdx >= 26)
+                    return false;
+
+                neededRackScratch[charIdx]++;
+                if (neededRackScratch[charIdx] > rackLetters[charIdx])
+                    return false;
+            }
+        }
+
+        return true;
+    }
+
     private List<RoundMove> FindAllConnectedCandidatesGaddag(List<LetterInfo> aiTiles, BonusTile[,] aiBonusBoard)
     {
+        System.Diagnostics.Stopwatch totalTimer = System.Diagnostics.Stopwatch.StartNew();
         Debug.Log("===== FindAllConnectedCandidatesGaddag START =====");
 
         List<RoundMove> allCandidates = new List<RoundMove>();
@@ -3597,13 +3471,17 @@ List<SimPlacedTile> newPlacedTiles)
 
         // Build frequency count of available letters from both AI rack and board
         int[] availableCounts = new int[26];
+        int[] rackLetters = new int[26];
         foreach (var tile in aiTiles)
         {
             if (tile != null && !string.IsNullOrEmpty(tile.letter))
             {
                 char c = char.ToUpper(tile.letter[0]);
                 if (c >= 'A' && c <= 'Z')
+                {
                     availableCounts[c - 'A']++;
+                    rackLetters[c - 'A']++;
+                }
             }
         }
         for (int r = 1; r <= boardSizeX; r++)
@@ -3653,42 +3531,148 @@ List<SimPlacedTile> newPlacedTiles)
         }
         Debug.Log("GADDAG Pre-filter: reduced dictionary from " + scrabbleWords.Count + " to " + filteredWords.Count + " possible words!");
 
+        // Build line-contexts for active rows and columns
+        List<BoardLineContext> horizontalLines = new List<BoardLineContext>();
+        List<BoardLineContext> verticalLines = new List<BoardLineContext>();
+
+        Dictionary<int, List<AnchorSquare>> anchorsByRow = new Dictionary<int, List<AnchorSquare>>();
+        Dictionary<int, List<AnchorSquare>> anchorsByCol = new Dictionary<int, List<AnchorSquare>>();
+
+        foreach (var anchor in anchors)
+        {
+            if (!anchorsByRow.ContainsKey(anchor.row))
+                anchorsByRow[anchor.row] = new List<AnchorSquare>();
+            anchorsByRow[anchor.row].Add(anchor);
+
+            if (!anchorsByCol.ContainsKey(anchor.col))
+                anchorsByCol[anchor.col] = new List<AnchorSquare>();
+            anchorsByCol[anchor.col].Add(anchor);
+        }
+
+        foreach (var kvp in anchorsByRow)
+        {
+            int r = kvp.Key;
+            BoardLineContext line = new BoardLineContext();
+            line.direction = TilePlacement.Horizontal;
+            line.index = r;
+            line.lineLength = boardSizeY;
+            line.fixedLetters = new char[boardSizeY + 1];
+            line.crossChecks = new HashSet<char>[boardSizeY + 1];
+            line.isAnchor = new bool[boardSizeY + 1];
+            line.anchorAtPos = new AnchorSquare[boardSizeY + 1];
+
+            for (int c = 1; c <= boardSizeY; c++)
+            {
+                var tile = validatedBoardTiles[r, c];
+                if (tile != null && !string.IsNullOrEmpty(tile.letter))
+                {
+                    line.fixedLetters[c] = char.ToUpper(tile.letter[0]);
+                }
+                else
+                {
+                    line.fixedLetters[c] = '\0';
+                }
+                line.crossChecks[c] = BuildCrossCheckSet(r, c, TilePlacement.Horizontal);
+            }
+
+            foreach (var anchor in kvp.Value)
+            {
+                line.isAnchor[anchor.col] = true;
+                line.anchorAtPos[anchor.col] = anchor;
+                line.anchorIndices.Add(anchor.col);
+            }
+
+            horizontalLines.Add(line);
+            Debug.Log($"[Line Analysis] Active Horizontal Row {r}: {line.anchorIndices.Count} anchors.");
+        }
+
+        foreach (var kvp in anchorsByCol)
+        {
+            int c = kvp.Key;
+            BoardLineContext line = new BoardLineContext();
+            line.direction = TilePlacement.Vertical;
+            line.index = c;
+            line.lineLength = boardSizeX;
+            line.fixedLetters = new char[boardSizeX + 1];
+            line.crossChecks = new HashSet<char>[boardSizeX + 1];
+            line.isAnchor = new bool[boardSizeX + 1];
+            line.anchorAtPos = new AnchorSquare[boardSizeX + 1];
+
+            for (int r = 1; r <= boardSizeX; r++)
+            {
+                var tile = validatedBoardTiles[r, c];
+                if (tile != null && !string.IsNullOrEmpty(tile.letter))
+                {
+                    line.fixedLetters[r] = char.ToUpper(tile.letter[0]);
+                }
+                else
+                {
+                    line.fixedLetters[r] = '\0';
+                }
+                line.crossChecks[r] = BuildCrossCheckSet(r, c, TilePlacement.Vertical);
+            }
+
+            foreach (var anchor in kvp.Value)
+            {
+                line.isAnchor[anchor.row] = true;
+                line.anchorAtPos[anchor.row] = anchor;
+                line.anchorIndices.Add(anchor.row);
+            }
+
+            verticalLines.Add(line);
+            Debug.Log($"[Line Analysis] Active Vertical Col {c}: {line.anchorIndices.Count} anchors.");
+        }
+
         int attempted = 0;
         int valid = 0;
         int skippedByPrefilter = 0;
         int maxAttempts = 5000;
 
-        for (int a = 0; a < anchors.Count; a++)
+        int[] neededRackScratch = new int[26];
+
+        List<BoardLineContext> allLines = new List<BoardLineContext>();
+        allLines.AddRange(horizontalLines);
+        allLines.AddRange(verticalLines);
+
+        int maxLineLength = Mathf.Max(boardSizeX, boardSizeY);
+        bool[] canStartAt = new bool[maxLineLength + 2];
+
+        foreach (var line in allLines)
         {
-            AnchorSquare anchor = anchors[a];
-
-            for (int w = 0; w < filteredWords.Count; w++)
+            foreach (string rawWord in filteredWords)
             {
-                string word = filteredWords[w];
-
-                if (string.IsNullOrWhiteSpace(word))
+                if (string.IsNullOrWhiteSpace(rawWord))
                     continue;
 
-                word = word.Trim().ToUpper();
-
+                string word = rawWord.Trim().ToUpper();
                 if (word.Length == 0)
                     continue;
 
                 if (!aiGaddagLexicon.ContainsWord(word))
                     continue;
 
-                for (int letterIndex = 0; letterIndex < word.Length; letterIndex++)
+                int L = word.Length;
+                if (L > line.lineLength)
+                    continue;
+
+                System.Array.Clear(canStartAt, 0, canStartAt.Length);
+                foreach (int a in line.anchorIndices)
                 {
-                    int horizontalStartRow = anchor.row;
-                    int horizontalStartCol = anchor.col - letterIndex;
+                    int minStart = Mathf.Max(1, a - L + 1);
+                    int maxStart = Mathf.Min(line.lineLength - L + 1, a);
+                    for (int pos = minStart; pos <= maxStart; pos++)
+                    {
+                        canStartAt[pos] = true;
+                    }
+                }
 
-                    if (!WordCanBeMadeFromRackOrBoard(
-                        word,
-                        aiTiles,
-                        validatedBoardTiles,
-                        horizontalStartRow,
-                        horizontalStartCol,
-                        TilePlacement.Horizontal))
+                int maxStartPos = line.lineLength - L + 1;
+                for (int startPos = 1; startPos <= maxStartPos; startPos++)
+                {
+                    if (!canStartAt[startPos])
+                        continue;
+
+                    if (!PrefilterPlacement(line, word, startPos, rackLetters, neededRackScratch))
                     {
                         skippedByPrefilter++;
                     }
@@ -3699,47 +3683,26 @@ List<SimPlacedTile> newPlacedTiles)
                         if (attempted > maxAttempts)
                             goto EndSearch;
 
-                        TryAddGaddagCandidate(
-                            allCandidates,
-                            seenSignatures,
-                            word,
-                            horizontalStartRow,
-                            horizontalStartCol,
-                            TilePlacement.Horizontal,
-                            anchor,
-                            aiTiles,
-                            aiBonusBoard,
-                            ref valid
-                        );
-                    }
+                        AnchorSquare anchor = null;
+                        for (int p = startPos; p < startPos + L; p++)
+                        {
+                            if (line.isAnchor[p])
+                            {
+                                anchor = line.anchorAtPos[p];
+                                break;
+                            }
+                        }
 
-                    int verticalStartRow = anchor.row - letterIndex;
-                    int verticalStartCol = anchor.col;
-
-                    if (!WordCanBeMadeFromRackOrBoard(
-                        word,
-                        aiTiles,
-                        validatedBoardTiles,
-                        verticalStartRow,
-                        verticalStartCol,
-                        TilePlacement.Vertical))
-                    {
-                        skippedByPrefilter++;
-                    }
-                    else
-                    {
-                        attempted++;
-
-                        if (attempted > maxAttempts)
-                            goto EndSearch;
+                        int startRow = (line.direction == TilePlacement.Horizontal) ? line.index : startPos;
+                        int startCol = (line.direction == TilePlacement.Horizontal) ? startPos : line.index;
 
                         TryAddGaddagCandidate(
                             allCandidates,
                             seenSignatures,
                             word,
-                            verticalStartRow,
-                            verticalStartCol,
-                            TilePlacement.Vertical,
+                            startRow,
+                            startCol,
+                            line.direction,
                             anchor,
                             aiTiles,
                             aiBonusBoard,
@@ -3751,10 +3714,12 @@ List<SimPlacedTile> newPlacedTiles)
         }
 
     EndSearch:
+        totalTimer.Stop();
         Debug.Log("FindAllConnectedCandidatesGaddag: attempted = " + attempted);
         Debug.Log("FindAllConnectedCandidatesGaddag: skippedByPrefilter = " + skippedByPrefilter);
         Debug.Log("FindAllConnectedCandidatesGaddag: valid = " + valid);
         Debug.Log("FindAllConnectedCandidatesGaddag: unique accepted = " + allCandidates.Count);
+        Debug.Log($"FindAllConnectedCandidatesGaddag: Total AI Turn duration: {totalTimer.Elapsed.TotalMilliseconds:F2} ms");
         Debug.Log("===== FindAllConnectedCandidatesGaddag END =====");
 
         return allCandidates;
@@ -4310,7 +4275,20 @@ List<SimPlacedTile> newPlacedTiles)
             return;
 
         if (col < 1)
+        {
+            if (node.edges.TryGetValue(GaddagLexicon.Separator, out var sepNode))
+            {
+                GenerateRightPart(
+                    state.anchorRow,
+                    anchor.col + 1,
+                    sepNode,
+                    rack,
+                    state,
+                    ref bestMove,
+                    ref candidateCount);
+            }
             return;
+        }
 
         // 1. If this square is empty
         if (validatedBoardTiles[state.anchorRow, col] == null)
@@ -4631,19 +4609,142 @@ List<SimPlacedTile> newPlacedTiles)
     }
     private List<string> CollectExistingBoardWords()
     {
-        // TEMP STUB
-        return new List<string>();
+        HashSet<string> words = new HashSet<string>(System.StringComparer.OrdinalIgnoreCase);
+
+        if (validatedBoardTiles == null)
+            return new List<string>();
+
+        for (int row = 1; row <= boardSizeX; row++)
+        {
+            for (int col = 1; col <= boardSizeY; col++)
+            {
+                LetterInfo tile = validatedBoardTiles[row, col];
+                if (tile == null)
+                    continue;
+
+                bool isHorizontalStart = (col == 1 || validatedBoardTiles[row, col - 1] == null) &&
+                                         (col < boardSizeY && validatedBoardTiles[row, col + 1] != null);
+
+                if (isHorizontalStart)
+                {
+                    List<LetterInfo> wordTiles = GetWordFromBoard(TilePlacement.Horizontal, validatedBoardTiles, row, col);
+                    string word = BuildWordString(wordTiles);
+                    if (!string.IsNullOrWhiteSpace(word) && word.Length > 1)
+                        words.Add(word.ToUpper());
+                }
+
+                bool isVerticalStart = (row == 1 || validatedBoardTiles[row - 1, col] == null) &&
+                                       (row < boardSizeX && validatedBoardTiles[row + 1, col] != null);
+
+                if (isVerticalStart)
+                {
+                    List<LetterInfo> wordTiles = GetWordFromBoard(TilePlacement.Vertical, validatedBoardTiles, row, col);
+                    string word = BuildWordString(wordTiles);
+                    if (!string.IsNullOrWhiteSpace(word) && word.Length > 1)
+                        words.Add(word.ToUpper());
+                }
+            }
+        }
+
+        return new List<string>(words);
     }
+
     private List<string> FindExtensionsForBaseWord(string baseWord, List<LetterInfo> aiTiles)
     {
-        // TEMP STUB
-        return new List<string>();
+        List<string> results = new List<string>();
+
+        if (string.IsNullOrWhiteSpace(baseWord) || aiTiles == null || aiTiles.Count == 0 || scrabbleWords == null)
+            return results;
+
+        string upperBase = baseWord.Trim().ToUpper();
+        HashSet<string> seen = new HashSet<string>(System.StringComparer.OrdinalIgnoreCase);
+
+        for (int i = 0; i < scrabbleWords.Count; i++)
+        {
+            string word = scrabbleWords[i];
+            if (string.IsNullOrWhiteSpace(word))
+                continue;
+
+            word = word.Trim().ToUpper();
+
+            if (word.Length <= upperBase.Length)
+                continue;
+
+            if (!word.Contains(upperBase))
+                continue;
+
+            if (!CanBuildWordFromTiles(word, aiTiles))
+                continue;
+
+            if (seen.Add(word))
+                results.Add(word);
+        }
+
+        return results;
     }
+
     private bool CanBuildWordFromTiles(string word, List<LetterInfo> tiles)
     {
-        // TEMP STUB
+        if (string.IsNullOrWhiteSpace(word))
+            return false;
+
+        Dictionary<char, int> available = new Dictionary<char, int>();
+
+        if (tiles != null)
+        {
+            for (int i = 0; i < tiles.Count; i++)
+            {
+                LetterInfo tile = tiles[i];
+                if (tile == null || string.IsNullOrEmpty(tile.letter))
+                    continue;
+
+                char c = char.ToUpper(tile.letter[0]);
+
+                if (!available.ContainsKey(c))
+                    available[c] = 0;
+
+                available[c]++;
+            }
+        }
+
+        for (int row = 1; row <= boardSizeX; row++)
+        {
+            for (int col = 1; col <= boardSizeY; col++)
+            {
+                LetterInfo boardTile = validatedBoardTiles[row, col];
+                if (boardTile == null || string.IsNullOrEmpty(boardTile.letter))
+                    continue;
+
+                char c = char.ToUpper(boardTile.letter[0]);
+
+                if (!available.ContainsKey(c))
+                    available[c] = 0;
+
+                available[c]++;
+            }
+        }
+
+        Dictionary<char, int> needed = new Dictionary<char, int>();
+
+        word = word.Trim().ToUpper();
+
+        for (int i = 0; i < word.Length; i++)
+        {
+            char c = word[i];
+
+            if (!needed.ContainsKey(c))
+                needed[c] = 0;
+
+            needed[c]++;
+
+            int have = available.ContainsKey(c) ? available[c] : 0;
+            if (needed[c] > have)
+                return false;
+        }
+
         return true;
     }
+
     private RoundMove FindBestFirstTurnPlacementGaddag(
     List<LetterInfo> rack,
     BonusTile[,] bonusBoard)
