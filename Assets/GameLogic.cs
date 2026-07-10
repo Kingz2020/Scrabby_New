@@ -3813,14 +3813,14 @@ List<SimPlacedTile> newPlacedTiles)
 
     private IEnumerator EvaluateAIMoveIncremental()
     {
+        aiEvaluationRunning = true;
+        aiEvaluationFinished = false;
+        aiBestMoveSoFar = null;
+
+        yield return null;
+
         using (EvaluateAIMoveMarker.Auto())
         {
-            aiEvaluationRunning = true;
-            aiEvaluationFinished = false;
-            aiBestMoveSoFar = null;
-
-            yield return null;
-
             if (currentRoundSnapshot == null ||
                 currentRoundSnapshot.initialTiles == null)
             {
@@ -3829,30 +3829,36 @@ List<SimPlacedTile> newPlacedTiles)
                 aiEvaluationFinished = true;
                 yield break;
             }
+        }
 
-            List<LetterInfo> aiTiles =
-                CloneTilesForAI(currentRoundSnapshot.initialTiles);
+        List<LetterInfo> aiTiles;
+        BonusTile[,] aiBonusBoard;
+        bool boardHasTiles;
 
-            BonusTile[,] aiBonusBoard =
-                CloneBonusTilesForAI(currentRoundSnapshot.initialBonusTiles);
+        using (EvaluateAIMoveMarker.Auto())
+        {
+            aiTiles = CloneTilesForAI(currentRoundSnapshot.initialTiles);
+            aiBonusBoard = CloneBonusTilesForAI(currentRoundSnapshot.initialBonusTiles);
+            boardHasTiles = HasAnyValidatedTilesOnBoard();
+        }
 
-            bool boardHasTiles = HasAnyValidatedTilesOnBoard();
-
-            if (!boardHasTiles)
+        if (!boardHasTiles)
+        {
+            using (EvaluateAIMoveMarker.Auto())
             {
-                aiBestMoveSoFar =
-                    FindBestFirstTurnPlacementGaddag(
-                        aiTiles,
-                        aiBonusBoard);
+                aiBestMoveSoFar = FindBestFirstTurnPlacementGaddag(aiTiles, aiBonusBoard);
             }
-            else
-            {
-                yield return FindBestGaddagMoveCoroutine(
-                    aiTiles,
-                    aiBonusBoard,
-                    move => aiBestMoveSoFar = move);
-            }
+        }
+        else
+        {
+            yield return FindBestGaddagMoveCoroutine(
+                aiTiles,
+                aiBonusBoard,
+                move => aiBestMoveSoFar = move);
+        }
 
+        using (EvaluateAIMoveMarker.Auto())
+        {
             if (aiBestMoveSoFar == null)
                 aiBestMoveSoFar = CreateInvalidMove();
 
