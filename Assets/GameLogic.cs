@@ -74,7 +74,8 @@ public class GameLogic : MonoBehaviour
     private TurnState currentState;
     private HashSet<string> scrabbleWordSet;
     private GaddagLexicon aiGaddagLexicon;
-    private HashSet<char>[,] precalculatedCrossChecks;
+    //private HashSet<char>[,] precalculatedCrossChecks;
+    private int[,] precalculatedCrossChecks;
     private bool aiGaddagReady = false;
     public bool enableScoreDebug = true;
     private bool aiEvaluationRunning = false;
@@ -179,10 +180,9 @@ public class GameLogic : MonoBehaviour
     {
         public int row;
         public int col;
-        public HashSet<char> horizontalCrossChecks = new HashSet<char>();
-        public HashSet<char> verticalCrossChecks = new HashSet<char>();
+        public int horizontalCrossChecks;
+        public int verticalCrossChecks;
     }
-
 
     public class GaddagNode
     {
@@ -768,7 +768,7 @@ public class GameLogic : MonoBehaviour
                     $"isNewlyPlaced={isNewlyPlaced}, row={row}, col={col}");
             }
             */
-            int letterMultiplierUsed = 1;
+            //int letterMultiplierUsed = 1;
 
             if (isNewlyPlaced && row >= 0 && col >= 0)
             {
@@ -791,11 +791,9 @@ public class GameLogic : MonoBehaviour
                         {
                             case BonusType.DoubleLetter:
                                 letterPoints *= 2;
-                                letterMultiplierUsed = 2;
                                 break;
                             case BonusType.TripleLetter:
                                 letterPoints *= 3;
-                                letterMultiplierUsed = 3;
                                 break;
                             case BonusType.DoubleWord:
                                 wordMultiplier *= 2;
@@ -2394,7 +2392,7 @@ List<SimPlacedTile> newPlacedTiles)
     }
 
    
-    private List<RoundMove> FindAllPlacementsForWord(
+    /*private List<RoundMove> FindAllPlacementsForWord(
     string word,
     List<LetterInfo> aiTiles,
     BonusTile[,] aiBonusBoard,
@@ -2463,7 +2461,8 @@ List<SimPlacedTile> newPlacedTiles)
 
         return moves;
     }
-    private void AddUniqueMoves(List<RoundMove> target, List<RoundMove> source)
+    */
+    /*private void AddUniqueMoves(List<RoundMove> target, List<RoundMove> source)
     {
         if (target == null || source == null)
             return;
@@ -2506,9 +2505,9 @@ List<SimPlacedTile> newPlacedTiles)
                 target.Add(move);
             }
         }
-    }
+    }*/
 
-    private void AddMoveIfUnique(List<RoundMove> target, RoundMove move)
+    /*private void AddMoveIfUnique(List<RoundMove> target, RoundMove move)
     {
         if (move == null || !move.isValid)
             return;
@@ -2522,9 +2521,9 @@ List<SimPlacedTile> newPlacedTiles)
         }
 
         target.Add(move);
-    }
+    }*/
 
-    private string GetMoveSignature(RoundMove move)
+    /*private string GetMoveSignature(RoundMove move)
     {
         if (move == null)
             return "NULL";
@@ -2546,8 +2545,8 @@ List<SimPlacedTile> newPlacedTiles)
         coords.Sort();
         return wordPart + "|" + string.Join(";", coords.ToArray());
     }
-
-    private int CompareAIMovesBestFirst(RoundMove a, RoundMove b)
+    */
+    /*private int CompareAIMovesBestFirst(RoundMove a, RoundMove b)
     {
         if (a == null && b == null)
             return 0;
@@ -2573,8 +2572,8 @@ List<SimPlacedTile> newPlacedTiles)
 
         return 0;
     }
-
-    private int CountWordsFormedByMove(RoundMove move)
+    */
+    /*private int CountWordsFormedByMove(RoundMove move)
     {
         if (move == null || move.simulatedTiles == null || move.simulatedTiles.Count == 0)
             return 0;
@@ -2597,7 +2596,7 @@ List<SimPlacedTile> newPlacedTiles)
         );
 
         return allWords != null ? allWords.Count : 0;
-    }
+    }*/
     private TilePlacement InferMoveOrientation(RoundMove move)
     {
         if (move == null || move.simulatedTiles == null || move.simulatedTiles.Count <= 1)
@@ -2771,7 +2770,7 @@ List<SimPlacedTile> newPlacedTiles)
         return string.Join("|", parts.ToArray());
     }
 
-    private bool MoveCreatesMultipleWords(RoundMove move)
+    /*private bool MoveCreatesMultipleWords(RoundMove move)
     {
         if (move == null || !move.isValid)
             return false;
@@ -2779,8 +2778,8 @@ List<SimPlacedTile> newPlacedTiles)
         List<string> formedWords = GetAllWordsFromMove(move);
         return formedWords.Count >= 2;
     }
-
-    private string GetMoveWordsDebugString(RoundMove move)
+    */
+    /*private string GetMoveWordsDebugString(RoundMove move)
     {
         List<string> formedWords = GetAllWordsFromMove(move);
 
@@ -2789,8 +2788,8 @@ List<SimPlacedTile> newPlacedTiles)
 
         return string.Join(",", formedWords.ToArray());
     }
-
-    private List<string> GetAllWordsFromMove(RoundMove move)
+    */
+    /*private List<string> GetAllWordsFromMove(RoundMove move)
     {
         List<string> words = new List<string>();
 
@@ -2819,8 +2818,9 @@ List<SimPlacedTile> newPlacedTiles)
         }
 
         return words;
-    }
-    private void AddWordIfMissing(List<string> list, string word)
+    }*/
+
+    /*private void AddWordIfMissing(List<string> list, string word)
     {
         if (list == null || string.IsNullOrEmpty(word))
             return;
@@ -2833,8 +2833,8 @@ List<SimPlacedTile> newPlacedTiles)
 
         list.Add(word);
     }
-
-    private string BuildWordFromSimulatedMove(RoundMove move, int boardRow, int boardCol, TilePlacement direction)
+    */
+    /*private string BuildWordFromSimulatedMove(RoundMove move, int boardRow, int boardCol, TilePlacement direction)
     {
         if (!HasTileAtForMove(move, boardRow, boardCol))
             return string.Empty;
@@ -2877,7 +2877,8 @@ List<SimPlacedTile> newPlacedTiles)
 
         return word;
     }
-
+    */
+    /*
     private bool HasTileAtForMove(RoundMove move, int boardX, int boardY)
     {
         if (GetSimulatedTileAt(move, boardX, boardY) != null)
@@ -2888,7 +2889,8 @@ List<SimPlacedTile> newPlacedTiles)
 
         return validatedBoardTiles[boardX, boardY] != null;
     }
-
+    */
+    /*
     private string GetLetterAtForMove(RoundMove move, int boardX, int boardY)
     {
         SimPlacedTile simTile = GetSimulatedTileAt(move, boardX, boardY);
@@ -2904,7 +2906,8 @@ List<SimPlacedTile> newPlacedTiles)
 
         return boardTile.letter;
     }
-
+    */
+    /*
     private SimPlacedTile GetSimulatedTileAt(RoundMove move, int boardX, int boardY)
     {
         if (move == null || move.simulatedTiles == null)
@@ -2924,7 +2927,8 @@ List<SimPlacedTile> newPlacedTiles)
         }
 
         return null;
-    }
+    }*/
+
     private void EnsureAIGaddagReady()
     {
         if (aiGaddagReady && aiGaddagLexicon != null)
@@ -2956,8 +2960,15 @@ List<SimPlacedTile> newPlacedTiles)
 
         return scrabbleWordSet != null && scrabbleWordSet.Contains(word.ToUpper());
     }
-
-    private void BuildCrossChecks(
+    private void BuildCrossChecks(List<AnchorSquare> anchors)
+    {
+        foreach (var a in anchors)
+        {
+            a.horizontalCrossChecks = BuildCrossCheckSet(a.row, a.col, TilePlacement.Horizontal);
+            a.verticalCrossChecks = BuildCrossCheckSet(a.row, a.col, TilePlacement.Vertical);
+        }
+    }
+    /*private void BuildCrossChecks(
     List<AnchorSquare> anchors)
     {
         foreach (var a in anchors)
@@ -2974,89 +2985,87 @@ List<SimPlacedTile> newPlacedTiles)
                     a.col,
                     false);
         }
-    }
-
-    private HashSet<char> BuildCrossCheck(
+    }*/
+    /*private bool[] BuildCrossCheck(
     int row,
     int col,
     bool horizontal)
     {
-        HashSet<char> legal = new();
+        bool[] legal = new bool[26];
 
         for (char c = 'A'; c <= 'Z'; c++)
         {
-            if (IsLegalCrossLetter(
-                row,
-                col,
-                c,
-                horizontal))
+            if (IsLegalCrossLetter(row, col, c, horizontal))
             {
-                legal.Add(c);
+                AllowLetter(legal, c);
             }
         }
 
         return legal;
-    }
-
-    private HashSet<char> BuildCrossCheckSet(int row, int col, TilePlacement mainPlacement)
+    }*/
+    private int BuildCrossCheckSet(int row, int col, TilePlacement mainPlacement)
     {
-        HashSet<char> result = new HashSet<char>();
-
         if (row < 1 || row > boardSizeX || col < 1 || col > boardSizeY)
-            return result;
+            return 0;
 
         if (validatedBoardTiles[row, col] != null)
-            return result;
+            return 0;
 
-        string before = "";
-        string after = "";
+        char[] beforeBuffer = new char[boardSizeX + boardSizeY];
+        char[] afterBuffer = new char[boardSizeX + boardSizeY];
+        int beforeLen = 0;
+        int afterLen = 0;
 
         if (mainPlacement == TilePlacement.Horizontal)
         {
             int scanRow = row - 1;
             while (scanRow >= 1 && validatedBoardTiles[scanRow, col] != null)
             {
-                before = validatedBoardTiles[scanRow, col].letter.ToUpper() + before;
+                beforeBuffer[beforeLen++] = char.ToUpperInvariant(validatedBoardTiles[scanRow, col].letter[0]);
                 scanRow--;
             }
+
+            Array.Reverse(beforeBuffer, 0, beforeLen);
 
             scanRow = row + 1;
             while (scanRow <= boardSizeX && validatedBoardTiles[scanRow, col] != null)
             {
-                after += validatedBoardTiles[scanRow, col].letter.ToUpper();
+                afterBuffer[afterLen++] = char.ToUpperInvariant(validatedBoardTiles[scanRow, col].letter[0]);
                 scanRow++;
             }
         }
-        else if (mainPlacement == TilePlacement.Vertical)
+        else
         {
             int scanCol = col - 1;
             while (scanCol >= 1 && validatedBoardTiles[row, scanCol] != null)
             {
-                before = validatedBoardTiles[row, scanCol].letter.ToUpper() + before;
+                beforeBuffer[beforeLen++] = char.ToUpperInvariant(validatedBoardTiles[row, scanCol].letter[0]);
                 scanCol--;
             }
+
+            Array.Reverse(beforeBuffer, 0, beforeLen);
 
             scanCol = col + 1;
             while (scanCol <= boardSizeY && validatedBoardTiles[row, scanCol] != null)
             {
-                after += validatedBoardTiles[row, scanCol].letter.ToUpper();
+                afterBuffer[afterLen++] = char.ToUpperInvariant(validatedBoardTiles[row, scanCol].letter[0]);
                 scanCol++;
             }
         }
 
-        if (before.Length == 0 && after.Length == 0)
-        {
-            for (char ch = 'A'; ch <= 'Z'; ch++)
-                result.Add(ch);
+        if (beforeLen == 0 && afterLen == 0)
+            return CreateAllLettersAllowed();
 
-            return result;
-        }
+        string before = new string(beforeBuffer, 0, beforeLen);
+        string after = new string(afterBuffer, 0, afterLen);
+
+        int result = 0;
 
         for (char ch = 'A'; ch <= 'Z'; ch++)
         {
             string formed = before + ch + after;
             if (IsWordInDictionary(formed))
-                result.Add(ch);
+                result = AllowLetter(result, ch);
         }
 
         return result;
@@ -3127,11 +3136,13 @@ List<SimPlacedTile> newPlacedTiles)
                 if (!HasAdjacentValidatedTile(row, col))
                     continue;
 
-                AnchorSquare anchor = new AnchorSquare();
-                anchor.row = row;
-                anchor.col = col;
-                anchor.horizontalCrossChecks = BuildCrossCheckSet(row, col, TilePlacement.Horizontal);
-                anchor.verticalCrossChecks = BuildCrossCheckSet(row, col, TilePlacement.Vertical);
+                AnchorSquare anchor = new AnchorSquare
+                {
+                    row = row,
+                    col = col,
+                    horizontalCrossChecks = BuildCrossCheckSet(row, col, TilePlacement.Horizontal),
+                    verticalCrossChecks = BuildCrossCheckSet(row, col, TilePlacement.Vertical)
+                };
 
                 anchors.Add(anchor);
             }
@@ -3163,21 +3174,25 @@ List<SimPlacedTile> newPlacedTiles)
 
         return false;
     }
+
     private bool PassCrossCheck(int row, int col, char c)
     {
         if (precalculatedCrossChecks != null && IsInBounds(row, col))
         {
-            var checks = precalculatedCrossChecks[row, col];
-            if (checks != null)
-                return checks.Contains(c);
+            int mask = precalculatedCrossChecks[row, col];
+            return CrossCheckAllows(mask, c);
         }
 
-        HashSet<char> fallbackChecks =
-            BuildCrossCheckSet(row, col, TilePlacement.Horizontal);
-
-        return fallbackChecks.Contains(c);
+        int fallbackMask = BuildCrossCheckSet(row, col, TilePlacement.Horizontal);
+        return CrossCheckAllows(fallbackMask, c);
     }
-    private bool PassesAnchorCrossChecks(string word, int startRow, int startCol, TilePlacement placement, AnchorSquare anchor)
+
+    private bool PassesAnchorCrossChecks(
+    string word,
+    int startRow,
+    int startCol,
+    TilePlacement placement,
+    AnchorSquare anchor)
     {
         if (string.IsNullOrEmpty(word))
             return false;
@@ -3197,7 +3212,7 @@ List<SimPlacedTile> newPlacedTiles)
             if (row < 1 || row > boardSizeX || col < 1 || col > boardSizeY)
                 return false;
 
-            char needed = char.ToUpper(word[i]);
+            char needed = char.ToUpperInvariant(word[i]);
             LetterInfo existing = validatedBoardTiles[row, col];
 
             if (existing != null)
@@ -3205,20 +3220,27 @@ List<SimPlacedTile> newPlacedTiles)
                 if (string.IsNullOrEmpty(existing.letter))
                     return false;
 
-                if (char.ToUpper(existing.letter[0]) != needed)
+                if (char.ToUpperInvariant(existing.letter[0]) != needed)
                     return false;
 
                 continue;
             }
 
-            HashSet<char> crossChecks = BuildCrossCheckSet(row, col, placement);
+            int crossCheckMask;
 
-            if (crossChecks != null &&
-                crossChecks.Count > 0 &&
-                !crossChecks.Contains(needed))
+            if (row == anchor.row && col == anchor.col)
             {
-                return false;
+                crossCheckMask = (placement == TilePlacement.Horizontal)
+                    ? anchor.horizontalCrossChecks
+                    : anchor.verticalCrossChecks;
             }
+            else
+            {
+                crossCheckMask = BuildCrossCheckSet(row, col, placement);
+            }
+
+            if (crossCheckMask != 0 && !CrossCheckAllows(crossCheckMask, needed))
+                return false;
         }
 
         return true;
@@ -3251,7 +3273,8 @@ List<SimPlacedTile> newPlacedTiles)
         BuildCrossChecks(anchors);
 
         // Precalculate cross-checks for the entire board
-        precalculatedCrossChecks = new HashSet<char>[boardSizeX + 2, boardSizeY + 2];
+        //precalculatedCrossChecks = new HashSet<char>[boardSizeX + 2, boardSizeY + 2];
+        precalculatedCrossChecks = new int[boardSizeX + 2, boardSizeY + 2];
         for (int r = 1; r <= boardSizeX; r++)
         {
             for (int c = 1; c <= boardSizeY; c++)
@@ -3303,28 +3326,35 @@ List<SimPlacedTile> newPlacedTiles)
         return best;
     }
 
-    private System.Collections.IEnumerator FindBestGaddagMoveCoroutine(
+    private IEnumerator FindBestGaddagMoveCoroutine(
     List<LetterInfo> rack,
     BonusTile[,] bonusBoard,
     System.Action<RoundMove> onComplete)
     {
-        System.Diagnostics.Stopwatch totalTimer = System.Diagnostics.Stopwatch.StartNew();
-        System.Diagnostics.Stopwatch searchTimer = new System.Diagnostics.Stopwatch();
-
-        Debug.Log("GADDAG SEARCH START (COROUTINE)");
+        var totalTimer = System.Diagnostics.Stopwatch.StartNew();
 
         EnsureAIGaddagReady();
 
         List<AnchorSquare> anchors = BuildAnchors();
         BuildCrossChecks(anchors);
 
-        // Precalculate cross-checks for the entire board
-        precalculatedCrossChecks = new HashSet<char>[boardSizeX + 2, boardSizeY + 2];
+        //precalculatedCrossChecks = new HashSet<char>[boardSizeX + 2, boardSizeY + 2];
+        precalculatedCrossChecks = new int[boardSizeX + 2, boardSizeY + 2];
+
+        const double frameBudgetMs = 2.0;
+        var sliceTimer = System.Diagnostics.Stopwatch.StartNew();
+
         for (int r = 1; r <= boardSizeX; r++)
         {
             for (int c = 1; c <= boardSizeY; c++)
             {
                 precalculatedCrossChecks[r, c] = BuildCrossCheckSet(r, c, TilePlacement.Horizontal);
+
+                if (sliceTimer.Elapsed.TotalMilliseconds >= frameBudgetMs)
+                {
+                    sliceTimer.Restart();
+                    yield return null;
+                }
             }
         }
 
@@ -3332,49 +3362,37 @@ List<SimPlacedTile> newPlacedTiles)
         int candidateCount = 0;
         int slowAnchorCount = 0;
 
-        searchTimer.Start();
-
         for (int i = 0; i < anchors.Count; i++)
         {
             var anchor = anchors[i];
-            if (anchor == null) continue;
+            if (anchor == null)
+                continue;
 
-            System.Diagnostics.Stopwatch anchorTimer = System.Diagnostics.Stopwatch.StartNew();
+            #if UNITY_EDITOR || DEVELOPMENT_BUILD
+                    double beforeMs = totalTimer.Elapsed.TotalMilliseconds;
+            #endif
 
-            SearchAnchor(anchor, rack, ref best, ref candidateCount);
+                        SearchAnchor(anchor, rack, ref best, ref candidateCount);
 
-            anchorTimer.Stop();
-            double anchorMs = anchorTimer.Elapsed.TotalMilliseconds;
-            if (anchorMs > 2.0) // 2ms threshold for slow anchors
-            {
-                slowAnchorCount++;
-                Debug.Log($"Slow Anchor at ({anchor.row}, {anchor.col}) took {anchorMs:F2} ms");
-            }
+            #if UNITY_EDITOR || DEVELOPMENT_BUILD
+                    double anchorMs = totalTimer.Elapsed.TotalMilliseconds - beforeMs;
+                    if (anchorMs > 2.0)
+                        slowAnchorCount++;
+            #endif
 
-            // Yield every 5 anchors to keep the UI responsive
-            if (i % 5 == 0)
-            {
-                yield return null;
-            }
-        }
+                        if (sliceTimer.Elapsed.TotalMilliseconds >= frameBudgetMs)
+                        {
+                            sliceTimer.Restart();
+                            yield return null;
+                        }
+                    }
 
-        searchTimer.Stop();
-        totalTimer.Stop();
+            #if UNITY_EDITOR || DEVELOPMENT_BUILD
+                Debug.Log($"GADDAG total={totalTimer.Elapsed.TotalMilliseconds:F1}ms anchors={anchors.Count} slow={slowAnchorCount} candidates={candidateCount} best={(best != null ? best.word : "NONE")}");
+            #endif
 
-        Debug.Log("==================================================");
-        Debug.Log("GADDAG SEARCH TIMING SUMMARY (Round 2+ Coroutine)");
-        Debug.Log($"Total AI Turn time: {totalTimer.Elapsed.TotalMilliseconds:F2} ms");
-        Debug.Log($"GADDAG Search time: {searchTimer.Elapsed.TotalMilliseconds:F2} ms");
-        Debug.Log($"Anchor Count: {anchors.Count}");
-        Debug.Log($"Slow Anchors (>2ms): {slowAnchorCount}");
-        Debug.Log($"Candidate/Legal Moves Found: {candidateCount}");
-        Debug.Log($"Best Move Found: {(best != null && best.isValid ? $"\"{best.word}\" (Score: {best.score})" : "NONE")}");
-        Debug.Log("==================================================");
-
-        // Clean up
-        precalculatedCrossChecks = null;
-
-        onComplete?.Invoke(best);
+                    precalculatedCrossChecks = null;
+                    onComplete?.Invoke(best);
     }
 
     private bool IsLegalCrossLetter(
@@ -3431,16 +3449,16 @@ List<SimPlacedTile> newPlacedTiles)
         return CanBuildWordFromTiles(word, tiles);
     }
 
-    private class BoardLineContext
+    public class BoardLineContext
     {
         public TilePlacement direction;
-        public int index; // 1-based row index for Horizontal, col index for Vertical
-        public int lineLength; // boardSizeY for Horizontal, boardSizeX for Vertical
-        public char[] fixedLetters; // 1-based
-        public HashSet<char>[] crossChecks; // 1-based
-        public bool[] isAnchor; // 1-based
-        public AnchorSquare[] anchorAtPos; // 1-based
-        public List<int> anchorIndices = new List<int>(); // 1-based
+        public int index;
+        public int lineLength;
+        public char[] fixedLetters;
+        public int[] crossChecks;
+        public bool[] isAnchor;
+        public AnchorSquare[] anchorAtPos;
+        public List<int> anchorIndices = new List<int>();
     }
 
     private bool PrefilterPlacement(
@@ -3469,9 +3487,13 @@ List<SimPlacedTile> newPlacedTiles)
             }
             else
             {
-                var checks = line.crossChecks[p];
-                if (checks != null && checks.Count > 0 && !checks.Contains(wChar))
+                //var checks = line.crossChecks[p];
+                int checks = line.crossChecks[p];
+                if (checks != 0 && !IsLetterAllowed(checks, wChar))
                     return false;
+
+                //if (checks != null && checks.Count > 0 && !checks.Contains(wChar))
+                //    return false;
 
                 int charIdx = wChar - 'A';
                 if (charIdx < 0 || charIdx >= 26)
@@ -3511,9 +3533,9 @@ List<SimPlacedTile> newPlacedTiles)
             return allCandidates;
         }
 
-        // Build frequency count of available letters from both AI rack and board
         int[] availableCounts = new int[26];
         int[] rackLetters = new int[26];
+
         foreach (var tile in aiTiles)
         {
             if (tile != null && !string.IsNullOrEmpty(tile.letter))
@@ -3526,6 +3548,7 @@ List<SimPlacedTile> newPlacedTiles)
                 }
             }
         }
+
         for (int r = 1; r <= boardSizeX; r++)
         {
             for (int c = 1; c <= boardSizeY; c++)
@@ -3540,17 +3563,21 @@ List<SimPlacedTile> newPlacedTiles)
             }
         }
 
-        // Pre-filter words to only include those constructible with the available letter pool
         List<string> filteredWords = new List<string>();
         int[] wordCounts = new int[26];
+
         foreach (string rawWord in scrabbleWords)
         {
-            if (string.IsNullOrWhiteSpace(rawWord)) continue;
+            if (string.IsNullOrWhiteSpace(rawWord))
+                continue;
+
             string w = rawWord.Trim().ToUpper();
-            if (w.Length == 0 || w.Length > Mathf.Max(boardSizeX, boardSizeY)) continue;
+            if (w.Length == 0 || w.Length > Mathf.Max(boardSizeX, boardSizeY))
+                continue;
 
             System.Array.Clear(wordCounts, 0, 26);
             bool possible = true;
+
             for (int i = 0; i < w.Length; i++)
             {
                 char c = w[i];
@@ -3559,6 +3586,7 @@ List<SimPlacedTile> newPlacedTiles)
                     possible = false;
                     break;
                 }
+
                 wordCounts[c - 'A']++;
                 if (wordCounts[c - 'A'] > availableCounts[c - 'A'])
                 {
@@ -3566,14 +3594,13 @@ List<SimPlacedTile> newPlacedTiles)
                     break;
                 }
             }
+
             if (possible)
-            {
                 filteredWords.Add(w);
-            }
         }
+
         Debug.Log("GADDAG Pre-filter: reduced dictionary from " + scrabbleWords.Count + " to " + filteredWords.Count + " possible words!");
 
-        // Build line-contexts for active rows and columns
         List<BoardLineContext> horizontalLines = new List<BoardLineContext>();
         List<BoardLineContext> verticalLines = new List<BoardLineContext>();
 
@@ -3582,38 +3609,44 @@ List<SimPlacedTile> newPlacedTiles)
 
         foreach (var anchor in anchors)
         {
-            if (!anchorsByRow.ContainsKey(anchor.row))
-                anchorsByRow[anchor.row] = new List<AnchorSquare>();
-            anchorsByRow[anchor.row].Add(anchor);
+            if (!anchorsByRow.TryGetValue(anchor.row, out var rowList))
+            {
+                rowList = new List<AnchorSquare>();
+                anchorsByRow[anchor.row] = rowList;
+            }
+            rowList.Add(anchor);
 
-            if (!anchorsByCol.ContainsKey(anchor.col))
-                anchorsByCol[anchor.col] = new List<AnchorSquare>();
-            anchorsByCol[anchor.col].Add(anchor);
+            if (!anchorsByCol.TryGetValue(anchor.col, out var colList))
+            {
+                colList = new List<AnchorSquare>();
+                anchorsByCol[anchor.col] = colList;
+            }
+            colList.Add(anchor);
         }
 
         foreach (var kvp in anchorsByRow)
         {
             int r = kvp.Key;
-            BoardLineContext line = new BoardLineContext();
-            line.direction = TilePlacement.Horizontal;
-            line.index = r;
-            line.lineLength = boardSizeY;
-            line.fixedLetters = new char[boardSizeY + 1];
-            line.crossChecks = new HashSet<char>[boardSizeY + 1];
-            line.isAnchor = new bool[boardSizeY + 1];
-            line.anchorAtPos = new AnchorSquare[boardSizeY + 1];
+            BoardLineContext line = new BoardLineContext
+            {
+                direction = TilePlacement.Horizontal,
+                index = r,
+                lineLength = boardSizeY,
+                fixedLetters = new char[boardSizeY + 1],
+                //crossChecks = new HashSet<char>[boardSizeY + 1],
+                crossChecks = new int[boardSizeY + 1],
+                isAnchor = new bool[boardSizeY + 1],
+                anchorAtPos = new AnchorSquare[boardSizeY + 1]
+            };
 
             for (int c = 1; c <= boardSizeY; c++)
             {
                 var tile = validatedBoardTiles[r, c];
                 if (tile != null && !string.IsNullOrEmpty(tile.letter))
-                {
                     line.fixedLetters[c] = char.ToUpper(tile.letter[0]);
-                }
                 else
-                {
                     line.fixedLetters[c] = '\0';
-                }
+
                 line.crossChecks[c] = BuildCrossCheckSet(r, c, TilePlacement.Horizontal);
             }
 
@@ -3631,26 +3664,26 @@ List<SimPlacedTile> newPlacedTiles)
         foreach (var kvp in anchorsByCol)
         {
             int c = kvp.Key;
-            BoardLineContext line = new BoardLineContext();
-            line.direction = TilePlacement.Vertical;
-            line.index = c;
-            line.lineLength = boardSizeX;
-            line.fixedLetters = new char[boardSizeX + 1];
-            line.crossChecks = new HashSet<char>[boardSizeX + 1];
-            line.isAnchor = new bool[boardSizeX + 1];
-            line.anchorAtPos = new AnchorSquare[boardSizeX + 1];
+            BoardLineContext line = new BoardLineContext
+            {
+                direction = TilePlacement.Vertical,
+                index = c,
+                lineLength = boardSizeX,
+                fixedLetters = new char[boardSizeX + 1],
+                //crossChecks = new HashSet<char>[boardSizeX + 1],
+                crossChecks = new int[boardSizeX + 1],
+                isAnchor = new bool[boardSizeX + 1],
+                anchorAtPos = new AnchorSquare[boardSizeX + 1]
+            };
 
             for (int r = 1; r <= boardSizeX; r++)
             {
                 var tile = validatedBoardTiles[r, c];
                 if (tile != null && !string.IsNullOrEmpty(tile.letter))
-                {
                     line.fixedLetters[r] = char.ToUpper(tile.letter[0]);
-                }
                 else
-                {
                     line.fixedLetters[r] = '\0';
-                }
+
                 line.crossChecks[r] = BuildCrossCheckSet(r, c, TilePlacement.Vertical);
             }
 
@@ -3703,9 +3736,7 @@ List<SimPlacedTile> newPlacedTiles)
                     int minStart = Mathf.Max(1, a - L + 1);
                     int maxStart = Mathf.Min(line.lineLength - L + 1, a);
                     for (int pos = minStart; pos <= maxStart; pos++)
-                    {
                         canStartAt[pos] = true;
-                    }
                 }
 
                 int maxStartPos = line.lineLength - L + 1;
@@ -3766,6 +3797,7 @@ List<SimPlacedTile> newPlacedTiles)
 
         return allCandidates;
     }
+
     private void TryAddGaddagCandidate(
         List<RoundMove> allCandidates,
         HashSet<string> seenSignatures,
@@ -4649,7 +4681,7 @@ List<SimPlacedTile> newPlacedTiles)
         EnsureAIGaddagReady();
         return FindPossibleAIWords_Gaddag(aiTiles);
     }
-    private List<string> CollectExistingBoardWords()
+    /*private List<string> CollectExistingBoardWords()
     {
         HashSet<string> words = new HashSet<string>(System.StringComparer.OrdinalIgnoreCase);
 
@@ -4690,8 +4722,8 @@ List<SimPlacedTile> newPlacedTiles)
 
         return new List<string>(words);
     }
-
-    private List<string> FindExtensionsForBaseWord(string baseWord, List<LetterInfo> aiTiles)
+    */
+    /*private List<string> FindExtensionsForBaseWord(string baseWord, List<LetterInfo> aiTiles)
     {
         List<string> results = new List<string>();
 
@@ -4724,7 +4756,7 @@ List<SimPlacedTile> newPlacedTiles)
 
         return results;
     }
-
+    */
     private bool CanBuildWordFromTiles(string word, List<LetterInfo> tiles)
     {
         if (string.IsNullOrWhiteSpace(word))
@@ -5460,5 +5492,53 @@ private string BuildWordString(List<LetterInfo> wordTiles)
 
         return b.Length.CompareTo(a.Length);
     }
+    
 
+    private static void AllowLetter(bool[] allowed, char c)
+    {
+        char upper = char.ToUpperInvariant(c);
+        if (upper >= 'A' && upper <= 'Z')
+            allowed[upper - 'A'] = true;
+    }
+
+    
+    private const int AllLettersMask = (1 << 26) - 1;
+
+    private static int CreateAllLettersAllowed()
+    {
+        return AllLettersMask;
+    }
+    /*private static bool[] CreateAllLettersAllowed()
+    {
+        var allowed = new bool[26];
+        for (int i = 0; i < 26; i++)
+            allowed[i] = true;
+        return allowed;
+    }*/
+    private static int AllowLetter(int mask, char c)
+    {
+        char upper = char.ToUpperInvariant(c);
+        if (upper < 'A' || upper > 'Z')
+            return mask;
+
+        return mask | (1 << (upper - 'A'));
+    }
+
+    private static bool CrossCheckAllows(int mask, char c)
+    {
+        char upper = char.ToUpperInvariant(c);
+        if (upper < 'A' || upper > 'Z')
+            return false;
+
+        int bit = 1 << (upper - 'A');
+        return (mask & bit) != 0;
+    }
+    private bool IsLetterAllowed(int mask, char c)
+    {
+        int bit = c - 'A';
+        if (bit < 0 || bit >= 26)
+            return false;
+
+        return (mask & (1 << bit)) != 0;
+    }
 }

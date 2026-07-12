@@ -20,7 +20,7 @@ public class UIManager : MonoBehaviour
     [SerializeField] private RectTransform overlayCanvasRect;
     [SerializeField] private GameObject validatedScorePopupPrefab;
     [SerializeField] private Vector2 validatedScorePopupOffset = new Vector2(40f, -40f);
-    [SerializeField] private float validatedScorePopupLifetime = 1.5f;
+    //[SerializeField] private float validatedScorePopupLifetime = 1.5f;
 
     public void SetTextReferences(TextMeshProUGUI human, TextMeshProUGUI ai, TextMeshProUGUI round)
     {
