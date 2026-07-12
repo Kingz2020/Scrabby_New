@@ -39,12 +39,40 @@ public class UIManager : MonoBehaviour
 
     public void ReturnTilesToHand()
     {
-        foreach (PlacedTile tile in Singleton.Instance.DropManager.GetTilesDroppedThisTurn())
+        List<PlacedTile> droppedTiles = Singleton.Instance.DropManager.GetTilesDroppedThisTurn();
+
+        foreach (PlacedTile tile in droppedTiles)
         {
-            tile.GetComponentInChildren<TileScript>().transform.SetParent(handTileHolder.transform);
+            if (tile == null || tile.letterInfo == null || tile.letterPosition == null)
+                continue;
+
+            TileScript[] allTileScripts = gameBoard.GetComponentsInChildren<TileScript>(true);
+
+            foreach (TileScript tileScript in allTileScripts)
+            {
+                if (tileScript == null || tileScript.PlacedTileData == null)
+                    continue;
+
+                PlacedTile visualPlacedTile = tileScript.PlacedTileData;
+
+                if (visualPlacedTile.letterInfo == null || visualPlacedTile.letterPosition == null)
+                    continue;
+
+                if (visualPlacedTile.letterInfo.letter == tile.letterInfo.letter &&
+                    visualPlacedTile.letterInfo.points == tile.letterInfo.points &&
+                    visualPlacedTile.letterPosition.RowX == tile.letterPosition.RowX &&
+                    visualPlacedTile.letterPosition.ColY == tile.letterPosition.ColY)
+                {
+                    tileScript.transform.SetParent(handTileHolder.transform, false);
+                    tileScript.transform.localPosition = Vector3.zero;
+                    break;
+                }
+            }
         }
+
         Singleton.Instance.DropManager.ResetLocations();
     }
+
 
     public void ResetDisplayWordList(List<string> letters)
     {
@@ -87,15 +115,12 @@ public class UIManager : MonoBehaviour
         for (int i = 0; i < handTileHolder.transform.childCount; i++)
         {
             Transform child = handTileHolder.transform.GetChild(i);
+            TileScript tileScript = child.GetComponent<TileScript>();
 
-            PlacedTile placedTile = child.GetComponent<PlacedTile>();
-            if (placedTile == null)
-                placedTile = child.GetComponentInChildren<PlacedTile>();
-
-            if (placedTile == null || placedTile.letterInfo == null)
+            if (tileScript == null || tileScript.LetterInfo == null)
                 continue;
 
-            if (placedTile.letterInfo.letter == letter && placedTile.letterInfo.points == points)
+            if (tileScript.LetterInfo.letter == letter && tileScript.LetterInfo.points == points)
             {
                 Destroy(child.gameObject);
                 return;
@@ -104,6 +129,7 @@ public class UIManager : MonoBehaviour
 
         Debug.LogWarning("RemoveSingleHandTile could not find tile " + letter + " (" + points + ") in hand UI.");
     }
+
 
     public void PlaceAITileOnBoard(LetterInfo tileInfo, LetterPosition letterPosition)
     {
@@ -129,13 +155,8 @@ public class UIManager : MonoBehaviour
                 {
                     tileScript.InitTile(tileInfo);
                     tileScript.SetLockedOnBoard(true);
-                }
-
-                PlacedTile placedTile = tempTile.GetComponent<PlacedTile>();
-                if (placedTile != null)
-                {
-                    placedTile.letterInfo = tileInfo;
-                    placedTile.letterPosition = letterPosition;
+                    if (tileScript.PlacedTileData != null)
+                        tileScript.PlacedTileData.letterPosition = letterPosition;
                 }
 
                 return;

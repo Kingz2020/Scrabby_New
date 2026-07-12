@@ -74,7 +74,7 @@ MonoBehaviour:
   m_fontMaterials: []
   m_fontColor32:
     serializedVersion: 2
-    rgba: 4278190080
+    rgba: 4280229663
   m_fontColor: {r: 0.12, g: 0.12, b: 0.12, a: 1}
   m_enableVertexGradient: 0
   m_colorMode: 3
@@ -92,7 +92,7 @@ MonoBehaviour:
   m_faceColor:
     serializedVersion: 2
     rgba: 4294967295
-  m_fontSize: 52
+  m_fontSize: 80
   m_fontSizeBase: 36
   m_fontWeight: 400
   m_enableAutoSizing: 1
@@ -211,7 +211,7 @@ MonoBehaviour:
   m_fontMaterials: []
   m_fontColor32:
     serializedVersion: 2
-    rgba: 4278190080
+    rgba: 4280229663
   m_fontColor: {r: 0.12, g: 0.12, b: 0.12, a: 1}
   m_enableVertexGradient: 0
   m_colorMode: 3
@@ -359,7 +359,6 @@ GameObject:
   m_Component:
   - component: {fileID: 6356469288794072266}
   - component: {fileID: 6356469288794072267}
-  - component: {fileID: 8260448991363134534}
   m_Layer: 5
   m_Name: BaseTile_Selected
   m_TagString: Untagged
@@ -404,23 +403,12 @@ MonoBehaviour:
   background: {fileID: 4947531980915876779}
   textLetter: {fileID: 1131157767130920350}
   textPoints: {fileID: 4669661449203746877}
-  placedTile: {fileID: 8260448991363134534}
---- !u!114 &8260448991363134534
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 6356469288794072269}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: b30f718f40210464692ff1a2e3045791, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  letterInfo:
-    letter: 
-    points: 0
-    bonusUsed: 0
-  letterPosition:
-    RowX: 0
-    ColY: 0
+  placedTile:
+    letterInfo:
+      letter: 
+      points: 0
+      bonusUsed: 0
+    letterPosition:
+      RowX: 0
+      ColY: 0
+  isLockedOnBoard: 0

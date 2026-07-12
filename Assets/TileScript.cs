@@ -15,11 +15,17 @@ public class TileScript : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDr
     private bool snapTileBack;
     private Transform originalParent;
     private Vector3 dragOffset;
+    public PlacedTile PlacedTileData => placedTile;
+    public LetterInfo LetterInfo => placedTile != null ? placedTile.letterInfo : null;
+    public LetterPosition LetterPosition => placedTile != null ? placedTile.letterPosition : null;
 
     [SerializeField] private bool isLockedOnBoard = false;
 
     public void InitTile(LetterInfo tileInfo)
     {
+        if (placedTile == null)
+            placedTile = new PlacedTile();
+
         placedTile.letterInfo = tileInfo;
         textLetter.text = placedTile.letterInfo.letter;
         textPoints.text = placedTile.letterInfo.points.ToString();
