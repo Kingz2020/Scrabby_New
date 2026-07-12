@@ -8,6 +8,8 @@ using UnityEngine.UI;
 using static GameLogic;
 using Random = UnityEngine.Random;
 using Unity.Profiling;
+//using System.Diagnostics;
+
 
 public class GameLogic : MonoBehaviour
 {
@@ -83,6 +85,15 @@ public class GameLogic : MonoBehaviour
     private RoundMove aiBestMoveSoFar = null;
     private int[,] cachedHorizontalCrossChecks;
     private int[,] cachedVerticalCrossChecks;
+    //[SerializeField] private bool enableStageTimingLogs = true;
+
+    private readonly System.Diagnostics.Stopwatch aiStageStopwatch = new System.Diagnostics.Stopwatch();
+    private readonly System.Diagnostics.Stopwatch aiTotalStopwatch = new System.Diagnostics.Stopwatch();
+
+    [SerializeField] private bool enableAITimingLogs = true;
+
+    private int buildMoveCalls = 0;
+    private double buildMoveMs = 0;
 
     public enum TurnState
     {
@@ -211,6 +222,7 @@ public class GameLogic : MonoBehaviour
         public LetterPosition letterPosition;
     }
 
+
     public void InitGame(int maxHandSize, int boardSizeX, int boardSizeY)
     {
         // Automatically discover active scene's BoardGen to dynamic-scale rectangular and square board dimensions
@@ -290,7 +302,40 @@ public class GameLogic : MonoBehaviour
     public void BeginGameFromButton()
     {
         Debug.Log("BeginGameFromButton CALLED");
-        StartRound();
+
+        StopAllCoroutines();
+
+        ClearBoardForNewGame();
+        InitGame(maxHandSize, boardSizeX, boardSizeY);
+
+        StartCoroutine(StartRound());
+    }
+
+
+    private void ClearBoardForNewGame()
+    {
+        Debug.Log("ClearBoardForNewGame START");
+
+        if (Singleton.Instance != null && Singleton.Instance.UIManager != null)
+        {
+            Singleton.Instance.UIManager.ReturnTilesToHand();
+            Singleton.Instance.UIManager.RemoveAllHandTiles();
+            Singleton.Instance.UIManager.ClearCommittedBoardTiles();
+            Singleton.Instance.UIManager.ClearRoundMessage();
+        }
+
+        if (Singleton.Instance != null && Singleton.Instance.DropManager != null)
+        {
+            Singleton.Instance.DropManager.ResetLocations();
+        }
+
+        if (validatedBoardTiles != null)
+            System.Array.Clear(validatedBoardTiles, 0, validatedBoardTiles.Length);
+
+        if (boardBonusTiles != null)
+            System.Array.Clear(boardBonusTiles, 0, boardBonusTiles.Length);
+
+        Debug.Log("ClearBoardForNewGame END");
     }
 
     private IEnumerator StartRound()
@@ -1130,8 +1175,13 @@ public class GameLogic : MonoBehaviour
                     break;
 
                 case 1:
+
+                    UnityEngine.Debug.Log("[FLOW] Entered roundRevealStep 1 | t=" + Time.realtimeSinceStartup.ToString("F3"));
+                   
                     if (aiEvaluationRunning)
                     {
+                        UnityEngine.Debug.Log("[FLOW] AI still running | t=" + Time.realtimeSinceStartup.ToString("F3"));
+
                         if (Singleton.Instance != null && Singleton.Instance.UIManager != null)
                         {
                             Singleton.Instance.UIManager.ShowRoundMessage("AI is thinking...");
@@ -1141,11 +1191,15 @@ public class GameLogic : MonoBehaviour
 
                     if (!aiEvaluationFinished)
                     {
+                        UnityEngine.Debug.Log("[FLOW] AI not started yet - starting now | t=" + Time.realtimeSinceStartup.ToString("F3"));
+
                         if (Singleton.Instance != null && Singleton.Instance.UIManager != null)
                         {
                             Singleton.Instance.UIManager.ReturnTilesToHand();
                             Singleton.Instance.UIManager.ShowRoundMessage("AI is thinking...");
                         }
+
+                        UnityEngine.Debug.Log("[FLOW] About to StartCoroutine(EvaluateAIMoveIncremental) | t=" + Time.realtimeSinceStartup.ToString("F3"));
 
                         StartCoroutine(EvaluateAIMoveIncremental());
                         return;
@@ -1166,6 +1220,8 @@ public class GameLogic : MonoBehaviour
                                 "AI could not make a valid move. Press EndTurn.");
                         }
                     }
+
+                    UnityEngine.Debug.Log("[FLOW] Leaving roundRevealStep 1 -> moving to step 2 | t=" + Time.realtimeSinceStartup.ToString("F3"));
 
                     roundRevealStep = 2;
                     break;
@@ -2089,41 +2145,23 @@ public class GameLogic : MonoBehaviour
     }
 
     private List<List<LetterInfo>> CollectAllWordsForAIMove(
-TilePlacement mainOrientation,
-LetterInfo[,] board,
-List<SimPlacedTile> newPlacedTiles)
+    TilePlacement mainOrientation,
+    LetterInfo[,] board,
+    List<SimPlacedTile> newPlacedTiles)
     {
         List<List<LetterInfo>> wordList = new List<List<LetterInfo>>();
 
         if (board == null)
         {
-            //Debug.LogWarning("CollectAllWordsForAIMove: board is null.");
+            Debug.LogWarning("CollectAllWordsForAIMove board is null.");
             return wordList;
         }
 
         if (newPlacedTiles == null || newPlacedTiles.Count == 0)
-        {
-            //Debug.Log("CollectAllWordsForAIMove: no new placed tiles.");
             return wordList;
-        }
-
-        //Debug.Log("CollectAllWordsForAIMove START. mainOrientation = " + mainOrientation);
 
         int mainAnchorRow = newPlacedTiles[0].letterPosition.RowX;
         int mainAnchorCol = newPlacedTiles[0].letterPosition.ColY;
-
-        string placedSummary = "";
-        foreach (SimPlacedTile simTile in newPlacedTiles)
-        {
-            if (simTile == null || simTile.letterPosition == null || simTile.letterInfo == null)
-                continue;
-
-            placedSummary += "[" +
-                             simTile.letterInfo.letter + "@" +
-                             simTile.letterPosition.RowX + "," +
-                             simTile.letterPosition.ColY + "]";
-        }
-        //Debug.Log("CollectAllWordsForAIMove: newPlacedTiles = " + placedSummary);
 
         if (mainOrientation == TilePlacement.Horizontal)
         {
@@ -2132,55 +2170,19 @@ List<SimPlacedTile> newPlacedTiles)
 
             foreach (SimPlacedTile simTile in newPlacedTiles)
             {
-                if (simTile == null || simTile.letterPosition == null)
-                    continue;
-
+                if (simTile == null || simTile.letterPosition == null) continue;
                 if (simTile.letterPosition.ColY < minCol)
-                {
                     minCol = simTile.letterPosition.ColY;
-                }
             }
 
             mainAnchorRow = row;
             mainAnchorCol = minCol;
 
-            //Debug.Log("CollectAllWordsForAIMove: horizontal main anchor = " + mainAnchorRow + "," + mainAnchorCol);
-
             int firstCol = GetFirstLetterIndex(TilePlacement.Horizontal, board, mainAnchorRow, mainAnchorCol);
-            //Debug.Log("CollectAllWordsForAIMove: horizontal firstCol = " + firstCol);
-
             List<LetterInfo> mainWord = GetWordFromBoard(TilePlacement.Horizontal, board, mainAnchorRow, firstCol);
 
-            if (mainWord != null)
-            {
-                string debugWord = "";
-                foreach (LetterInfo tile in mainWord)
-                {
-                    if (tile != null && !string.IsNullOrEmpty(tile.letter))
-                        debugWord += tile.letter;
-                }
-
-                //Debug.Log("CollectAllWordsForAIMove: horizontal main word raw = " + debugWord +
-                 //         ", count = " + mainWord.Count);
-            }
-
             if (mainWord != null && mainWord.Count > 1)
-            {
                 AddWordIfNotDuplicate(wordList, mainWord);
-
-                string debugWord = "";
-                foreach (LetterInfo tile in mainWord)
-                {
-                    if (tile != null && !string.IsNullOrEmpty(tile.letter))
-                        debugWord += tile.letter;
-                }
-
-                //Debug.Log("AI main word added = " + debugWord);
-            }
-            else
-            {
-                Debug.LogWarning("CollectAllWordsForAIMove: failed to assemble horizontal main word.");
-            }
         }
         else
         {
@@ -2189,55 +2191,19 @@ List<SimPlacedTile> newPlacedTiles)
 
             foreach (SimPlacedTile simTile in newPlacedTiles)
             {
-                if (simTile == null || simTile.letterPosition == null)
-                    continue;
-
+                if (simTile == null || simTile.letterPosition == null) continue;
                 if (simTile.letterPosition.RowX < minRow)
-                {
                     minRow = simTile.letterPosition.RowX;
-                }
             }
 
             mainAnchorRow = minRow;
             mainAnchorCol = col;
 
-            //Debug.Log("CollectAllWordsForAIMove: vertical main anchor = " + mainAnchorRow + "," + mainAnchorCol);
-
             int firstRow = GetFirstLetterIndex(TilePlacement.Vertical, board, mainAnchorRow, mainAnchorCol);
-            //Debug.Log("CollectAllWordsForAIMove: vertical firstRow = " + firstRow);
-
             List<LetterInfo> mainWord = GetWordFromBoard(TilePlacement.Vertical, board, firstRow, mainAnchorCol);
 
-            if (mainWord != null)
-            {
-                string debugWord = "";
-                foreach (LetterInfo tile in mainWord)
-                {
-                    if (tile != null && !string.IsNullOrEmpty(tile.letter))
-                        debugWord += tile.letter;
-                }
-
-                //Debug.Log("CollectAllWordsForAIMove: vertical main word raw = " + debugWord +
-               //           ", count = " + mainWord.Count);
-            }
-
             if (mainWord != null && mainWord.Count > 1)
-            {
                 AddWordIfNotDuplicate(wordList, mainWord);
-
-                string debugWord = "";
-                foreach (LetterInfo tile in mainWord)
-                {
-                    if (tile != null && !string.IsNullOrEmpty(tile.letter))
-                        debugWord += tile.letter;
-                }
-
-                //Debug.Log("AI main word added = " + debugWord);
-            }
-            else
-            {
-                Debug.LogWarning("CollectAllWordsForAIMove: failed to assemble vertical main word.");
-            }
         }
 
         foreach (SimPlacedTile simTile in newPlacedTiles)
@@ -2259,33 +2225,8 @@ List<SimPlacedTile> newPlacedTiles)
                     int firstRow = GetFirstLetterIndex(TilePlacement.Vertical, board, row, col);
                     List<LetterInfo> crossWord = GetWordFromBoard(TilePlacement.Vertical, board, firstRow, col);
 
-                    if (crossWord != null)
-                    {
-                        string debugWord = "";
-                        foreach (LetterInfo tile in crossWord)
-                        {
-                            if (tile != null && !string.IsNullOrEmpty(tile.letter))
-                                debugWord += tile.letter;
-                        }
-
-                        /*Debug.Log("CollectAllWordsForAIMove: vertical cross raw = " + debugWord +
-                                  " at " + row + "," + col +
-                                  ", count = " + crossWord.Count);*/
-                    }
-
                     if (crossWord != null && crossWord.Count > 1)
-                    {
                         AddWordIfNotDuplicate(wordList, crossWord);
-
-                        string debugWord = "";
-                        foreach (LetterInfo tile in crossWord)
-                        {
-                            if (tile != null && !string.IsNullOrEmpty(tile.letter))
-                                debugWord += tile.letter;
-                        }
-
-                        //Debug.Log("AI cross word added = " + debugWord);
-                    }
                 }
             }
             else
@@ -2299,38 +2240,12 @@ List<SimPlacedTile> newPlacedTiles)
                     int firstCol = GetFirstLetterIndex(TilePlacement.Horizontal, board, row, col);
                     List<LetterInfo> crossWord = GetWordFromBoard(TilePlacement.Horizontal, board, row, firstCol);
 
-                    if (crossWord != null)
-                    {
-                        string debugWord = "";
-                        foreach (LetterInfo tile in crossWord)
-                        {
-                            if (tile != null && !string.IsNullOrEmpty(tile.letter))
-                                debugWord += tile.letter;
-                        }
-
-                        /*Debug.Log("CollectAllWordsForAIMove: horizontal cross raw = " + debugWord +
-                                  " at " + row + "," + col +
-                                  ", count = " + crossWord.Count);*/
-                    }
-
                     if (crossWord != null && crossWord.Count > 1)
-                    {
                         AddWordIfNotDuplicate(wordList, crossWord);
-
-                        string debugWord = "";
-                        foreach (LetterInfo tile in crossWord)
-                        {
-                            if (tile != null && !string.IsNullOrEmpty(tile.letter))
-                                debugWord += tile.letter;
-                        }
-
-                        //Debug.Log("AI cross word added = " + debugWord);
-                    }
                 }
             }
         }
 
-        Debug.Log("CollectAllWordsForAIMove END. word count = " + wordList.Count);
         return wordList;
     }
 
@@ -2997,6 +2912,10 @@ List<SimPlacedTile> newPlacedTiles)
 
                     precalculatedCrossChecks = null;
                     onComplete?.Invoke(best);
+
+        Debug.Log($"BuildMove calls={buildMoveCalls} totalMs={buildMoveMs:F1} avgMs={(buildMoveCalls > 0 ? buildMoveMs / buildMoveCalls : 0):F3}");
+        buildMoveCalls = 0;
+        buildMoveMs = 0;
     }
 
     private bool IsLegalCrossLetter(
@@ -3471,54 +3390,82 @@ List<SimPlacedTile> newPlacedTiles)
         aiEvaluationFinished = false;
         aiBestMoveSoFar = null;
 
-        yield return null;
+        StartTotalAITimer();
 
-        using (EvaluateAIMoveMarker.Auto())
-        {
-            if (currentRoundSnapshot == null ||
-                currentRoundSnapshot.initialTiles == null)
-            {
-                aiBestMoveSoFar = CreateInvalidMove();
-                aiEvaluationRunning = false;
-                aiEvaluationFinished = true;
-                yield break;
-            }
-        }
-
-        List<LetterInfo> aiTiles;
-        BonusTile[,] aiBonusBoard;
-        bool boardHasTiles;
-
-        using (EvaluateAIMoveMarker.Auto())
-        {
-            aiTiles = CloneTilesForAI(currentRoundSnapshot.initialTiles);
-            aiBonusBoard = CloneBonusTilesForAI(currentRoundSnapshot.initialBonusTiles);
-            boardHasTiles = HasAnyValidatedTilesOnBoard();
-        }
-
-        if (!boardHasTiles)
+        try
         {
             using (EvaluateAIMoveMarker.Auto())
             {
-                aiBestMoveSoFar = FindBestFirstTurnPlacementGaddag(aiTiles, aiBonusBoard);
+                if (currentRoundSnapshot == null || currentRoundSnapshot.initialTiles == null)
+                {
+                    aiBestMoveSoFar = CreateInvalidMove();
+                    aiBestMoveSoFar.isHuman = false;
+                    aiBestMoveSoFar.timeUsed = 70f;
+                    yield break;
+                }
+
+                List<LetterInfo> aiTiles = null;
+                BonusTile[,] aiBonusBoard = null;
+                bool boardHasTiles = false;
+
+                StartStageTimer("Clone snapshot");
+                using (EvaluateAIMoveMarker.Auto())
+                {
+                    aiTiles = CloneTilesForAI(currentRoundSnapshot.initialTiles);
+                    aiBonusBoard = CloneBonusTilesForAI(currentRoundSnapshot.initialBonusTiles);
+                    boardHasTiles = HasAnyValidatedTilesOnBoard();
+                }
+                EndStageTimer("Clone snapshot");
+
+                if (!boardHasTiles)
+                {
+                    StartStageTimer("First-turn GADDAG search");
+                    using (EvaluateAIMoveMarker.Auto())
+                    {
+                        aiBestMoveSoFar = FindBestFirstTurnPlacementGaddag(aiTiles, aiBonusBoard);
+                    }
+                    EndStageTimer("First-turn GADDAG search");
+                }
+                else
+                {
+                    StartStageTimer("Connected GADDAG search");
+
+                    bool searchFinished = false;
+                    RoundMove searchResult = null;
+
+                    yield return FindBestGaddagMoveCoroutine(
+                        aiTiles,
+                        aiBonusBoard,
+                        move =>
+                        {
+                            searchResult = move;
+                            searchFinished = true;
+                        });
+
+                    aiBestMoveSoFar = searchResult;
+                    EndStageTimer("Connected GADDAG search");
+
+                    if (!searchFinished && enableAITimingLogs)
+                    {
+                        Debug.LogWarning("[AI-TIME] Connected GADDAG search coroutine ended without callback result.");
+                    }
+                }
+
+                StartStageTimer("Finalize AI move");
+                using (EvaluateAIMoveMarker.Auto())
+                {
+                    if (aiBestMoveSoFar == null)
+                        aiBestMoveSoFar = CreateInvalidMove();
+
+                    aiBestMoveSoFar.isHuman = false;
+                    aiBestMoveSoFar.timeUsed = 70f;
+                }
+                EndStageTimer("Finalize AI move");
             }
         }
-        else
+        finally
         {
-            yield return FindBestGaddagMoveCoroutine(
-                aiTiles,
-                aiBonusBoard,
-                move => aiBestMoveSoFar = move);
-        }
-
-        using (EvaluateAIMoveMarker.Auto())
-        {
-            if (aiBestMoveSoFar == null)
-                aiBestMoveSoFar = CreateInvalidMove();
-
-            aiBestMoveSoFar.isHuman = false;
-            aiBestMoveSoFar.timeUsed = 70f;
-
+            EndTotalAITimer();
             aiEvaluationRunning = false;
             aiEvaluationFinished = true;
         }
@@ -4200,84 +4147,76 @@ List<SimPlacedTile> newPlacedTiles)
         }
     }
 
+
     private RoundMove BuildMove(SearchState state)
     {
-        if (state == null || state.placedTiles == null || state.placedTiles.Count == 0)
-            return null;
-
-        TilePlacement orientation = InferMoveOrientationFromSimTiles(state.placedTiles);
-        if (orientation == TilePlacement.NoTilePlaced || orientation == TilePlacement.WrongTilePlacement)
-            return null;
-
-        // Check if any placement overlaps an existing tile first
-        foreach (var sim in state.placedTiles)
-        {
-            if (sim == null || sim.letterInfo == null || sim.letterPosition == null)
-                return null;
-
-            if (validatedBoardTiles[sim.letterPosition.RowX, sim.letterPosition.ColY] != null)
-                return null;
-        }
-
-        // Temporarily place the tiles on the board
-        foreach (var sim in state.placedTiles)
-        {
-            validatedBoardTiles[sim.letterPosition.RowX, sim.letterPosition.ColY] = sim.letterInfo;
-        }
-
-        List<List<LetterInfo>> allWords = null;
-        string mainWord = "";
-        int totalScore = 0;
-        bool valid = false;
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        buildMoveCalls++;
 
         try
         {
-            allWords = CollectAllWordsForAIMove(
-                orientation,
-                validatedBoardTiles,
-                state.placedTiles
-            );
+            if (state == null || state.placedTiles == null || state.placedTiles.Count == 0)
+                return null;
 
-            if (allWords != null && allWords.Count > 0)
+            TilePlacement orientation = InferMoveOrientationFromSimTiles(state.placedTiles);
+            if (orientation == TilePlacement.NoTilePlaced || orientation == TilePlacement.WrongTilePlacement)
+                return null;
+
+            foreach (var sim in state.placedTiles)
             {
-                if (CheckWordValidity(allWords))
+                if (sim == null || sim.letterInfo == null || sim.letterPosition == null)
+                    return null;
+
+                if (validatedBoardTiles[sim.letterPosition.RowX, sim.letterPosition.ColY] != null)
+                    return null;
+            }
+
+            foreach (var sim in state.placedTiles)
+                validatedBoardTiles[sim.letterPosition.RowX, sim.letterPosition.ColY] = sim.letterInfo;
+
+            List<List<LetterInfo>> allWords = null;
+            string mainWord = "";
+            int totalScore = 0;
+            bool valid = false;
+
+            try
+            {
+                allWords = CollectAllWordsForAIMove(orientation, validatedBoardTiles, state.placedTiles);
+                if (allWords != null && allWords.Count > 0 && CheckWordValidity(allWords))
                 {
                     mainWord = GetMainWordFromPlacedTiles(state.placedTiles, validatedBoardTiles, orientation);
                     totalScore = CountAIMoveScore(allWords, state.placedTiles);
-
                     if (state.placedTiles.Count == maxHandSize)
                         totalScore += 50;
-
                     valid = true;
                 }
             }
-        }
-        catch (System.Exception ex)
-        {
-            Debug.LogError($"Error in BuildMove evaluation: {ex}");
+            finally
+            {
+                foreach (var sim in state.placedTiles)
+                    validatedBoardTiles[sim.letterPosition.RowX, sim.letterPosition.ColY] = null;
+            }
+
+            if (!valid)
+                return null;
+
+            return new RoundMove
+            {
+                isValid = true,
+                isHuman = false,
+                simulatedTiles = CloneSimPlacedTiles(state.placedTiles),
+                word = mainWord,
+                score = totalScore,
+                timeUsed = 70f
+            };
         }
         finally
         {
-            // Clean up the temporarily placed tiles
-            foreach (var sim in state.placedTiles)
-            {
-                validatedBoardTiles[sim.letterPosition.RowX, sim.letterPosition.ColY] = null;
-            }
+            sw.Stop();
+            buildMoveMs += sw.Elapsed.TotalMilliseconds;
         }
-
-        if (!valid)
-            return null;
-
-        return new RoundMove
-        {
-            isValid = true,
-            isHuman = false,
-            simulatedTiles = CloneSimPlacedTiles(state.placedTiles),
-            word = mainWord,
-            score = totalScore,
-            timeUsed = 70f
-        };
     }
+
     private bool IsInBounds(int row, int col)
     {
         return row >= 1 &&
@@ -5081,5 +5020,36 @@ private string BuildWordString(List<LetterInfo> wordTiles)
             return false;
 
         return (mask & (1 << bit)) != 0;
+    }
+    private void StartStageTimer(string stageName)
+    {
+        if (!enableAITimingLogs) return;
+
+        aiStageStopwatch.Restart();
+        Debug.Log("[AI-TIME] START " + stageName + " | t=" + Time.realtimeSinceStartup.ToString("F3"));
+    }
+
+    private void EndStageTimer(string stageName)
+    {
+        if (!enableAITimingLogs) return;
+
+        aiStageStopwatch.Stop();
+        Debug.Log("[AI-TIME] END " + stageName + " | dt=" + aiStageStopwatch.Elapsed.TotalMilliseconds.ToString("F2") + "ms | t=" + Time.realtimeSinceStartup.ToString("F3"));
+    }
+
+    private void StartTotalAITimer()
+    {
+        if (!enableAITimingLogs) return;
+
+        aiTotalStopwatch.Restart();
+        Debug.Log("[AI-TIME] START EvaluateAIMoveIncremental TOTAL | t=" + Time.realtimeSinceStartup.ToString("F3"));
+    }
+
+    private void EndTotalAITimer()
+    {
+        if (!enableAITimingLogs) return;
+
+        aiTotalStopwatch.Stop();
+        Debug.Log("[AI-TIME] END EvaluateAIMoveIncremental TOTAL | dt=" + aiTotalStopwatch.Elapsed.TotalMilliseconds.ToString("F2") + "ms | t=" + Time.realtimeSinceStartup.ToString("F3"));
     }
 }

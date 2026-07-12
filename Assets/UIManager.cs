@@ -129,7 +129,27 @@ public class UIManager : MonoBehaviour
 
         Debug.LogWarning("RemoveSingleHandTile could not find tile " + letter + " (" + points + ") in hand UI.");
     }
+    public void ClearCommittedBoardTiles()
+    {
+        if (gameBoard == null)
+        {
+            Debug.LogWarning("ClearCommittedBoardTiles: gameBoard is null.");
+            return;
+        }
 
+        GhostTile[] allGhostTiles = gameBoard.GetComponentsInChildren<GhostTile>(true);
+
+        foreach (GhostTile ghostTile in allGhostTiles)
+        {
+            TileScript[] placedTiles = ghostTile.GetComponentsInChildren<TileScript>(true);
+
+            foreach (TileScript tile in placedTiles)
+            {
+                if (tile != null && tile.gameObject != ghostTile.gameObject)
+                    Destroy(tile.gameObject);
+            }
+        }
+    }
 
     public void PlaceAITileOnBoard(LetterInfo tileInfo, LetterPosition letterPosition)
     {
