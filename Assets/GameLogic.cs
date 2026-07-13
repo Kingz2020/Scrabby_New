@@ -78,6 +78,7 @@ public class GameLogic : MonoBehaviour
     private GaddagLexicon aiGaddagLexicon;
     //private HashSet<char>[,] precalculatedCrossChecks;
     private int[,] precalculatedCrossChecks;
+    private int[,] precalculatedCrossChecksVertical;
     private bool aiGaddagReady = false;
     public bool enableScoreDebug = true;
     private bool aiEvaluationRunning = false;
@@ -86,7 +87,16 @@ public class GameLogic : MonoBehaviour
     private int[,] cachedHorizontalCrossChecks;
     private int[,] cachedVerticalCrossChecks;
     //[SerializeField] private bool enableStageTimingLogs = true;
-
+    private const int GaddagNodeBudgetPerSlice = 256;
+    private const double GaddagFrameBudgetMs = 2.0;
+    /*
+    private int debugLeftCrossRejects = 0;
+    private int debugRightCrossRejects = 0;
+    private int debugLeftCrossRejectLogs = 0;
+    private int debugRightCrossRejectLogs = 0;
+    
+    */
+    private const int DebugCrossRejectLogLimit = 20;
     private readonly System.Diagnostics.Stopwatch aiStageStopwatch = new System.Diagnostics.Stopwatch();
     private readonly System.Diagnostics.Stopwatch aiTotalStopwatch = new System.Diagnostics.Stopwatch();
 
@@ -94,6 +104,9 @@ public class GameLogic : MonoBehaviour
 
     private int buildMoveCalls = 0;
     private double buildMoveMs = 0;
+
+    private bool aiGaddagBuildLogged = false;
+    private double aiGaddagBuildMs = 0.0;
 
     public enum TurnState
     {
@@ -168,7 +181,7 @@ public class GameLogic : MonoBehaviour
                 AddPath(form);
             }
         }
-        
+
         private void AddPath(string form)
         {
             GaddagNode current = root;
@@ -257,6 +270,7 @@ public class GameLogic : MonoBehaviour
 
         //scrabbleWords = new List<string>();
         scrabbleWordSet = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        
 
         if (scrabbleWordsList != null)
         {
@@ -279,7 +293,7 @@ public class GameLogic : MonoBehaviour
             scrabbleWords = new List<string>();
             scrabbleWordSet.Clear();
         }
-
+        EnsureAIGaddagReady();
         currentState = TurnState.PlayerTurn;
 
         if (timer != null)
@@ -297,6 +311,8 @@ public class GameLogic : MonoBehaviour
             Singleton.Instance.UIManager.ClearRoundMessage();
             Singleton.Instance.UIManager.UpdateTotalScores(humanTotalScore, aiTotalScore);
         }
+
+
     }
 
     public void BeginGameFromButton()
@@ -988,17 +1004,17 @@ public class GameLogic : MonoBehaviour
 
     private void PlaceBonusTilesOnBoard()
     {
-       // Debug.Log("===== PlaceBonusTilesOnBoard START =====");
+        // Debug.Log("===== PlaceBonusTilesOnBoard START =====");
 
         if (boardBonusTiles == null)
         {
-         //   Debug.LogError("boardBonusTiles is null. Cannot place bonus tiles.");
+            //   Debug.LogError("boardBonusTiles is null. Cannot place bonus tiles.");
             return;
         }
 
         if (bonusTileBag == null)
         {
-         //   Debug.LogError("bonusTileBag is null. Cannot place bonus tiles.");
+            //   Debug.LogError("bonusTileBag is null. Cannot place bonus tiles.");
             return;
         }
 
@@ -1067,7 +1083,7 @@ public class GameLogic : MonoBehaviour
                 if (findSpotSafety > width * height * 3)
                 {
                     //Debug.LogWarning(
-                     //   "Could not find empty legal location for bonus tile " + bonusTile.bonusType +
+                    //   "Could not find empty legal location for bonus tile " + bonusTile.bonusType +
                     //    ". Placement stopped early."
                     //);
                     break;
@@ -1133,11 +1149,11 @@ public class GameLogic : MonoBehaviour
                 }
             }
 
-           // Debug.Log("Bonus row y=" + y + " => " + line);
+            // Debug.Log("Bonus row y=" + y + " => " + line);
         }
 
-       // Debug.Log("===== BONUS BOARD DUMP END =====");
-       // Debug.Log("===== PlaceBonusTilesOnBoard END =====");
+        // Debug.Log("===== BONUS BOARD DUMP END =====");
+        // Debug.Log("===== PlaceBonusTilesOnBoard END =====");
     }
 
     public BonusTile[,] GetBoardBonusTiles()
@@ -1145,7 +1161,7 @@ public class GameLogic : MonoBehaviour
         return boardBonusTiles;
     }
 
-    
+
 
     private void AdvanceRoundReveal()
     {
@@ -1177,7 +1193,7 @@ public class GameLogic : MonoBehaviour
                 case 1:
 
                     UnityEngine.Debug.Log("[FLOW] Entered roundRevealStep 1 | t=" + Time.realtimeSinceStartup.ToString("F3"));
-                   
+
                     if (aiEvaluationRunning)
                     {
                         UnityEngine.Debug.Log("[FLOW] AI still running | t=" + Time.realtimeSinceStartup.ToString("F3"));
@@ -1291,7 +1307,7 @@ public class GameLogic : MonoBehaviour
             }
         }
     }
-    
+
 
     private RoundMove EvaluatePlayerSubmission()
     {
@@ -1299,7 +1315,7 @@ public class GameLogic : MonoBehaviour
         move.isHuman = true;
         move.timeUsed = GetCurrentTimeUsed();
         move.placedTiles = new List<PlacedTile>(GetPlacedTilesThisTurn());
-        
+
         // Populate robust, cloned simulatedTiles data for the Human move
         move.simulatedTiles = new List<SimPlacedTile>();
         foreach (var pt in move.placedTiles)
@@ -1759,7 +1775,7 @@ public class GameLogic : MonoBehaviour
 
         if (string.IsNullOrEmpty(word))
         {
-          //  Debug.LogWarning("FindBestFirstTurnPlacement: word is null or empty.");
+            //  Debug.LogWarning("FindBestFirstTurnPlacement: word is null or empty.");
             return null;
         }
 
@@ -2482,30 +2498,6 @@ public class GameLogic : MonoBehaviour
     }
 
 
-    private void EnsureAIGaddagReady()
-    {
-        if (aiGaddagReady && aiGaddagLexicon != null)
-            return;
-
-        aiGaddagLexicon = new GaddagLexicon();
-
-        if (scrabbleWords != null)
-        {
-            for (int i = 0; i < scrabbleWords.Count; i++)
-            {
-                string word = scrabbleWords[i];
-                if (string.IsNullOrWhiteSpace(word))
-                    continue;
-
-                aiGaddagLexicon.AddWord(word.Trim().ToUpper());
-            }
-        }
-
-        aiGaddagReady = true;
-        Debug.Log("EnsureAIGaddagReady: GADDAG built from scrabbleWords. Count = " +
-                  (scrabbleWords != null ? scrabbleWords.Count : 0));
-    }
-
     private bool IsWordInDictionary(string word)
     {
         if (string.IsNullOrWhiteSpace(word))
@@ -2521,7 +2513,7 @@ public class GameLogic : MonoBehaviour
             a.verticalCrossChecks = BuildCrossCheckSet(a.row, a.col, TilePlacement.Vertical);
         }
     }
-    
+
     private int BuildCrossCheckSet(int row, int col, TilePlacement mainPlacement)
     {
         if (row < 1 || row > boardSizeX || col < 1 || col > boardSizeY)
@@ -2694,15 +2686,19 @@ public class GameLogic : MonoBehaviour
         return false;
     }
 
-    private bool PassCrossCheck(int row, int col, char c)
+    private bool PassCrossCheck(int row, int col, char c, TilePlacement mainPlacement)
     {
-        if (precalculatedCrossChecks != null && IsInBounds(row, col))
+        int[,] table = (mainPlacement == TilePlacement.Horizontal)
+            ? precalculatedCrossChecks
+            : precalculatedCrossChecksVertical;
+
+        if (table != null && IsInBounds(row, col))
         {
-            int mask = precalculatedCrossChecks[row, col];
+            int mask = table[row, col];
             return CrossCheckAllows(mask, c);
         }
 
-        int fallbackMask = BuildCrossCheckSet(row, col, TilePlacement.Horizontal);
+        int fallbackMask = BuildCrossCheckSet(row, col, mainPlacement);
         return CrossCheckAllows(fallbackMask, c);
     }
 
@@ -2779,7 +2775,7 @@ public class GameLogic : MonoBehaviour
 
         return false;
     }
-    
+
     private bool IsLegalCrossLetter(
     int row,
     int col,
@@ -3252,85 +3248,126 @@ public class GameLogic : MonoBehaviour
         aiEvaluationFinished = false;
         aiBestMoveSoFar = null;
 
-        StartTotalAITimer();
+        Debug.Log("[AI-TRACE] EvaluateAIMoveIncremental START");
 
         try
         {
             using (EvaluateAIMoveMarker.Auto())
             {
-                if (currentRoundSnapshot == null || currentRoundSnapshot.initialTiles == null)
+                if (currentRoundSnapshot == null)
                 {
+                    Debug.LogError("[AI-TRACE] currentRoundSnapshot is NULL");
                     aiBestMoveSoFar = CreateInvalidMove();
-                    aiBestMoveSoFar.isHuman = false;
-                    aiBestMoveSoFar.timeUsed = 70f;
                     yield break;
                 }
 
-                List<LetterInfo> aiTiles = null;
-                BonusTile[,] aiBonusBoard = null;
-                bool boardHasTiles = false;
+                if (currentRoundSnapshot.initialTiles == null)
+                {
+                    Debug.LogError("[AI-TRACE] currentRoundSnapshot.initialTiles is NULL");
+                    aiBestMoveSoFar = CreateInvalidMove();
+                    yield break;
+                }
+
+                Debug.Log(
+                    $"[AI-TRACE] snapshot initialTilesCount={currentRoundSnapshot.initialTiles.Count} " +
+                    $"initialBonusTilesNull={(currentRoundSnapshot.initialBonusTiles == null)} " +
+                    $"boardHasValidatedTiles={HasAnyValidatedTilesOnBoard()} " +
+                    $"liveBoardTileCount={CountValidatedBoardTiles()} " +
+                    $"snapshotRack={RackToString(currentRoundSnapshot.initialTiles)}"
+                );
 
                 StartStageTimer("Clone snapshot");
-                using (EvaluateAIMoveMarker.Auto())
-                {
-                    aiTiles = CloneTilesForAI(currentRoundSnapshot.initialTiles);
-                    aiBonusBoard = CloneBonusTilesForAI(currentRoundSnapshot.initialBonusTiles);
-                    boardHasTiles = HasAnyValidatedTilesOnBoard();
-                }
+                List<LetterInfo> aiTiles = CloneTilesForAI(currentRoundSnapshot.initialTiles);
+                BonusTile[,] aiBonusBoard = CloneBonusTilesForAI(currentRoundSnapshot.initialBonusTiles);
                 EndStageTimer("Clone snapshot");
+
+                Debug.Log(
+                    $"[AI-TRACE] clone result rackCount={(aiTiles == null ? -1 : aiTiles.Count)} " +
+                    $"rack={RackToString(aiTiles)} " +
+                    $"bonusBoardNull={(aiBonusBoard == null)}"
+                );
+
+                bool boardHasTiles = HasAnyValidatedTilesOnBoard();
+                Debug.Log($"[AI-TRACE] branch boardHasTiles={boardHasTiles}");
 
                 if (!boardHasTiles)
                 {
-                    StartStageTimer("First-turn GADDAG search");
-                    using (EvaluateAIMoveMarker.Auto())
-                    {
-                        aiBestMoveSoFar = FindBestFirstTurnPlacementGaddag(aiTiles, aiBonusBoard);
-                    }
-                    EndStageTimer("First-turn GADDAG search");
+                    Debug.Log("[AI-TRACE] entering first-turn search");
+
+                    StartStageTimer("First-turn search");
+                    aiBestMoveSoFar = FindBestFirstTurnPlacementGaddag(aiTiles, aiBonusBoard);
+                    EndStageTimer("First-turn search");
+
+                    Debug.Log(
+                        "[AI-TRACE] first-turn search returned " +
+                        DescribeMove(aiBestMoveSoFar)
+                    );
                 }
                 else
                 {
+                    Debug.Log("[AI-TRACE] entering connected GADDAG search");
+
                     StartStageTimer("Connected GADDAG search");
-
-                    bool searchFinished = false;
-                    RoundMove searchResult = null;
-
-                    yield return FindBestGaddagMoveCoroutine(
-                        aiTiles,
-                        aiBonusBoard,
-                        move =>
-                        {
-                            searchResult = move;
-                            searchFinished = true;
-                        });
-
-                    aiBestMoveSoFar = searchResult;
+                    yield return StartCoroutine(
+                        FindBestGaddagMoveCoroutine(
+                            aiTiles,
+                            aiBonusBoard,
+                            move =>
+                            {
+                                Debug.Log("[AI-TRACE] connected search callback move=" + DescribeMove(move));
+                                aiBestMoveSoFar = move;
+                            }));
                     EndStageTimer("Connected GADDAG search");
 
-                    if (!searchFinished && enableAITimingLogs)
-                    {
-                        Debug.LogWarning("[AI-TIME] Connected GADDAG search coroutine ended without callback result.");
-                    }
+                    Debug.Log(
+                        "[AI-TRACE] connected search finished aiBestMoveSoFar=" +
+                        DescribeMove(aiBestMoveSoFar)
+                    );
                 }
 
                 StartStageTimer("Finalize AI move");
-                using (EvaluateAIMoveMarker.Auto())
-                {
-                    if (aiBestMoveSoFar == null)
-                        aiBestMoveSoFar = CreateInvalidMove();
 
-                    aiBestMoveSoFar.isHuman = false;
-                    aiBestMoveSoFar.timeUsed = 70f;
+                if (aiBestMoveSoFar == null)
+                {
+                    Debug.LogWarning("[AI-TRACE] aiBestMoveSoFar was NULL after search, creating invalid move");
+                    aiBestMoveSoFar = CreateInvalidMove();
                 }
+
+                aiBestMoveSoFar.isHuman = false;
+                aiBestMoveSoFar.timeUsed = 70f;
+
+                Debug.Log(
+                    "[AI-TRACE] finalize result " +
+                    DescribeMove(aiBestMoveSoFar)
+                );
+
                 EndStageTimer("Finalize AI move");
             }
         }
         finally
         {
-            EndTotalAITimer();
             aiEvaluationRunning = false;
             aiEvaluationFinished = true;
+
+            Debug.Log(
+                "[AI-TRACE] EvaluateAIMoveIncremental END " +
+                $"running={aiEvaluationRunning} finished={aiEvaluationFinished} " +
+                $"finalMove={DescribeMove(aiBestMoveSoFar)}"
+            );
         }
+    }
+    private string DescribeMove(RoundMove move)
+    {
+        if (move == null)
+            return "NULL";
+
+        int simCount = move.simulatedTiles == null ? -1 : move.simulatedTiles.Count;
+        int placedCount = move.placedTiles == null ? -1 : move.placedTiles.Count;
+
+        return
+            $"valid={move.isValid}, word='{move.word}', score={move.score}, " +
+            $"isHuman={move.isHuman}, timeUsed={move.timeUsed}, " +
+            $"simTiles={simCount}, placedTiles={placedCount}";
     }
 
     private RoundMove TryBuildConnectedAIMove(
@@ -3722,8 +3759,8 @@ public class GameLogic : MonoBehaviour
 
         return count;
     }
-    
-    
+
+
     private LetterInfo RemoveRackTile(
     List<LetterInfo> rack,
     char c)
@@ -3750,74 +3787,78 @@ public class GameLogic : MonoBehaviour
 
         return null;
     }
-    
 
-    private RoundMove BuildMove(SearchState state)
+
+    private RoundMove BuildMove(SearchState state, TilePlacement searchOrientation)
     {
-        var sw = System.Diagnostics.Stopwatch.StartNew();
-        buildMoveCalls++;
-
-        try
         {
-            if (state == null || state.placedTiles == null || state.placedTiles.Count == 0)
-                return null;
-
-            TilePlacement orientation = InferMoveOrientationFromSimTiles(state.placedTiles);
-            if (orientation == TilePlacement.NoTilePlaced || orientation == TilePlacement.WrongTilePlacement)
-                return null;
-
-            foreach (var sim in state.placedTiles)
-            {
-                if (sim == null || sim.letterInfo == null || sim.letterPosition == null)
-                    return null;
-
-                if (validatedBoardTiles[sim.letterPosition.RowX, sim.letterPosition.ColY] != null)
-                    return null;
-            }
-
-            foreach (var sim in state.placedTiles)
-                validatedBoardTiles[sim.letterPosition.RowX, sim.letterPosition.ColY] = sim.letterInfo;
-
-            List<List<LetterInfo>> allWords = null;
-            string mainWord = "";
-            int totalScore = 0;
-            bool valid = false;
+            var sw = System.Diagnostics.Stopwatch.StartNew();
+            buildMoveCalls++;
 
             try
             {
-                allWords = CollectAllWordsForAIMove(orientation, validatedBoardTiles, state.placedTiles);
-                if (allWords != null && allWords.Count > 0 && CheckWordValidity(allWords))
+                if (state == null || state.placedTiles == null || state.placedTiles.Count == 0)
+                    return null;
+
+                //TilePlacement orientation = InferMoveOrientationFromSimTiles(state.placedTiles);
+                TilePlacement orientation = searchOrientation;
+
+                if (orientation == TilePlacement.NoTilePlaced || orientation == TilePlacement.WrongTilePlacement)
+                    return null;
+
+                foreach (var sim in state.placedTiles)
                 {
-                    mainWord = GetMainWordFromPlacedTiles(state.placedTiles, validatedBoardTiles, orientation);
-                    totalScore = CountAIMoveScore(allWords, state.placedTiles);
-                    if (state.placedTiles.Count == maxHandSize)
-                        totalScore += 50;
-                    valid = true;
+                    if (sim == null || sim.letterInfo == null || sim.letterPosition == null)
+                        return null;
+
+                    if (validatedBoardTiles[sim.letterPosition.RowX, sim.letterPosition.ColY] != null)
+                        return null;
                 }
+
+                foreach (var sim in state.placedTiles)
+                    validatedBoardTiles[sim.letterPosition.RowX, sim.letterPosition.ColY] = sim.letterInfo;
+
+                List<List<LetterInfo>> allWords = null;
+                string mainWord = "";
+                int totalScore = 0;
+                bool valid = false;
+
+                try
+                {
+                    allWords = CollectAllWordsForAIMove(orientation, validatedBoardTiles, state.placedTiles);
+                    if (allWords != null && allWords.Count > 0 && CheckWordValidity(allWords))
+                    {
+                        mainWord = GetMainWordFromPlacedTiles(state.placedTiles, validatedBoardTiles, orientation);
+                        totalScore = CountAIMoveScore(allWords, state.placedTiles);
+                        if (state.placedTiles.Count == maxHandSize)
+                            totalScore += 50;
+                        valid = true;
+                    }
+                }
+                finally
+                {
+                    foreach (var sim in state.placedTiles)
+                        validatedBoardTiles[sim.letterPosition.RowX, sim.letterPosition.ColY] = null;
+                }
+
+                if (!valid)
+                    return null;
+
+                return new RoundMove
+                {
+                    isValid = true,
+                    isHuman = false,
+                    simulatedTiles = CloneSimPlacedTiles(state.placedTiles),
+                    word = mainWord,
+                    score = totalScore,
+                    timeUsed = 70f
+                };
             }
             finally
             {
-                foreach (var sim in state.placedTiles)
-                    validatedBoardTiles[sim.letterPosition.RowX, sim.letterPosition.ColY] = null;
+                sw.Stop();
+                buildMoveMs += sw.Elapsed.TotalMilliseconds;
             }
-
-            if (!valid)
-                return null;
-
-            return new RoundMove
-            {
-                isValid = true,
-                isHuman = false,
-                simulatedTiles = CloneSimPlacedTiles(state.placedTiles),
-                word = mainWord,
-                score = totalScore,
-                timeUsed = 70f
-            };
-        }
-        finally
-        {
-            sw.Stop();
-            buildMoveMs += sw.Elapsed.TotalMilliseconds;
         }
     }
 
@@ -3828,6 +3869,7 @@ public class GameLogic : MonoBehaviour
                col >= 1 &&
                col <= boardSizeY;
     }
+
     private RoundMove CreateInvalidMove()
     {
         return new RoundMove
@@ -3846,7 +3888,7 @@ public class GameLogic : MonoBehaviour
         EnsureAIGaddagReady();
         return FindPossibleAIWords_Gaddag(aiTiles);
     }
-    
+
     private bool CanBuildWordFromTiles(string word, List<LetterInfo> tiles)
     {
         if (string.IsNullOrWhiteSpace(word))
@@ -4145,153 +4187,154 @@ public class GameLogic : MonoBehaviour
 
         return TilePlacement.SingleTile;
     }
-private TilePlacement InferMoveOrientationFromSimTiles(List<SimPlacedTile> tiles)
-{
-    if (tiles == null || tiles.Count == 0)
-        return TilePlacement.NoTilePlaced;
-
-    if (tiles.Count == 1)
-        return TilePlacement.SingleTile;
-
-    int firstRow = tiles[0].letterPosition.RowX;
-    int firstCol = tiles[0].letterPosition.ColY;
-
-    bool sameRow = true;
-    bool sameCol = true;
-
-    for (int i = 1; i < tiles.Count; i++)
+    private TilePlacement InferMoveOrientationFromSimTiles(List<SimPlacedTile> tiles)
     {
-        if (tiles[i] == null || tiles[i].letterPosition == null)
-            return TilePlacement.WrongTilePlacement;
+        if (tiles == null || tiles.Count == 0)
+            return TilePlacement.NoTilePlaced;
 
-        if (tiles[i].letterPosition.RowX != firstRow)
-            sameRow = false;
+        if (tiles.Count == 1)
+            return TilePlacement.SingleTile;
 
-        if (tiles[i].letterPosition.ColY != firstCol)
-            sameCol = false;
+        int firstRow = tiles[0].letterPosition.RowX;
+        int firstCol = tiles[0].letterPosition.ColY;
+
+        bool sameRow = true;
+        bool sameCol = true;
+
+        for (int i = 1; i < tiles.Count; i++)
+        {
+            if (tiles[i] == null || tiles[i].letterPosition == null)
+                return TilePlacement.WrongTilePlacement;
+
+            if (tiles[i].letterPosition.RowX != firstRow)
+                sameRow = false;
+
+            if (tiles[i].letterPosition.ColY != firstCol)
+                sameCol = false;
+        }
+
+        if (sameRow)
+            return TilePlacement.Horizontal;
+
+        if (sameCol)
+            return TilePlacement.Vertical;
+
+        return TilePlacement.WrongTilePlacement;
     }
 
-    if (sameRow)
-        return TilePlacement.Horizontal;
+    private string GetMainWordFromPlacedTiles(
+        List<SimPlacedTile> newPlacedTiles,
+        LetterInfo[,] board,
+        TilePlacement orientation)
+    {
+        if (newPlacedTiles == null || newPlacedTiles.Count == 0 || board == null)
+            return string.Empty;
 
-    if (sameCol)
-        return TilePlacement.Vertical;
+        if (orientation == TilePlacement.SingleTile)
+        {
+            int row = newPlacedTiles[0].letterPosition.RowX;
+            int col = newPlacedTiles[0].letterPosition.ColY;
 
-    return TilePlacement.WrongTilePlacement;
-}
+            bool hasVertical =
+                (row > 1 && board[row - 1, col] != null) ||
+                (row < boardSizeX && board[row + 1, col] != null);
 
-private string GetMainWordFromPlacedTiles(
-    List<SimPlacedTile> newPlacedTiles,
-    LetterInfo[,] board,
-    TilePlacement orientation)
-{
-    if (newPlacedTiles == null || newPlacedTiles.Count == 0 || board == null)
+            if (hasVertical)
+            {
+                int firstRow = GetFirstLetterIndex(TilePlacement.Vertical, board, row, col);
+                List<LetterInfo> word = GetWordFromBoard(TilePlacement.Vertical, board, firstRow, col);
+                return BuildWordString(word);
+            }
+
+            bool hasHorizontal =
+                (col > 1 && board[row, col - 1] != null) ||
+                (col < boardSizeY && board[row, col + 1] != null);
+
+            if (hasHorizontal)
+            {
+                int firstCol = GetFirstLetterIndex(TilePlacement.Horizontal, board, row, col);
+                List<LetterInfo> word = GetWordFromBoard(TilePlacement.Horizontal, board, row, firstCol);
+                return BuildWordString(word);
+            }
+
+            return newPlacedTiles[0].letterInfo != null ? newPlacedTiles[0].letterInfo.letter : string.Empty;
+        }
+
+        if (orientation == TilePlacement.Horizontal)
+        {
+            int row = newPlacedTiles[0].letterPosition.RowX;
+            int minCol = newPlacedTiles[0].letterPosition.ColY;
+
+            for (int i = 1; i < newPlacedTiles.Count; i++)
+            {
+                if (newPlacedTiles[i].letterPosition.ColY < minCol)
+                    minCol = newPlacedTiles[i].letterPosition.ColY;
+            }
+
+            int firstCol = GetFirstLetterIndex(TilePlacement.Horizontal, board, row, minCol);
+            return BuildWordString(GetWordFromBoard(TilePlacement.Horizontal, board, row, firstCol));
+        }
+
+        if (orientation == TilePlacement.Vertical)
+        {
+            int col = newPlacedTiles[0].letterPosition.ColY;
+            int minRow = newPlacedTiles[0].letterPosition.RowX;
+
+            for (int i = 1; i < newPlacedTiles.Count; i++)
+            {
+                if (newPlacedTiles[i].letterPosition.RowX < minRow)
+                    minRow = newPlacedTiles[i].letterPosition.RowX;
+            }
+
+            int firstRow = GetFirstLetterIndex(TilePlacement.Vertical, board, minRow, col);
+            return BuildWordString(GetWordFromBoard(TilePlacement.Vertical, board, firstRow, col));
+        }
+
         return string.Empty;
-
-    if (orientation == TilePlacement.SingleTile)
-    {
-        int row = newPlacedTiles[0].letterPosition.RowX;
-        int col = newPlacedTiles[0].letterPosition.ColY;
-
-        bool hasVertical =
-            (row > 1 && board[row - 1, col] != null) ||
-            (row < boardSizeX && board[row + 1, col] != null);
-
-        if (hasVertical)
-        {
-            int firstRow = GetFirstLetterIndex(TilePlacement.Vertical, board, row, col);
-            List<LetterInfo> word = GetWordFromBoard(TilePlacement.Vertical, board, firstRow, col);
-            return BuildWordString(word);
-        }
-
-        bool hasHorizontal =
-            (col > 1 && board[row, col - 1] != null) ||
-            (col < boardSizeY && board[row, col + 1] != null);
-
-        if (hasHorizontal)
-        {
-            int firstCol = GetFirstLetterIndex(TilePlacement.Horizontal, board, row, col);
-            List<LetterInfo> word = GetWordFromBoard(TilePlacement.Horizontal, board, row, firstCol);
-            return BuildWordString(word);
-        }
-
-        return newPlacedTiles[0].letterInfo != null ? newPlacedTiles[0].letterInfo.letter : string.Empty;
     }
 
-    if (orientation == TilePlacement.Horizontal)
+    private List<SimPlacedTile> CloneSimPlacedTiles(List<SimPlacedTile> source)
     {
-        int row = newPlacedTiles[0].letterPosition.RowX;
-        int minCol = newPlacedTiles[0].letterPosition.ColY;
+        List<SimPlacedTile> clone = new List<SimPlacedTile>();
 
-        for (int i = 1; i < newPlacedTiles.Count; i++)
+        if (source == null)
+            return clone;
+
+        for (int i = 0; i < source.Count; i++)
         {
-            if (newPlacedTiles[i].letterPosition.ColY < minCol)
-                minCol = newPlacedTiles[i].letterPosition.ColY;
+            SimPlacedTile sim = source[i];
+            if (sim == null || sim.letterInfo == null || sim.letterPosition == null)
+                continue;
+
+            clone.Add(new SimPlacedTile
+            {
+                letterInfo = new LetterInfo(sim.letterInfo),
+                letterPosition = new LetterPosition(
+                    sim.letterPosition.RowX,
+                    sim.letterPosition.ColY
+                )
+            }
+            );
         }
 
-        int firstCol = GetFirstLetterIndex(TilePlacement.Horizontal, board, row, minCol);
-        return BuildWordString(GetWordFromBoard(TilePlacement.Horizontal, board, row, firstCol));
-    }
-
-    if (orientation == TilePlacement.Vertical)
-    {
-        int col = newPlacedTiles[0].letterPosition.ColY;
-        int minRow = newPlacedTiles[0].letterPosition.RowX;
-
-        for (int i = 1; i < newPlacedTiles.Count; i++)
-        {
-            if (newPlacedTiles[i].letterPosition.RowX < minRow)
-                minRow = newPlacedTiles[i].letterPosition.RowX;
-        }
-
-        int firstRow = GetFirstLetterIndex(TilePlacement.Vertical, board, minRow, col);
-        return BuildWordString(GetWordFromBoard(TilePlacement.Vertical, board, firstRow, col));
-    }
-
-    return string.Empty;
-}
-
-private List<SimPlacedTile> CloneSimPlacedTiles(List<SimPlacedTile> source)
-{
-    List<SimPlacedTile> clone = new List<SimPlacedTile>();
-
-    if (source == null)
         return clone;
+    }
 
-    for (int i = 0; i < source.Count; i++)
+    private string BuildWordString(List<LetterInfo> wordTiles)
     {
-        SimPlacedTile sim = source[i];
-        if (sim == null || sim.letterInfo == null || sim.letterPosition == null)
-            continue;
+        if (wordTiles == null || wordTiles.Count == 0)
+            return string.Empty;
 
-        clone.Add(new SimPlacedTile
+        string word = string.Empty;
+
+        for (int i = 0; i < wordTiles.Count; i++)
         {
-            letterInfo = new LetterInfo(sim.letterInfo),
-            letterPosition = new LetterPosition(
-                sim.letterPosition.RowX,
-                sim.letterPosition.ColY
-            )
-        });
+            if (wordTiles[i] != null && !string.IsNullOrEmpty(wordTiles[i].letter))
+                word += wordTiles[i].letter;
+        }
+
+        return word;
     }
-
-    return clone;
-}
-
-private string BuildWordString(List<LetterInfo> wordTiles)
-{
-    if (wordTiles == null || wordTiles.Count == 0)
-        return string.Empty;
-
-    string word = string.Empty;
-
-    for (int i = 0; i < wordTiles.Count; i++)
-    {
-        if (wordTiles[i] != null && !string.IsNullOrEmpty(wordTiles[i].letter))
-            word += wordTiles[i].letter;
-    }
-
-    return word;
-}
     private bool CanBuildWordFromRackCounts(string word, Dictionary<char, int> rackCounts)
     {
         Dictionary<char, int> needed = new Dictionary<char, int>();
@@ -4656,17 +4699,25 @@ private string BuildWordString(List<LetterInfo> wordTiles)
         aiTotalStopwatch.Stop();
         Debug.Log("[AI-TIME] END EvaluateAIMoveIncremental TOTAL | dt=" + aiTotalStopwatch.Elapsed.TotalMilliseconds.ToString("F2") + "ms | t=" + Time.realtimeSinceStartup.ToString("F3"));
     }
-    private const int GaddagNodeBudgetPerSlice = 256;
-    private const double GaddagFrameBudgetMs = 2.0;
+
 
     private sealed class GaddagSearchContext
     {
         public RoundMove bestMove;
         public int candidateCount;
-        public int slowAnchorCount;
-        public int nodeExpansions;
-        public System.Diagnostics.Stopwatch totalTimer;
         public System.Diagnostics.Stopwatch sliceTimer;
+
+        public int debugLeftCrossRejects;
+        public int debugRightCrossRejects;
+        public int debugLeftCrossRejectLogs;
+        public int debugRightCrossRejectLogs;
+
+        public int nodeExpansions;
+
+        // NEW
+        public int rackTileRemovals;
+        public int terminalHits;
+        public int buildMoveNulls;
     }
 
     private IEnumerator FindBestGaddagMoveCoroutine(
@@ -4674,41 +4725,47 @@ private string BuildWordString(List<LetterInfo> wordTiles)
         BonusTile[,] bonusBoard,
         System.Action<RoundMove> onComplete)
     {
-        var ctx = new GaddagSearchContext
-        {
-            totalTimer = System.Diagnostics.Stopwatch.StartNew(),
-            sliceTimer = System.Diagnostics.Stopwatch.StartNew(),
-            bestMove = null,
-            candidateCount = 0,
-            slowAnchorCount = 0,
-            nodeExpansions = 0
-        };
+
+        var totalTimer = System.Diagnostics.Stopwatch.StartNew();
 
         EnsureAIGaddagReady();
-
-        if (rack == null || aiGaddagLexicon == null || aiGaddagLexicon.Root == null)
-        {
-            onComplete?.Invoke(null);
-            yield break;
-        }
 
         List<AnchorSquare> anchors = BuildAnchors();
 
         precalculatedCrossChecks = new int[boardSizeX + 2, boardSizeY + 2];
+        precalculatedCrossChecksVertical = new int[boardSizeX + 2, boardSizeY + 2];
+
+        const double frameBudgetMs = 2.0;
+        var sliceTimer = System.Diagnostics.Stopwatch.StartNew();
 
         for (int r = 1; r <= boardSizeX; r++)
         {
             for (int c = 1; c <= boardSizeY; c++)
             {
                 precalculatedCrossChecks[r, c] = BuildCrossCheckSet(r, c, TilePlacement.Horizontal);
+                precalculatedCrossChecksVertical[r, c] = BuildCrossCheckSet(r, c, TilePlacement.Vertical);
 
-                if (ctx.sliceTimer.Elapsed.TotalMilliseconds >= GaddagFrameBudgetMs)
+                if (sliceTimer.Elapsed.TotalMilliseconds >= frameBudgetMs)
                 {
-                    ctx.sliceTimer.Restart();
+                    sliceTimer.Restart();
                     yield return null;
                 }
             }
         }
+
+        int slowAnchorCount = 0;
+
+        GaddagSearchContext ctx = new GaddagSearchContext
+        {
+            debugLeftCrossRejects = 0,
+            debugRightCrossRejects = 0,
+            debugLeftCrossRejectLogs = 0,
+            debugRightCrossRejectLogs = 0,
+            bestMove = null,
+            candidateCount = 0,
+            sliceTimer = sliceTimer,
+            nodeExpansions = 0
+        };
 
         for (int i = 0; i < anchors.Count; i++)
         {
@@ -4716,40 +4773,71 @@ private string BuildWordString(List<LetterInfo> wordTiles)
             if (anchor == null)
                 continue;
 
-#if UNITY_EDITOR || DEVELOPMENT_BUILD
-        double beforeMs = ctx.totalTimer.Elapsed.TotalMilliseconds;
-#endif
+            double beforeMs = totalTimer.Elapsed.TotalMilliseconds;
 
-            List<LetterInfo> rackCopy = new List<LetterInfo>(rack);
-            yield return StartCoroutine(SearchAnchorCoroutine(anchor, rackCopy, ctx));
+            // Horizontal words through this anchor
+            int leftLimit = CountEmptySquaresLeft(anchor.row, anchor.col);
 
-#if UNITY_EDITOR || DEVELOPMENT_BUILD
-        double anchorMs = ctx.totalTimer.Elapsed.TotalMilliseconds - beforeMs;
-        if (anchorMs > 2.0)
-            ctx.slowAnchorCount++;
-#endif
-
-            if (ctx.sliceTimer.Elapsed.TotalMilliseconds >= GaddagFrameBudgetMs)
+            SearchState horizontalState = new SearchState
             {
-                ctx.sliceTimer.Restart();
+                anchorRow = anchor.row,
+                anchorCol = anchor.col,
+                leftMostCol = anchor.col
+            };
+
+            yield return StartCoroutine(
+                GenerateLeftPartCoroutine(
+                    anchor,
+                    anchor.col,
+                    aiGaddagLexicon.Root,
+                    rack,
+                    leftLimit,
+                    horizontalState,
+                    ctx));
+
+            // Vertical words through this anchor
+            int aboveLimit = CountEmptySquaresAbove(anchor.row, anchor.col);
+
+            SearchState verticalState = new SearchState
+            {
+                anchorRow = anchor.row,
+                anchorCol = anchor.col,
+                leftMostCol = anchor.col
+            };
+
+            yield return StartCoroutine(
+                GenerateTopPartCoroutine(
+                    anchor,
+                    anchor.row,
+                    aiGaddagLexicon.Root,
+                    rack,
+                    aboveLimit,
+                    verticalState,
+                    ctx));
+
+            double anchorMs = totalTimer.Elapsed.TotalMilliseconds - beforeMs;
+            if (anchorMs > 2.0)
+                slowAnchorCount++;
+
+            if (sliceTimer.Elapsed.TotalMilliseconds >= frameBudgetMs)
+            {
+                sliceTimer.Restart();
                 yield return null;
             }
         }
 
-#if UNITY_EDITOR || DEVELOPMENT_BUILD
-    Debug.Log(
-        $"GADDAG total={ctx.totalTimer.Elapsed.TotalMilliseconds:F1}ms " +
-        $"anchors={anchors.Count} slow={ctx.slowAnchorCount} " +
-        $"candidates={ctx.candidateCount} " +
-        $"best={(ctx.bestMove != null ? ctx.bestMove.word : "NONE")}");
-#endif
+        Debug.Log(
+        $"GADDAG total={totalTimer.Elapsed.TotalMilliseconds:F1}ms " +
+        $"anchors={anchors.Count} slow={slowAnchorCount} " +
+        $"candidates={ctx.candidateCount} best={(ctx.bestMove != null ? ctx.bestMove.word : "NONE")} " +
+        $"xLeft={ctx.debugLeftCrossRejects} xRight={ctx.debugRightCrossRejects} " +
+        $"rackRemovals={ctx.rackTileRemovals} terminalHits={ctx.terminalHits} buildMoveNulls={ctx.buildMoveNulls}"
+        //);
+        );
 
         precalculatedCrossChecks = null;
+        precalculatedCrossChecksVertical = null;
         onComplete?.Invoke(ctx.bestMove);
-
-        Debug.Log($"BuildMove calls={buildMoveCalls} totalMs={buildMoveMs:F1} avgMs={(buildMoveCalls > 0 ? buildMoveMs / buildMoveCalls : 0):F3}");
-        buildMoveCalls = 0;
-        buildMoveMs = 0;
     }
 
     private IEnumerator SearchAnchorCoroutine(
@@ -4865,9 +4953,18 @@ private string BuildWordString(List<LetterInfo> wordTiles)
                 LetterInfo tile = RemoveRackTile(rack, c);
                 if (tile == null)
                     continue;
+                ctx.rackTileRemovals++;
 
-                if (!PassCrossCheck(state.anchorRow, col, c))
+                if (!PassCrossCheck(state.anchorRow, col, c, TilePlacement.Horizontal))
                 {
+                    ctx.debugLeftCrossRejects++;
+
+                    if (ctx.debugLeftCrossRejectLogs < DebugCrossRejectLogLimit)
+                    {
+                        ctx.debugLeftCrossRejectLogs++;
+                        Debug.Log($"XCHECK LEFT reject at ({state.anchorRow},{col}) for {c}");
+                    }
+
                     rack.Add(tile);
                     continue;
                 }
@@ -4953,7 +5050,8 @@ private string BuildWordString(List<LetterInfo> wordTiles)
         {
             if (node.isTerminal)
             {
-                RoundMove move = BuildMove(state);
+                ctx.terminalHits++;
+                RoundMove move = BuildMove(state, TilePlacement.Horizontal);
                 if (move != null)
                 {
                     ctx.candidateCount++;
@@ -4968,7 +5066,9 @@ private string BuildWordString(List<LetterInfo> wordTiles)
         {
             if (node.isTerminal)
             {
-                RoundMove move = BuildMove(state);
+                //RoundMove move = BuildMove(state);
+                ctx.terminalHits++;
+                RoundMove move = BuildMove(state, TilePlacement.Horizontal);
                 if (move != null)
                 {
                     ctx.candidateCount++;
@@ -4986,9 +5086,18 @@ private string BuildWordString(List<LetterInfo> wordTiles)
                 LetterInfo tile = RemoveRackTile(rack, c);
                 if (tile == null)
                     continue;
+                ctx.rackTileRemovals++;
 
-                if (!PassCrossCheck(row, col, c))
+                if (!PassCrossCheck(row, col, c, TilePlacement.Horizontal))
                 {
+                    ctx.debugRightCrossRejects++;
+
+                    if (ctx.debugRightCrossRejectLogs < DebugCrossRejectLogLimit)
+                    {
+                        ctx.debugRightCrossRejectLogs++;
+                        Debug.Log($"XCHECK RIGHT reject at ({row},{col}) for {c}");
+                    }
+
                     rack.Add(tile);
                     continue;
                 }
@@ -5031,6 +5140,307 @@ private string BuildWordString(List<LetterInfo> wordTiles)
                         GenerateRightPartCoroutine(
                             row,
                             col + 1,
+                            nextNode,
+                            rack,
+                            state,
+                            ctx));
+                }
+            }
+        }
+    }
+
+    private void EnsureAIGaddagReady()
+    {
+        if (aiGaddagReady && aiGaddagLexicon != null && aiGaddagLexicon.Root != null)
+            return;
+
+        var buildTimer = System.Diagnostics.Stopwatch.StartNew();
+
+        aiGaddagLexicon = new GaddagLexicon();
+
+        if (scrabbleWords != null)
+        {
+            for (int i = 0; i < scrabbleWords.Count; i++)
+            {
+                string word = scrabbleWords[i];
+                if (string.IsNullOrWhiteSpace(word))
+                    continue;
+
+                aiGaddagLexicon.AddWord(word.Trim().ToUpperInvariant());
+            }
+        }
+
+        aiGaddagReady = true;
+
+        buildTimer.Stop();
+        aiGaddagBuildMs = buildTimer.Elapsed.TotalMilliseconds;
+
+        if (!aiGaddagBuildLogged)
+        {
+            aiGaddagBuildLogged = true;
+            Debug.Log($"[AI-TIME] GADDAG build complete | words={(scrabbleWords != null ? scrabbleWords.Count : 0)} | dt={aiGaddagBuildMs:F2}ms");
+        }
+    }
+    private string RackToString(List<LetterInfo> tiles)
+    {
+        if (tiles == null) return "NULL";
+        System.Text.StringBuilder sb = new System.Text.StringBuilder();
+        for (int i = 0; i < tiles.Count; i++)
+        {
+            if (tiles[i] == null || string.IsNullOrEmpty(tiles[i].letter)) continue;
+            sb.Append(tiles[i].letter.ToUpperInvariant());
+        }
+        return sb.ToString();
+    }
+
+    private int CountValidatedBoardTiles()
+    {
+        int count = 0;
+        for (int r = 1; r <= boardSizeX; r++)
+            for (int c = 1; c <= boardSizeY; c++)
+                if (validatedBoardTiles[r, c] != null)
+                    count++;
+        return count;
+    }
+
+    private int CountEmptySquaresAbove(int row, int col)
+    {
+        int count = 0;
+
+        row--;
+
+        while (row >= 1 &&
+              validatedBoardTiles[row, col] == null)
+        {
+            count++;
+            row--;
+        }
+
+        return count;
+    }
+
+    private IEnumerator GenerateTopPartCoroutine(
+    AnchorSquare anchor,
+    int row,
+    GaddagNode node,
+    List<LetterInfo> rack,
+    int limit,
+    SearchState state,
+    GaddagSearchContext ctx)
+    {
+        if (node == null || node.edges == null || state == null || rack == null || ctx == null)
+            yield break;
+
+        if (ShouldYieldSearch(ctx))
+        {
+            ctx.sliceTimer.Restart();
+            yield return null;
+        }
+
+        if (row < 1)
+        {
+            if (node.edges.TryGetValue(GaddagLexicon.Separator, out var sepNode))
+            {
+                yield return StartCoroutine(
+                    GenerateBottomPartCoroutine(
+                        anchor.row + 1,
+                        state.anchorCol,
+                        sepNode,
+                        rack,
+                        state,
+                        ctx));
+            }
+            yield break;
+        }
+
+        if (validatedBoardTiles[row, state.anchorCol] == null)
+        {
+            if (node.edges.TryGetValue(GaddagLexicon.Separator, out var separatorNode))
+            {
+                yield return StartCoroutine(
+                    GenerateBottomPartCoroutine(
+                        anchor.row + 1,
+                        state.anchorCol,
+                        separatorNode,
+                        rack,
+                        state,
+                        ctx));
+            }
+
+            bool canGoUp = (row == anchor.row) || (limit > 0);
+            if (!canGoUp)
+                yield break;
+
+            int nextLimit = (row == anchor.row) ? limit : (limit - 1);
+
+            foreach (var edge in node.edges)
+            {
+                char c = edge.Key;
+                if (c == GaddagLexicon.Separator)
+                    continue;
+
+                LetterInfo tile = RemoveRackTile(rack, c);
+                if (tile == null)
+                    continue;
+                ctx.rackTileRemovals++;
+
+                if (!PassCrossCheck(row, state.anchorCol, c, TilePlacement.Vertical))
+                {
+                    rack.Add(tile);
+                    continue;
+                }
+
+                state.placedTiles.Add(new SimPlacedTile
+                {
+                    letterInfo = tile,
+                    letterPosition = new LetterPosition(row, state.anchorCol)
+                });
+
+                yield return StartCoroutine(
+                    GenerateTopPartCoroutine(
+                        anchor,
+                        row - 1,
+                        edge.Value,
+                        rack,
+                        nextLimit,
+                        state,
+                        ctx));
+
+                state.placedTiles.RemoveAt(state.placedTiles.Count - 1);
+                rack.Add(tile);
+
+                if (ShouldYieldSearch(ctx))
+                {
+                    ctx.sliceTimer.Restart();
+                    yield return null;
+                }
+            }
+        }
+        else
+        {
+            var boardTile = validatedBoardTiles[row, state.anchorCol];
+            if (boardTile != null && !string.IsNullOrEmpty(boardTile.letter))
+            {
+                char boardChar = char.ToUpperInvariant(boardTile.letter[0]);
+
+                if (node.edges.TryGetValue(boardChar, out var nextNode))
+                {
+                    yield return StartCoroutine(
+                        GenerateTopPartCoroutine(
+                            anchor,
+                            row - 1,
+                            nextNode,
+                            rack,
+                            limit,
+                            state,
+                            ctx));
+                }
+            }
+        }
+    }
+
+    private IEnumerator GenerateBottomPartCoroutine(
+        int row,
+        int col,
+        GaddagNode node,
+        List<LetterInfo> rack,
+        SearchState state,
+        GaddagSearchContext ctx)
+    {
+        if (node == null || node.edges == null || state == null || rack == null || ctx == null)
+            yield break;
+
+        if (ShouldYieldSearch(ctx))
+        {
+            ctx.sliceTimer.Restart();
+            yield return null;
+        }
+
+        if (row > boardSizeX)
+        {
+            if (node.isTerminal)
+            {
+                ctx.terminalHits++;
+                RoundMove move = BuildMove(state, TilePlacement.Vertical);
+                if (move != null)
+                {
+                    ctx.candidateCount++;
+                    if (ctx.bestMove == null || IsBetterAIMove(move, ctx.bestMove))
+                        ctx.bestMove = move;
+                }
+            }
+            yield break;
+        }
+
+        if (validatedBoardTiles[row, col] == null)
+        {
+            if (node.isTerminal)
+            {
+                ctx.terminalHits++;
+                RoundMove move = BuildMove(state, TilePlacement.Vertical);
+                if (move != null)
+                {
+                    ctx.candidateCount++;
+                    if (ctx.bestMove == null || IsBetterAIMove(move, ctx.bestMove))
+                        ctx.bestMove = move;
+                }
+            }
+
+            foreach (var edge in node.edges)
+            {
+                char c = edge.Key;
+                if (c == GaddagLexicon.Separator)
+                    continue;
+
+                LetterInfo tile = RemoveRackTile(rack, c);
+                if (tile == null)
+                    continue;
+                ctx.rackTileRemovals++;
+
+                if (!PassCrossCheck(row, col, c, TilePlacement.Vertical))
+                {
+                    rack.Add(tile);
+                    continue;
+                }
+
+                state.placedTiles.Add(new SimPlacedTile
+                {
+                    letterInfo = tile,
+                    letterPosition = new LetterPosition(row, col)
+                });
+
+                yield return StartCoroutine(
+                    GenerateBottomPartCoroutine(
+                        row + 1,
+                        col,
+                        edge.Value,
+                        rack,
+                        state,
+                        ctx));
+
+                state.placedTiles.RemoveAt(state.placedTiles.Count - 1);
+                rack.Add(tile);
+
+                if (ShouldYieldSearch(ctx))
+                {
+                    ctx.sliceTimer.Restart();
+                    yield return null;
+                }
+            }
+        }
+        else
+        {
+            var boardTile = validatedBoardTiles[row, col];
+            if (boardTile != null && !string.IsNullOrEmpty(boardTile.letter))
+            {
+                char boardChar = char.ToUpperInvariant(boardTile.letter[0]);
+
+                if (node.edges.TryGetValue(boardChar, out var nextNode))
+                {
+                    yield return StartCoroutine(
+                        GenerateBottomPartCoroutine(
+                            row + 1,
+                            col,
                             nextNode,
                             rack,
                             state,
