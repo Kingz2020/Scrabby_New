@@ -2779,145 +2779,7 @@ public class GameLogic : MonoBehaviour
 
         return false;
     }
-    private RoundMove FindBestGaddagMove(
-    List<LetterInfo> rack,
-    BonusTile[,] bonusBoard)
-    {
-        System.Diagnostics.Stopwatch totalTimer = System.Diagnostics.Stopwatch.StartNew();
-        System.Diagnostics.Stopwatch searchTimer = new System.Diagnostics.Stopwatch();
-
-        Debug.Log("GADDAG SEARCH START (SYNCHRONOUS FALLBACK)");
-
-        EnsureAIGaddagReady();
-
-        List<AnchorSquare> anchors = BuildAnchors();
-        BuildCrossChecks(anchors);
-
-        precalculatedCrossChecks = new int[boardSizeX + 2, boardSizeY + 2];
-        for (int r = 1; r <= boardSizeX; r++)
-        {
-            for (int c = 1; c <= boardSizeY; c++)
-            {
-                precalculatedCrossChecks[r, c] = BuildCrossCheckSet(r, c, TilePlacement.Horizontal);
-            }
-        }
-
-        RoundMove best = null;
-        int candidateCount = 0;
-        int slowAnchorCount = 0;
-
-        searchTimer.Start();
-
-        for (int i = 0; i < anchors.Count; i++)
-        {
-            var anchor = anchors[i];
-            if (anchor == null) continue;
-
-            System.Diagnostics.Stopwatch anchorTimer = System.Diagnostics.Stopwatch.StartNew();
-
-            SearchAnchor(anchor, rack, ref best, ref candidateCount);
-
-            anchorTimer.Stop();
-            double anchorMs = anchorTimer.Elapsed.TotalMilliseconds;
-            if (anchorMs > 2.0) // 2ms threshold for slow anchors
-            {
-                slowAnchorCount++;
-                Debug.Log($"Slow Anchor at ({anchor.row}, {anchor.col}) took {anchorMs:F2} ms");
-            }
-        }
-
-        searchTimer.Stop();
-        totalTimer.Stop();
-
-        Debug.Log("==================================================");
-        Debug.Log("GADDAG SEARCH TIMING SUMMARY (Round 2+ Sync)");
-        Debug.Log($"Total AI Turn time: {totalTimer.Elapsed.TotalMilliseconds:F2} ms");
-        Debug.Log($"GADDAG Search time: {searchTimer.Elapsed.TotalMilliseconds:F2} ms");
-        Debug.Log($"Anchor Count: {anchors.Count}");
-        Debug.Log($"Slow Anchors (>2ms): {slowAnchorCount}");
-        Debug.Log($"Candidate/Legal Moves Found: {candidateCount}");
-        Debug.Log($"Best Move Found: {(best != null && best.isValid ? $"\"{best.word}\" (Score: {best.score})" : "NONE")}");
-        Debug.Log("==================================================");
-
-        // Clean up
-        precalculatedCrossChecks = null;
-
-        return best;
-    }
-
-    private IEnumerator FindBestGaddagMoveCoroutine(
-    List<LetterInfo> rack,
-    BonusTile[,] bonusBoard,
-    System.Action<RoundMove> onComplete)
-    {
-        var totalTimer = System.Diagnostics.Stopwatch.StartNew();
-
-        EnsureAIGaddagReady();
-
-        List<AnchorSquare> anchors = BuildAnchors();
-        BuildCrossChecks(anchors);
-
-        //precalculatedCrossChecks = new HashSet<char>[boardSizeX + 2, boardSizeY + 2];
-        precalculatedCrossChecks = new int[boardSizeX + 2, boardSizeY + 2];
-
-        const double frameBudgetMs = 2.0;
-        var sliceTimer = System.Diagnostics.Stopwatch.StartNew();
-
-        for (int r = 1; r <= boardSizeX; r++)
-        {
-            for (int c = 1; c <= boardSizeY; c++)
-            {
-                precalculatedCrossChecks[r, c] = BuildCrossCheckSet(r, c, TilePlacement.Horizontal);
-
-                if (sliceTimer.Elapsed.TotalMilliseconds >= frameBudgetMs)
-                {
-                    sliceTimer.Restart();
-                    yield return null;
-                }
-            }
-        }
-
-        RoundMove best = null;
-        int candidateCount = 0;
-        int slowAnchorCount = 0;
-
-        for (int i = 0; i < anchors.Count; i++)
-        {
-            var anchor = anchors[i];
-            if (anchor == null)
-                continue;
-
-            #if UNITY_EDITOR || DEVELOPMENT_BUILD
-                    double beforeMs = totalTimer.Elapsed.TotalMilliseconds;
-            #endif
-
-                        SearchAnchor(anchor, rack, ref best, ref candidateCount);
-
-            #if UNITY_EDITOR || DEVELOPMENT_BUILD
-                    double anchorMs = totalTimer.Elapsed.TotalMilliseconds - beforeMs;
-                    if (anchorMs > 2.0)
-                        slowAnchorCount++;
-            #endif
-
-                        if (sliceTimer.Elapsed.TotalMilliseconds >= frameBudgetMs)
-                        {
-                            sliceTimer.Restart();
-                            yield return null;
-                        }
-                    }
-
-            #if UNITY_EDITOR || DEVELOPMENT_BUILD
-                Debug.Log($"GADDAG total={totalTimer.Elapsed.TotalMilliseconds:F1}ms anchors={anchors.Count} slow={slowAnchorCount} candidates={candidateCount} best={(best != null ? best.word : "NONE")}");
-            #endif
-
-                    precalculatedCrossChecks = null;
-                    onComplete?.Invoke(best);
-
-        Debug.Log($"BuildMove calls={buildMoveCalls} totalMs={buildMoveMs:F1} avgMs={(buildMoveCalls > 0 ? buildMoveMs / buildMoveCalls : 0):F3}");
-        buildMoveCalls = 0;
-        buildMoveMs = 0;
-    }
-
+    
     private bool IsLegalCrossLetter(
     int row,
     int col,
@@ -3843,49 +3705,6 @@ public class GameLogic : MonoBehaviour
         return bestTile.letterPosition;
     }
 
-
-    private void SearchAnchor(
-    AnchorSquare anchor,
-    List<LetterInfo> rack,
-    ref RoundMove bestMove)
-    {
-        int dummyCandidateCount = 0;
-        SearchAnchor(anchor, rack, ref bestMove, ref dummyCandidateCount);
-    }
-
-    private void SearchAnchor(
-    AnchorSquare anchor,
-    List<LetterInfo> rack,
-    ref RoundMove bestMove,
-    ref int candidateCount)
-    {
-        if (anchor == null || rack == null)
-            return;
-
-        EnsureAIGaddagReady();
-        if (aiGaddagLexicon == null || aiGaddagLexicon.Root == null)
-            return;
-
-        int leftLimit = CountEmptySquaresLeft(anchor.row, anchor.col);
-
-        var state = new SearchState
-        {
-            anchorRow = anchor.row,
-            anchorCol = anchor.col,
-            leftMostCol = anchor.col
-        };
-
-        GenerateLeftPart(
-            anchor,
-            anchor.col,
-            aiGaddagLexicon.Root,
-            rack,
-            leftLimit,
-            state,
-            ref bestMove,
-            ref candidateCount);
-    }
-
     private int CountEmptySquaresLeft(
     int row,
     int col)
@@ -3903,120 +3722,8 @@ public class GameLogic : MonoBehaviour
 
         return count;
     }
-
-    private void GenerateLeftPart(
-    AnchorSquare anchor,
-    int col,
-    GaddagNode node,
-    List<LetterInfo> rack,
-    int limit,
-    SearchState state,
-    ref RoundMove bestMove,
-    ref int candidateCount)
-    {
-        if (node == null || node.edges == null || state == null || rack == null)
-            return;
-
-        if (col < 1)
-        {
-            if (node.edges.TryGetValue(GaddagLexicon.Separator, out var sepNode))
-            {
-                GenerateRightPart(
-                    state.anchorRow,
-                    anchor.col + 1,
-                    sepNode,
-                    rack,
-                    state,
-                    ref bestMove,
-                    ref candidateCount);
-            }
-            return;
-        }
-
-        // 1. If this square is empty
-        if (validatedBoardTiles[state.anchorRow, col] == null)
-        {
-            // A. Check if path has Separator
-            if (node.edges.TryGetValue(GaddagLexicon.Separator, out var sepNode))
-            {
-                GenerateRightPart(
-                    state.anchorRow,
-                    anchor.col + 1,
-                    sepNode,
-                    rack,
-                    state,
-                    ref bestMove,
-                    ref candidateCount);
-            }
-
-            // B. Go left if limit allows
-            bool canGoLeft = (col == anchor.col) || (limit > 0);
-
-            if (canGoLeft)
-            {
-                int nextLimit = (col == anchor.col) ? limit : (limit - 1);
-
-                foreach (var edge in node.edges)
-                {
-                    char c = edge.Key;
-                    if (c == GaddagLexicon.Separator)
-                        continue;
-
-                    LetterInfo tile = RemoveRackTile(rack, c);
-                    if (tile == null)
-                        continue;
-
-                    if (!PassCrossCheck(state.anchorRow, col, c))
-                    {
-                        rack.Add(tile);
-                        continue;
-                    }
-
-                    state.placedTiles.Add(new SimPlacedTile
-                    {
-                        letterInfo = tile,
-                        letterPosition = new LetterPosition(state.anchorRow, col)
-                    });
-
-                    GenerateLeftPart(
-                        anchor,
-                        col - 1,
-                        edge.Value,
-                        rack,
-                        nextLimit,
-                        state,
-                        ref bestMove,
-                        ref candidateCount);
-
-                    state.placedTiles.RemoveAt(state.placedTiles.Count - 1);
-                    rack.Add(tile);
-                }
-            }
-        }
-        // 2. If this square is occupied on the board
-        else
-        {
-            var boardTile = validatedBoardTiles[state.anchorRow, col];
-            if (boardTile != null && !string.IsNullOrEmpty(boardTile.letter))
-            {
-                char boardChar = char.ToUpper(boardTile.letter[0]);
-
-                if (node.edges.TryGetValue(boardChar, out var nextNode))
-                {
-                    GenerateLeftPart(
-                        anchor,
-                        col - 1,
-                        nextNode,
-                        rack,
-                        limit,
-                        state,
-                        ref bestMove,
-                        ref candidateCount);
-                }
-            }
-        }
-    }
-
+    
+    
     private LetterInfo RemoveRackTile(
     List<LetterInfo> rack,
     char c)
@@ -4043,110 +3750,7 @@ public class GameLogic : MonoBehaviour
 
         return null;
     }
-
-    private void GenerateRightPart(
-    int row,
-    int col,
-    GaddagNode node,
-    List<LetterInfo> rack,
-    SearchState state,
-    ref RoundMove bestMove,
-    ref int candidateCount)
-    {
-        if (node == null || node.edges == null || state == null || rack == null)
-            return;
-
-        if (col > boardSizeY)
-        {
-            if (node.isTerminal)
-            {
-                RoundMove move = BuildMove(state);
-                if (move != null)
-                {
-                    candidateCount++;
-                    if (bestMove == null || IsBetterAIMove(move, bestMove))
-                    {
-                        bestMove = move;
-                    }
-                }
-            }
-            return;
-        }
-
-        // 1. If this square is empty
-        if (validatedBoardTiles[row, col] == null)
-        {
-            if (node.isTerminal)
-            {
-                RoundMove move = BuildMove(state);
-                if (move != null)
-                {
-                    candidateCount++;
-                    if (bestMove == null || IsBetterAIMove(move, bestMove))
-                    {
-                        bestMove = move;
-                    }
-                }
-            }
-
-            foreach (var edge in node.edges)
-            {
-                char c = edge.Key;
-                if (c == GaddagLexicon.Separator)
-                    continue;
-
-                LetterInfo tile = RemoveRackTile(rack, c);
-                if (tile == null)
-                    continue;
-
-                if (!PassCrossCheck(row, col, c))
-                {
-                    rack.Add(tile);
-                    continue;
-                }
-
-                state.placedTiles.Add(new SimPlacedTile
-                {
-                    letterInfo = tile,
-                    letterPosition = new LetterPosition(row, col)
-                });
-
-                GenerateRightPart(
-                    row,
-                    col + 1,
-                    edge.Value,
-                    rack,
-                    state,
-                    ref bestMove,
-                    ref candidateCount);
-
-                state.placedTiles.RemoveAt(state.placedTiles.Count - 1);
-                rack.Add(tile);
-            }
-        }
-        // 2. If this square is occupied on the board
-        else
-        {
-            var boardTile = validatedBoardTiles[row, col];
-            if (boardTile != null && !string.IsNullOrEmpty(boardTile.letter))
-            {
-                char boardChar = char.ToUpper(boardTile.letter[0]);
-
-                if (node.edges.TryGetValue(boardChar, out var nextNode))
-                {
-                    GenerateRightPart(
-                        row,
-                        col + 1,
-                        nextNode,
-                        rack,
-                        state,
-                        ref bestMove,
-                        ref candidateCount);
-                }
-            }
-        }
-    }
-
+    
 
     private RoundMove BuildMove(SearchState state)
     {
@@ -5051,5 +4655,388 @@ private string BuildWordString(List<LetterInfo> wordTiles)
 
         aiTotalStopwatch.Stop();
         Debug.Log("[AI-TIME] END EvaluateAIMoveIncremental TOTAL | dt=" + aiTotalStopwatch.Elapsed.TotalMilliseconds.ToString("F2") + "ms | t=" + Time.realtimeSinceStartup.ToString("F3"));
+    }
+    private const int GaddagNodeBudgetPerSlice = 256;
+    private const double GaddagFrameBudgetMs = 2.0;
+
+    private sealed class GaddagSearchContext
+    {
+        public RoundMove bestMove;
+        public int candidateCount;
+        public int slowAnchorCount;
+        public int nodeExpansions;
+        public System.Diagnostics.Stopwatch totalTimer;
+        public System.Diagnostics.Stopwatch sliceTimer;
+    }
+
+    private IEnumerator FindBestGaddagMoveCoroutine(
+        List<LetterInfo> rack,
+        BonusTile[,] bonusBoard,
+        System.Action<RoundMove> onComplete)
+    {
+        var ctx = new GaddagSearchContext
+        {
+            totalTimer = System.Diagnostics.Stopwatch.StartNew(),
+            sliceTimer = System.Diagnostics.Stopwatch.StartNew(),
+            bestMove = null,
+            candidateCount = 0,
+            slowAnchorCount = 0,
+            nodeExpansions = 0
+        };
+
+        EnsureAIGaddagReady();
+
+        if (rack == null || aiGaddagLexicon == null || aiGaddagLexicon.Root == null)
+        {
+            onComplete?.Invoke(null);
+            yield break;
+        }
+
+        List<AnchorSquare> anchors = BuildAnchors();
+
+        precalculatedCrossChecks = new int[boardSizeX + 2, boardSizeY + 2];
+
+        for (int r = 1; r <= boardSizeX; r++)
+        {
+            for (int c = 1; c <= boardSizeY; c++)
+            {
+                precalculatedCrossChecks[r, c] = BuildCrossCheckSet(r, c, TilePlacement.Horizontal);
+
+                if (ctx.sliceTimer.Elapsed.TotalMilliseconds >= GaddagFrameBudgetMs)
+                {
+                    ctx.sliceTimer.Restart();
+                    yield return null;
+                }
+            }
+        }
+
+        for (int i = 0; i < anchors.Count; i++)
+        {
+            AnchorSquare anchor = anchors[i];
+            if (anchor == null)
+                continue;
+
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+        double beforeMs = ctx.totalTimer.Elapsed.TotalMilliseconds;
+#endif
+
+            List<LetterInfo> rackCopy = new List<LetterInfo>(rack);
+            yield return StartCoroutine(SearchAnchorCoroutine(anchor, rackCopy, ctx));
+
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+        double anchorMs = ctx.totalTimer.Elapsed.TotalMilliseconds - beforeMs;
+        if (anchorMs > 2.0)
+            ctx.slowAnchorCount++;
+#endif
+
+            if (ctx.sliceTimer.Elapsed.TotalMilliseconds >= GaddagFrameBudgetMs)
+            {
+                ctx.sliceTimer.Restart();
+                yield return null;
+            }
+        }
+
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+    Debug.Log(
+        $"GADDAG total={ctx.totalTimer.Elapsed.TotalMilliseconds:F1}ms " +
+        $"anchors={anchors.Count} slow={ctx.slowAnchorCount} " +
+        $"candidates={ctx.candidateCount} " +
+        $"best={(ctx.bestMove != null ? ctx.bestMove.word : "NONE")}");
+#endif
+
+        precalculatedCrossChecks = null;
+        onComplete?.Invoke(ctx.bestMove);
+
+        Debug.Log($"BuildMove calls={buildMoveCalls} totalMs={buildMoveMs:F1} avgMs={(buildMoveCalls > 0 ? buildMoveMs / buildMoveCalls : 0):F3}");
+        buildMoveCalls = 0;
+        buildMoveMs = 0;
+    }
+
+    private IEnumerator SearchAnchorCoroutine(
+        AnchorSquare anchor,
+        List<LetterInfo> rack,
+        GaddagSearchContext ctx)
+    {
+        if (anchor == null || rack == null || ctx == null)
+            yield break;
+
+        if (aiGaddagLexicon == null || aiGaddagLexicon.Root == null)
+            yield break;
+
+        int leftLimit = CountEmptySquaresLeft(anchor.row, anchor.col);
+
+        var state = new SearchState
+        {
+            anchorRow = anchor.row,
+            anchorCol = anchor.col,
+            leftMostCol = anchor.col
+        };
+
+        yield return StartCoroutine(
+            GenerateLeftPartCoroutine(
+                anchor,
+                anchor.col,
+                aiGaddagLexicon.Root,
+                rack,
+                leftLimit,
+                state,
+                ctx));
+    }
+
+    private bool ShouldYieldSearch(GaddagSearchContext ctx)
+    {
+        ctx.nodeExpansions++;
+
+        if (ctx.nodeExpansions >= GaddagNodeBudgetPerSlice)
+        {
+            ctx.nodeExpansions = 0;
+            return true;
+        }
+
+        if (ctx.sliceTimer.Elapsed.TotalMilliseconds >= GaddagFrameBudgetMs)
+        {
+            ctx.nodeExpansions = 0;
+            return true;
+        }
+
+        return false;
+    }
+
+    private IEnumerator GenerateLeftPartCoroutine(
+        AnchorSquare anchor,
+        int col,
+        GaddagNode node,
+        List<LetterInfo> rack,
+        int limit,
+        SearchState state,
+        GaddagSearchContext ctx)
+    {
+        if (node == null || node.edges == null || state == null || rack == null || ctx == null)
+            yield break;
+
+        if (ShouldYieldSearch(ctx))
+        {
+            ctx.sliceTimer.Restart();
+            yield return null;
+        }
+
+        if (col < 1)
+        {
+            if (node.edges.TryGetValue(GaddagLexicon.Separator, out var sepNode))
+            {
+                yield return StartCoroutine(
+                    GenerateRightPartCoroutine(
+                        state.anchorRow,
+                        anchor.col + 1,
+                        sepNode,
+                        rack,
+                        state,
+                        ctx));
+            }
+            yield break;
+        }
+
+        if (validatedBoardTiles[state.anchorRow, col] == null)
+        {
+            if (node.edges.TryGetValue(GaddagLexicon.Separator, out var separatorNode))
+            {
+                yield return StartCoroutine(
+                    GenerateRightPartCoroutine(
+                        state.anchorRow,
+                        anchor.col + 1,
+                        separatorNode,
+                        rack,
+                        state,
+                        ctx));
+            }
+
+            bool canGoLeft = (col == anchor.col) || (limit > 0);
+            if (!canGoLeft)
+                yield break;
+
+            int nextLimit = (col == anchor.col) ? limit : (limit - 1);
+
+            foreach (var edge in node.edges)
+            {
+                char c = edge.Key;
+                if (c == GaddagLexicon.Separator)
+                    continue;
+
+                LetterInfo tile = RemoveRackTile(rack, c);
+                if (tile == null)
+                    continue;
+
+                if (!PassCrossCheck(state.anchorRow, col, c))
+                {
+                    rack.Add(tile);
+                    continue;
+                }
+
+                state.placedTiles.Add(new SimPlacedTile
+                {
+                    letterInfo = tile,
+                    letterPosition = new LetterPosition(state.anchorRow, col)
+                });
+
+                if (col < state.leftMostCol)
+                    state.leftMostCol = col;
+
+                yield return StartCoroutine(
+                    GenerateLeftPartCoroutine(
+                        anchor,
+                        col - 1,
+                        edge.Value,
+                        rack,
+                        nextLimit,
+                        state,
+                        ctx));
+
+                state.placedTiles.RemoveAt(state.placedTiles.Count - 1);
+                rack.Add(tile);
+
+                state.leftMostCol = anchor.col;
+                for (int i = 0; i < state.placedTiles.Count; i++)
+                {
+                    int placedCol = state.placedTiles[i].letterPosition.ColY;
+                    if (placedCol < state.leftMostCol)
+                        state.leftMostCol = placedCol;
+                }
+
+                if (ShouldYieldSearch(ctx))
+                {
+                    ctx.sliceTimer.Restart();
+                    yield return null;
+                }
+            }
+        }
+        else
+        {
+            var boardTile = validatedBoardTiles[state.anchorRow, col];
+            if (boardTile != null && !string.IsNullOrEmpty(boardTile.letter))
+            {
+                char boardChar = char.ToUpperInvariant(boardTile.letter[0]);
+
+                if (node.edges.TryGetValue(boardChar, out var nextNode))
+                {
+                    yield return StartCoroutine(
+                        GenerateLeftPartCoroutine(
+                            anchor,
+                            col - 1,
+                            nextNode,
+                            rack,
+                            limit,
+                            state,
+                            ctx));
+                }
+            }
+        }
+    }
+
+    private IEnumerator GenerateRightPartCoroutine(
+        int row,
+        int col,
+        GaddagNode node,
+        List<LetterInfo> rack,
+        SearchState state,
+        GaddagSearchContext ctx)
+    {
+        if (node == null || node.edges == null || state == null || rack == null || ctx == null)
+            yield break;
+
+        if (ShouldYieldSearch(ctx))
+        {
+            ctx.sliceTimer.Restart();
+            yield return null;
+        }
+
+        if (col > boardSizeY)
+        {
+            if (node.isTerminal)
+            {
+                RoundMove move = BuildMove(state);
+                if (move != null)
+                {
+                    ctx.candidateCount++;
+                    if (ctx.bestMove == null || IsBetterAIMove(move, ctx.bestMove))
+                        ctx.bestMove = move;
+                }
+            }
+            yield break;
+        }
+
+        if (validatedBoardTiles[row, col] == null)
+        {
+            if (node.isTerminal)
+            {
+                RoundMove move = BuildMove(state);
+                if (move != null)
+                {
+                    ctx.candidateCount++;
+                    if (ctx.bestMove == null || IsBetterAIMove(move, ctx.bestMove))
+                        ctx.bestMove = move;
+                }
+            }
+
+            foreach (var edge in node.edges)
+            {
+                char c = edge.Key;
+                if (c == GaddagLexicon.Separator)
+                    continue;
+
+                LetterInfo tile = RemoveRackTile(rack, c);
+                if (tile == null)
+                    continue;
+
+                if (!PassCrossCheck(row, col, c))
+                {
+                    rack.Add(tile);
+                    continue;
+                }
+
+                state.placedTiles.Add(new SimPlacedTile
+                {
+                    letterInfo = tile,
+                    letterPosition = new LetterPosition(row, col)
+                });
+
+                yield return StartCoroutine(
+                    GenerateRightPartCoroutine(
+                        row,
+                        col + 1,
+                        edge.Value,
+                        rack,
+                        state,
+                        ctx));
+
+                state.placedTiles.RemoveAt(state.placedTiles.Count - 1);
+                rack.Add(tile);
+
+                if (ShouldYieldSearch(ctx))
+                {
+                    ctx.sliceTimer.Restart();
+                    yield return null;
+                }
+            }
+        }
+        else
+        {
+            var boardTile = validatedBoardTiles[row, col];
+            if (boardTile != null && !string.IsNullOrEmpty(boardTile.letter))
+            {
+                char boardChar = char.ToUpperInvariant(boardTile.letter[0]);
+
+                if (node.edges.TryGetValue(boardChar, out var nextNode))
+                {
+                    yield return StartCoroutine(
+                        GenerateRightPartCoroutine(
+                            row,
+                            col + 1,
+                            nextNode,
+                            rack,
+                            state,
+                            ctx));
+                }
+            }
+        }
     }
 }
