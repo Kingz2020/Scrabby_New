@@ -270,7 +270,7 @@ public class GameLogic : MonoBehaviour
 
         //scrabbleWords = new List<string>();
         scrabbleWordSet = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        
+
 
         if (scrabbleWordsList != null)
         {
@@ -1404,7 +1404,8 @@ public class GameLogic : MonoBehaviour
         return move;
     }
 
-    public RoundMove TestCompareMoves(RoundMove playerMove, RoundMove aiMove) {
+    public RoundMove TestCompareMoves(RoundMove playerMove, RoundMove aiMove)
+    {
         return CompareMoves(playerMove, aiMove);
     }
 
@@ -4625,7 +4626,7 @@ public class GameLogic : MonoBehaviour
 
         return b.Length.CompareTo(a.Length);
     }
-    
+
 
     private static void AllowLetter(bool[] allowed, char c)
     {
@@ -4634,7 +4635,7 @@ public class GameLogic : MonoBehaviour
             allowed[upper - 'A'] = true;
     }
 
-    
+
     private const int AllLettersMask = (1 << 26) - 1;
 
     private static int CreateAllLettersAllowed()
@@ -4785,15 +4786,14 @@ public class GameLogic : MonoBehaviour
                 leftMostCol = anchor.col
             };
 
-            yield return StartCoroutine(
-                GenerateLeftPartCoroutine(
+                GenerateLeftPart(
                     anchor,
                     anchor.col,
                     aiGaddagLexicon.Root,
                     rack,
                     leftLimit,
                     horizontalState,
-                    ctx));
+                    ctx);
 
             // Vertical words through this anchor
             int aboveLimit = CountEmptySquaresAbove(anchor.row, anchor.col);
@@ -4805,15 +4805,14 @@ public class GameLogic : MonoBehaviour
                 leftMostCol = anchor.col
             };
 
-            yield return StartCoroutine(
-                GenerateTopPartCoroutine(
+                GenerateTopPart(
                     anchor,
                     anchor.row,
                     aiGaddagLexicon.Root,
                     rack,
                     aboveLimit,
                     verticalState,
-                    ctx));
+                    ctx);
 
             double anchorMs = totalTimer.Elapsed.TotalMilliseconds - beforeMs;
             if (anchorMs > 2.0)
@@ -4860,15 +4859,14 @@ public class GameLogic : MonoBehaviour
             leftMostCol = anchor.col
         };
 
-        yield return StartCoroutine(
-            GenerateLeftPartCoroutine(
+            GenerateLeftPart(
                 anchor,
                 anchor.col,
                 aiGaddagLexicon.Root,
                 rack,
                 leftLimit,
                 state,
-                ctx));
+                ctx);
     }
 
     private bool ShouldYieldSearch(GaddagSearchContext ctx)
@@ -4890,7 +4888,7 @@ public class GameLogic : MonoBehaviour
         return false;
     }
 
-    private IEnumerator GenerateLeftPartCoroutine(
+    private void GenerateLeftPart(
         AnchorSquare anchor,
         int col,
         GaddagNode node,
@@ -4900,47 +4898,40 @@ public class GameLogic : MonoBehaviour
         GaddagSearchContext ctx)
     {
         if (node == null || node.edges == null || state == null || rack == null || ctx == null)
-            yield break;
+            return;
 
-        if (ShouldYieldSearch(ctx))
-        {
-            ctx.sliceTimer.Restart();
-            yield return null;
-        }
 
         if (col < 1)
         {
             if (node.edges.TryGetValue(GaddagLexicon.Separator, out var sepNode))
             {
-                yield return StartCoroutine(
-                    GenerateRightPartCoroutine(
+                    GenerateRightPart(
                         state.anchorRow,
                         anchor.col + 1,
                         sepNode,
                         rack,
                         state,
-                        ctx));
+                        ctx);
             }
-            yield break;
+            return;
         }
 
         if (validatedBoardTiles[state.anchorRow, col] == null)
         {
             if (node.edges.TryGetValue(GaddagLexicon.Separator, out var separatorNode))
             {
-                yield return StartCoroutine(
-                    GenerateRightPartCoroutine(
+                    GenerateRightPart(
                         state.anchorRow,
                         anchor.col + 1,
                         separatorNode,
                         rack,
                         state,
-                        ctx));
+                        ctx);
             }
 
             bool canGoLeft = (col == anchor.col) || (limit > 0);
             if (!canGoLeft)
-                yield break;
+                return;
 
             int nextLimit = (col == anchor.col) ? limit : (limit - 1);
 
@@ -4978,15 +4969,14 @@ public class GameLogic : MonoBehaviour
                 if (col < state.leftMostCol)
                     state.leftMostCol = col;
 
-                yield return StartCoroutine(
-                    GenerateLeftPartCoroutine(
+                    GenerateLeftPart(
                         anchor,
                         col - 1,
                         edge.Value,
                         rack,
                         nextLimit,
                         state,
-                        ctx));
+                        ctx);
 
                 state.placedTiles.RemoveAt(state.placedTiles.Count - 1);
                 rack.Add(tile);
@@ -4999,11 +4989,6 @@ public class GameLogic : MonoBehaviour
                         state.leftMostCol = placedCol;
                 }
 
-                if (ShouldYieldSearch(ctx))
-                {
-                    ctx.sliceTimer.Restart();
-                    yield return null;
-                }
             }
         }
         else
@@ -5015,21 +5000,20 @@ public class GameLogic : MonoBehaviour
 
                 if (node.edges.TryGetValue(boardChar, out var nextNode))
                 {
-                    yield return StartCoroutine(
-                        GenerateLeftPartCoroutine(
+                        GenerateLeftPart(
                             anchor,
                             col - 1,
                             nextNode,
                             rack,
                             limit,
                             state,
-                            ctx));
+                            ctx);
                 }
             }
         }
     }
 
-    private IEnumerator GenerateRightPartCoroutine(
+    private void GenerateRightPart(
         int row,
         int col,
         GaddagNode node,
@@ -5038,13 +5022,8 @@ public class GameLogic : MonoBehaviour
         GaddagSearchContext ctx)
     {
         if (node == null || node.edges == null || state == null || rack == null || ctx == null)
-            yield break;
+            return;
 
-        if (ShouldYieldSearch(ctx))
-        {
-            ctx.sliceTimer.Restart();
-            yield return null;
-        }
 
         if (col > boardSizeY)
         {
@@ -5059,14 +5038,13 @@ public class GameLogic : MonoBehaviour
                         ctx.bestMove = move;
                 }
             }
-            yield break;
+            return;
         }
 
         if (validatedBoardTiles[row, col] == null)
         {
             if (node.isTerminal)
             {
-                //RoundMove move = BuildMove(state);
                 ctx.terminalHits++;
                 RoundMove move = BuildMove(state, TilePlacement.Horizontal);
                 if (move != null)
@@ -5108,23 +5086,16 @@ public class GameLogic : MonoBehaviour
                     letterPosition = new LetterPosition(row, col)
                 });
 
-                yield return StartCoroutine(
-                    GenerateRightPartCoroutine(
+                    GenerateRightPart(
                         row,
                         col + 1,
                         edge.Value,
                         rack,
                         state,
-                        ctx));
+                        ctx);
 
                 state.placedTiles.RemoveAt(state.placedTiles.Count - 1);
                 rack.Add(tile);
-
-                if (ShouldYieldSearch(ctx))
-                {
-                    ctx.sliceTimer.Restart();
-                    yield return null;
-                }
             }
         }
         else
@@ -5136,14 +5107,13 @@ public class GameLogic : MonoBehaviour
 
                 if (node.edges.TryGetValue(boardChar, out var nextNode))
                 {
-                    yield return StartCoroutine(
-                        GenerateRightPartCoroutine(
+                        GenerateRightPart(
                             row,
                             col + 1,
                             nextNode,
                             rack,
                             state,
-                            ctx));
+                            ctx);
                 }
             }
         }
@@ -5219,7 +5189,7 @@ public class GameLogic : MonoBehaviour
         return count;
     }
 
-    private IEnumerator GenerateTopPartCoroutine(
+    private void GenerateTopPart(
     AnchorSquare anchor,
     int row,
     GaddagNode node,
@@ -5229,47 +5199,40 @@ public class GameLogic : MonoBehaviour
     GaddagSearchContext ctx)
     {
         if (node == null || node.edges == null || state == null || rack == null || ctx == null)
-            yield break;
+            return;
 
-        if (ShouldYieldSearch(ctx))
-        {
-            ctx.sliceTimer.Restart();
-            yield return null;
-        }
 
         if (row < 1)
         {
             if (node.edges.TryGetValue(GaddagLexicon.Separator, out var sepNode))
             {
-                yield return StartCoroutine(
-                    GenerateBottomPartCoroutine(
+                    GenerateBottomPart(
                         anchor.row + 1,
                         state.anchorCol,
                         sepNode,
                         rack,
                         state,
-                        ctx));
+                        ctx);
             }
-            yield break;
+            return;
         }
 
         if (validatedBoardTiles[row, state.anchorCol] == null)
         {
             if (node.edges.TryGetValue(GaddagLexicon.Separator, out var separatorNode))
             {
-                yield return StartCoroutine(
-                    GenerateBottomPartCoroutine(
+                    GenerateBottomPart(
                         anchor.row + 1,
                         state.anchorCol,
                         separatorNode,
                         rack,
                         state,
-                        ctx));
+                        ctx);
             }
 
             bool canGoUp = (row == anchor.row) || (limit > 0);
             if (!canGoUp)
-                yield break;
+                return;
 
             int nextLimit = (row == anchor.row) ? limit : (limit - 1);
 
@@ -5296,24 +5259,18 @@ public class GameLogic : MonoBehaviour
                     letterPosition = new LetterPosition(row, state.anchorCol)
                 });
 
-                yield return StartCoroutine(
-                    GenerateTopPartCoroutine(
+                    GenerateTopPart(
                         anchor,
                         row - 1,
                         edge.Value,
                         rack,
                         nextLimit,
                         state,
-                        ctx));
+                        ctx);
 
                 state.placedTiles.RemoveAt(state.placedTiles.Count - 1);
                 rack.Add(tile);
 
-                if (ShouldYieldSearch(ctx))
-                {
-                    ctx.sliceTimer.Restart();
-                    yield return null;
-                }
             }
         }
         else
@@ -5325,21 +5282,20 @@ public class GameLogic : MonoBehaviour
 
                 if (node.edges.TryGetValue(boardChar, out var nextNode))
                 {
-                    yield return StartCoroutine(
-                        GenerateTopPartCoroutine(
+                        GenerateTopPart(
                             anchor,
                             row - 1,
                             nextNode,
                             rack,
                             limit,
                             state,
-                            ctx));
+                            ctx);
                 }
             }
         }
     }
 
-    private IEnumerator GenerateBottomPartCoroutine(
+    private void GenerateBottomPart(
         int row,
         int col,
         GaddagNode node,
@@ -5348,13 +5304,8 @@ public class GameLogic : MonoBehaviour
         GaddagSearchContext ctx)
     {
         if (node == null || node.edges == null || state == null || rack == null || ctx == null)
-            yield break;
+            return;
 
-        if (ShouldYieldSearch(ctx))
-        {
-            ctx.sliceTimer.Restart();
-            yield return null;
-        }
 
         if (row > boardSizeX)
         {
@@ -5369,7 +5320,7 @@ public class GameLogic : MonoBehaviour
                         ctx.bestMove = move;
                 }
             }
-            yield break;
+            return;
         }
 
         if (validatedBoardTiles[row, col] == null)
@@ -5409,23 +5360,17 @@ public class GameLogic : MonoBehaviour
                     letterPosition = new LetterPosition(row, col)
                 });
 
-                yield return StartCoroutine(
-                    GenerateBottomPartCoroutine(
+                    GenerateBottomPart(
                         row + 1,
                         col,
                         edge.Value,
                         rack,
                         state,
-                        ctx));
+                        ctx);
 
                 state.placedTiles.RemoveAt(state.placedTiles.Count - 1);
                 rack.Add(tile);
 
-                if (ShouldYieldSearch(ctx))
-                {
-                    ctx.sliceTimer.Restart();
-                    yield return null;
-                }
             }
         }
         else
@@ -5437,14 +5382,13 @@ public class GameLogic : MonoBehaviour
 
                 if (node.edges.TryGetValue(boardChar, out var nextNode))
                 {
-                    yield return StartCoroutine(
-                        GenerateBottomPartCoroutine(
+                        GenerateBottomPart(
                             row + 1,
                             col,
                             nextNode,
                             rack,
                             state,
-                            ctx));
+                            ctx);
                 }
             }
         }
