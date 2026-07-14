@@ -62,6 +62,7 @@ public class GameLogic : MonoBehaviour
     private int aiTotalScore;
     [SerializeField] private int maxRounds = 4;
     private int currentRoundNumber = 1;
+    private List<RoundResult> roundHistory = new List<RoundResult>();
 
     [SerializeField] private TextAsset scrabbleWordsList;
     private List<string> scrabbleWords;
@@ -126,6 +127,20 @@ public class GameLogic : MonoBehaviour
         public List<PlacedTile> placedTiles;
         public List<SimPlacedTile> simulatedTiles;
     }
+
+    [System.Serializable]
+    public class RoundResult
+    {
+        public int roundNumber;
+        public int humanScore;
+        public int aiScore;
+        public string humanWord;
+        public string aiWord;
+        public bool humanValid;
+        public bool aiValid;
+        public bool humanWasWinner;
+    }
+
     private class SearchState
     {
         public List<SimPlacedTile> placedTiles = new();
@@ -304,6 +319,7 @@ public class GameLogic : MonoBehaviour
         humanTotalScore = 0;
         aiTotalScore = 0;
         currentRoundNumber = 1;
+        roundHistory = new List<RoundResult>();
 
         if (Singleton.Instance != null && Singleton.Instance.UIManager != null)
         {
@@ -1293,6 +1309,8 @@ public class GameLogic : MonoBehaviour
                 case 3:
                     ApplyWinningMove(pendingWinningMove);
 
+                    RecordRoundResult();
+
                     if (IsGameOver())
                     {
                         EndGame();
@@ -2123,9 +2141,29 @@ public class GameLogic : MonoBehaviour
         //Debug.Log("Total scores => Human: " + humanTotalScore + ", AI: " + aiTotalScore);
     }
 
+    private void RecordRoundResult()
+    {
+        RoundResult result = new RoundResult
+        {
+            roundNumber = currentRoundNumber,
+            humanScore = (pendingPlayerMove != null && pendingPlayerMove.isValid) ? pendingPlayerMove.score : 0,
+            aiScore = (pendingAIMove != null && pendingAIMove.isValid) ? pendingAIMove.score : 0,
+            humanWord = (pendingPlayerMove != null && pendingPlayerMove.isValid) ? pendingPlayerMove.word : "",
+            aiWord = (pendingAIMove != null && pendingAIMove.isValid) ? pendingAIMove.word : "",
+            humanValid = pendingPlayerMove != null && pendingPlayerMove.isValid,
+            aiValid = pendingAIMove != null && pendingAIMove.isValid,
+            humanWasWinner = pendingWinningMove != null && pendingWinningMove.isHuman
+        };
+
+        roundHistory.Add(result);
+
+        Debug.Log($"[ROUND RESULT] Round {result.roundNumber}: Human '{result.humanWord}' ({result.humanScore}) vs AI '{result.aiWord}' ({result.aiScore}), winner={(result.humanWasWinner ? "Human" : "AI")}");
+    }
+
+
     private bool IsGameOver()
     {
-        return currentRoundNumber > maxRounds;
+        return currentRoundNumber >= maxRounds;
     }
 
     private void EndGame()
@@ -2155,6 +2193,9 @@ public class GameLogic : MonoBehaviour
             timer.StopTimer();
 
         Debug.Log(finalMessage);
+        foreach (var r in roundHistory)
+            Debug.Log($"Round {r.roundNumber}: {r.humanWord}({r.humanScore}) vs {r.aiWord}({r.aiScore})");
+
     }
     public int GetCurrentRound()
     {
