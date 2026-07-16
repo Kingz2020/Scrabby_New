@@ -10,6 +10,8 @@ public class UIManager : MonoBehaviour
     public GameObject basicTile;
     public WordlistDisplay wordlistDisplay;
     public WorldlistTitleHolder worldlistTitleHolder;
+    public GameObject gameOverPanel;
+    public TextMeshProUGUI gameOverSummaryText;
 
     [SerializeField] private TextMeshProUGUI roundMessageText;
     [SerializeField] private TextMeshProUGUI humanScoreText;
@@ -471,5 +473,11 @@ public class UIManager : MonoBehaviour
             else
                 roundText.text = "Round: " + currentRound + " / " + maxRounds;
         }
+    }
+
+    public void ShowGameOverPanel(string finalMessage, string roundSummary)
+    {
+        gameOverPanel.SetActive(true);
+        gameOverSummaryText.text = finalMessage + "\n\n" + roundSummary;
     }
 }

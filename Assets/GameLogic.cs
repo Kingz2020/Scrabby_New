@@ -2193,10 +2193,49 @@ public class GameLogic : MonoBehaviour
             timer.StopTimer();
 
         Debug.Log(finalMessage);
+
+        string roundSummary = "";
+        foreach (var r in roundHistory)
+        {
+            roundSummary += $"Round {r.roundNumber}: {r.humanWord}({r.humanScore}) vs {r.aiWord}({r.aiScore})\n";
+            Debug.Log($"Round {r.roundNumber}: {r.humanWord}({r.humanScore}) vs {r.aiWord}({r.aiScore})");
+        }
+
+        Singleton.Instance.UIManager.ShowGameOverPanel(finalMessage, roundSummary);
+    }
+
+    /*private void EndGame()
+    {
+        roundFlowActive = false;
+        roundRevealStep = 0;
+        currentState = TurnState.Busy;
+
+        string finalMessage;
+
+        if (humanTotalScore > aiTotalScore)
+        {
+            finalMessage = "Game over. Human wins " + humanTotalScore + " to " + aiTotalScore + "!";
+        }
+        else if (aiTotalScore > humanTotalScore)
+        {
+            finalMessage = "Game over. AI wins " + aiTotalScore + " to " + humanTotalScore + "!";
+        }
+        else
+        {
+            finalMessage = "Game over. It's a tie at " + humanTotalScore + " - " + aiTotalScore + "!";
+        }
+
+        Singleton.Instance.UIManager.ShowRoundMessage(finalMessage);
+
+        if (timer != null)
+            timer.StopTimer();
+
+        Debug.Log(finalMessage);
         foreach (var r in roundHistory)
             Debug.Log($"Round {r.roundNumber}: {r.humanWord}({r.humanScore}) vs {r.aiWord}({r.aiScore})");
 
-    }
+    }*/
+
     public int GetCurrentRound()
     {
         return currentTurn;
