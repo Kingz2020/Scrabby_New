@@ -66,7 +66,7 @@
 				{
 					"directoryIndex" : 1,
 					"id" : "swappywrapper::@7e25bd1f32ce224db4e9",
-					"jsonFile" : "target-swappywrapper-RelWithDebInfo-058cc971c9bb1047725f.json",
+					"jsonFile" : "target-swappywrapper-RelWithDebInfo-9bab2526352dfbd798ee.json",
 					"name" : "swappywrapper",
 					"projectIndex" : 1
 				}
@@ -76,8 +76,8 @@
 	"kind" : "codemodel",
 	"paths" : 
 	{
-		"build" : "C:/Users/mysta/OneDrive/Dokumente/GitHub/Scrabby_New/.utmp/RelWithDebInfo/4k1yb411/armeabi-v7a",
-		"source" : "C:/Users/mysta/OneDrive/Dokumente/GitHub/Scrabby_New/Library/Bee/Android/Prj/Mono2x/Gradle/unityLibrary/src/main/cpp"
+		"build" : "C:/Users/mysta/OneDrive/Dokumente/GitHub/Scrabby_New/.utmp/RelWithDebInfo/4k1yb411/arm64-v8a",
+		"source" : "C:/Users/mysta/OneDrive/Dokumente/GitHub/Scrabby_New/Library/Bee/Android/Prj/IL2CPP/Gradle/unityLibrary/src/main/cpp"
 	},
 	"version" : 
 	{

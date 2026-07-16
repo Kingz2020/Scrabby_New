@@ -934,7 +934,7 @@ public class GameLogic : MonoBehaviour
     {
         return CountWordPoints(word, new List<PlacedTile>());
     }
-
+    
     public void EndTurn()
     {
         foreach (var placedTile in GetPlacedTilesThisTurn())
@@ -2307,7 +2307,7 @@ public class GameLogic : MonoBehaviour
         return wordList;
     }
 
-    private void DebugDumpValidatedBoard()
+    /*private void DebugDumpValidatedBoard()
     {
         Debug.Log("=== VALIDATED BOARD DUMP ===");
         for (int r = 0; r < validatedBoardTiles.GetLength(0); r++)
@@ -2321,8 +2321,8 @@ public class GameLogic : MonoBehaviour
             Debug.Log(rowStr);
         }
     }
-
-    private bool CanBuildWordFromBaseAndRack(string word, string baseWord, List<LetterInfo> rackTiles)
+    */
+    /*private bool CanBuildWordFromBaseAndRack(string word, string baseWord, List<LetterInfo> rackTiles)
     {
         if (string.IsNullOrEmpty(word))
             return false;
@@ -2365,8 +2365,8 @@ public class GameLogic : MonoBehaviour
 
         return true;
     }
-
-    private TilePlacement InferMoveOrientation(RoundMove move)
+    */
+    /*private TilePlacement InferMoveOrientation(RoundMove move)
     {
         if (move == null || move.simulatedTiles == null || move.simulatedTiles.Count <= 1)
             return TilePlacement.Horizontal;
@@ -2387,7 +2387,7 @@ public class GameLogic : MonoBehaviour
 
         return TilePlacement.Vertical;
     }
-
+    */
     private int CountAIMoveScore(List<List<LetterInfo>> allWords, List<SimPlacedTile> newPlacedTiles)
     {
         int totalScore = 0;
@@ -2444,35 +2444,35 @@ public class GameLogic : MonoBehaviour
 
         wordList.Add(candidateWord);
     }
-    private string GetSimTileLetter(SimPlacedTile tile)
+    /*private string GetSimTileLetter(SimPlacedTile tile)
     {
         if (tile == null || tile.letterInfo == null || string.IsNullOrEmpty(tile.letterInfo.letter))
             return string.Empty;
 
         return tile.letterInfo.letter;
     }
-
-    private int GetSimTileRow(SimPlacedTile tile)
+    */
+    /*private int GetSimTileRow(SimPlacedTile tile)
     {
         if (tile == null || tile.letterPosition == null)
             return -1;
 
         return tile.letterPosition.RowX;
-    }
+    }*/
 
-    private int GetSimTileCol(SimPlacedTile tile)
+    /*private int GetSimTileCol(SimPlacedTile tile)
     {
         if (tile == null || tile.letterPosition == null)
             return -1;
 
         return tile.letterPosition.ColY;
-    }
-    private bool SimTileMatchesBoardCell(SimPlacedTile tile, int row, int col)
+    }*/
+    /*private bool SimTileMatchesBoardCell(SimPlacedTile tile, int row, int col)
     {
         return GetSimTileRow(tile) == row && GetSimTileCol(tile) == col;
     }
-
-    private SimPlacedTile FindSimTileAt(List<SimPlacedTile> tiles, int row, int col)
+    */
+    /*private SimPlacedTile FindSimTileAt(List<SimPlacedTile> tiles, int row, int col)
     {
         if (tiles == null)
             return null;
@@ -2484,7 +2484,7 @@ public class GameLogic : MonoBehaviour
         }
 
         return null;
-    }
+    }*/
 
     private string GetAIMoveSignature(RoundMove move)
     {
@@ -2547,14 +2547,14 @@ public class GameLogic : MonoBehaviour
 
         return scrabbleWordSet != null && scrabbleWordSet.Contains(word.ToUpper());
     }
-    private void BuildCrossChecks(List<AnchorSquare> anchors)
+    /*private void BuildCrossChecks(List<AnchorSquare> anchors)
     {
         foreach (var a in anchors)
         {
             a.horizontalCrossChecks = BuildCrossCheckSet(a.row, a.col, TilePlacement.Horizontal);
             a.verticalCrossChecks = BuildCrossCheckSet(a.row, a.col, TilePlacement.Vertical);
         }
-    }
+    }*/
 
     private int BuildCrossCheckSet(int row, int col, TilePlacement mainPlacement)
     {
@@ -2735,7 +2735,7 @@ public class GameLogic : MonoBehaviour
         return false;
     }
 
-    private bool IsLegalCrossLetter(
+    /*private bool IsLegalCrossLetter(
     int row,
     int col,
     char letter,
@@ -2783,7 +2783,7 @@ public class GameLogic : MonoBehaviour
 
         return scrabbleWordSet.Contains(word);
     }
-
+    */
     public bool CanBuildWordFromTiles_TestHook(string word, List<LetterInfo> tiles)
     {
         return CanBuildWordFromTiles(word, tiles);
@@ -3335,7 +3335,7 @@ public class GameLogic : MonoBehaviour
         return results;
     }
 
-    private TilePlacement InferMoveOrientationFromBoard(
+    /*private TilePlacement InferMoveOrientationFromBoard(
     List<SimPlacedTile> simTiles,
     LetterInfo[,] tempBoard)
     {
@@ -3375,7 +3375,7 @@ public class GameLogic : MonoBehaviour
             return TilePlacement.Vertical;
 
         return TilePlacement.SingleTile;
-    }
+    }*/
     private TilePlacement InferMoveOrientationFromSimTiles(List<SimPlacedTile> tiles)
     {
         if (tiles == null || tiles.Count == 0)
@@ -3775,7 +3775,7 @@ public class GameLogic : MonoBehaviour
 
         Debug.LogWarning("EnsurePlayableInitialRack reached maxAttempts. Keeping last rack.");
     }
-    private void ReturnCurrentHandToTileBag()
+    /*private void ReturnCurrentHandToTileBag()
     {
         if (playerHandTiles == null)
             return;
@@ -3793,7 +3793,7 @@ public class GameLogic : MonoBehaviour
             Singleton.Instance.UIManager.RemoveAllHandTiles();
 
         ResetDisplay();
-    }
+    }*/
     public void AddLetterToBag(LetterInfo tile)
     {
         if (tile == null || _tileBag == null)
@@ -3816,13 +3816,13 @@ public class GameLogic : MonoBehaviour
     }
 
 
-    private static void AllowLetter(bool[] allowed, char c)
+    /*private static void AllowLetter(bool[] allowed, char c)
     {
         char upper = char.ToUpperInvariant(c);
         if (upper >= 'A' && upper <= 'Z')
             allowed[upper - 'A'] = true;
     }
-
+    */
 
     private const int AllLettersMask = (1 << 26) - 1;
 
@@ -3849,14 +3849,14 @@ public class GameLogic : MonoBehaviour
         int bit = 1 << (upper - 'A');
         return (mask & bit) != 0;
     }
-    private bool IsLetterAllowed(int mask, char c)
+    /*private bool IsLetterAllowed(int mask, char c)
     {
         int bit = c - 'A';
         if (bit < 0 || bit >= 26)
             return false;
 
         return (mask & (1 << bit)) != 0;
-    }
+    }*/
     private void StartStageTimer(string stageName)
     {
         if (!enableAITimingLogs) return;
@@ -3873,14 +3873,14 @@ public class GameLogic : MonoBehaviour
         Debug.Log("[AI-TIME] END " + stageName + " | dt=" + aiStageStopwatch.Elapsed.TotalMilliseconds.ToString("F2") + "ms | t=" + Time.realtimeSinceStartup.ToString("F3"));
     }
 
-    private void StartTotalAITimer()
+    /*private void StartTotalAITimer()
     {
         if (!enableAITimingLogs) return;
 
         aiTotalStopwatch.Restart();
         Debug.Log("[AI-TIME] START EvaluateAIMoveIncremental TOTAL | t=" + Time.realtimeSinceStartup.ToString("F3"));
     }
-
+    */
     private void EndTotalAITimer()
     {
         if (!enableAITimingLogs) return;
@@ -4027,7 +4027,7 @@ public class GameLogic : MonoBehaviour
         onComplete?.Invoke(ctx.bestMove);
     }
 
-    private IEnumerator SearchAnchorCoroutine(
+    /*private IEnumerator SearchAnchorCoroutine(
         AnchorSquare anchor,
         List<LetterInfo> rack,
         GaddagSearchContext ctx)
@@ -4056,7 +4056,7 @@ public class GameLogic : MonoBehaviour
                 state,
                 ctx);
     }
-
+    */
     private bool ShouldYieldSearch(GaddagSearchContext ctx)
     {
         ctx.nodeExpansions++;
