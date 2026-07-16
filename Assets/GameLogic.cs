@@ -8,7 +8,7 @@ using UnityEngine.UI;
 using static GameLogic;
 using Random = UnityEngine.Random;
 using Unity.Profiling;
-//using System.Diagnostics;
+
 
 
 public class GameLogic : MonoBehaviour
@@ -77,7 +77,7 @@ public class GameLogic : MonoBehaviour
     private TurnState currentState;
     private HashSet<string> scrabbleWordSet;
     private GaddagLexicon aiGaddagLexicon;
-    //private HashSet<char>[,] precalculatedCrossChecks;
+
     private int[,] precalculatedCrossChecks;
     private int[,] precalculatedCrossChecksVertical;
     private bool aiGaddagReady = false;
@@ -87,16 +87,10 @@ public class GameLogic : MonoBehaviour
     private RoundMove aiBestMoveSoFar = null;
     private int[,] cachedHorizontalCrossChecks;
     private int[,] cachedVerticalCrossChecks;
-    //[SerializeField] private bool enableStageTimingLogs = true;
+
     private const int GaddagNodeBudgetPerSlice = 256;
     private const double GaddagFrameBudgetMs = 2.0;
-    /*
-    private int debugLeftCrossRejects = 0;
-    private int debugRightCrossRejects = 0;
-    private int debugLeftCrossRejectLogs = 0;
-    private int debugRightCrossRejectLogs = 0;
-    
-    */
+
     private const int DebugCrossRejectLogLimit = 20;
     private readonly System.Diagnostics.Stopwatch aiStageStopwatch = new System.Diagnostics.Stopwatch();
     private readonly System.Diagnostics.Stopwatch aiTotalStopwatch = new System.Diagnostics.Stopwatch();
@@ -840,15 +834,6 @@ public class GameLogic : MonoBehaviour
 
             int letterPoints = tile.points;
 
-            /*if (enableScoreDebug)
-            {
-                Debug.Log(
-                    $"SCORE DEBUG: Letter '{tile.letter}' base={tile.points}, " +
-                    $"isNewlyPlaced={isNewlyPlaced}, row={row}, col={col}");
-            }
-            */
-            //int letterMultiplierUsed = 1;
-
             if (isNewlyPlaced && row >= 0 && col >= 0)
             {
                 int bonusRow = row - 1;
@@ -882,37 +867,14 @@ public class GameLogic : MonoBehaviour
                                 break;
                         }
 
-                        /*if (enableScoreDebug)
-                        {
-                            Debug.Log(
-                                $"SCORE DEBUG: Letter '{tile.letter}' hit bonus {bonusTile.bonusType} " +
-                                $"at board [{row},{col}] (bonus[{bonusCol},{bonusRow}]). " +
-                                $"letterMult={letterMultiplierUsed}, wordMultiplier NOW={wordMultiplier}");
-                        }*/
                     }
-                    /*else if (enableScoreDebug && bonusTile != null && tile.bonusUsed)
-                    {
-                        Debug.Log(
-                            $"SCORE DEBUG: Letter '{tile.letter}' is on bonus {bonusTile.bonusType} " +
-                            $"but bonus already used; no bonus applied.");
-                    }*/
+
                 }
-                /*else if (enableScoreDebug)
-                {
-                    Debug.Log(
-                        $"SCORE DEBUG: Letter '{tile.letter}' has out-of-range bonus index " +
-                        $"bonusRow={bonusRow}, bonusCol={bonusCol}, no bonus applied.");
-                }*/
+
             }
 
             totalLetterPoints += letterPoints;
 
-            /*if (enableScoreDebug)
-            {
-                Debug.Log(
-                    $"SCORE DEBUG: After letter '{tile.letter}': letterPoints={letterPoints}, " +
-                    $"totalLetterPoints={totalLetterPoints}, wordMultiplier={wordMultiplier}");
-            }*/
         }
 
         int finalScore = totalLetterPoints * wordMultiplier;
@@ -920,10 +882,7 @@ public class GameLogic : MonoBehaviour
         if (enableScoreDebug)
         {
             string letters = string.Join("", word.ConvertAll(t => t.letter));
-            /*Debug.Log(
-                $"SCORE DEBUG: Final word '{letters}' => baseSum={totalLetterPoints}, " +
-                $"wordMultiplier={wordMultiplier}, totalScore={finalScore}");
-            */
+
         }
 
         return finalScore;
@@ -2204,38 +2163,6 @@ public class GameLogic : MonoBehaviour
         Singleton.Instance.UIManager.ShowGameOverPanel(finalMessage, roundSummary);
     }
 
-    /*private void EndGame()
-    {
-        roundFlowActive = false;
-        roundRevealStep = 0;
-        currentState = TurnState.Busy;
-
-        string finalMessage;
-
-        if (humanTotalScore > aiTotalScore)
-        {
-            finalMessage = "Game over. Human wins " + humanTotalScore + " to " + aiTotalScore + "!";
-        }
-        else if (aiTotalScore > humanTotalScore)
-        {
-            finalMessage = "Game over. AI wins " + aiTotalScore + " to " + humanTotalScore + "!";
-        }
-        else
-        {
-            finalMessage = "Game over. It's a tie at " + humanTotalScore + " - " + aiTotalScore + "!";
-        }
-
-        Singleton.Instance.UIManager.ShowRoundMessage(finalMessage);
-
-        if (timer != null)
-            timer.StopTimer();
-
-        Debug.Log(finalMessage);
-        foreach (var r in roundHistory)
-            Debug.Log($"Round {r.roundNumber}: {r.humanWord}({r.humanScore}) vs {r.aiWord}({r.aiScore})");
-
-    }*/
-
     public int GetCurrentRound()
     {
         return currentTurn;
@@ -2346,87 +2273,6 @@ public class GameLogic : MonoBehaviour
         return wordList;
     }
 
-    /*private void DebugDumpValidatedBoard()
-    {
-        Debug.Log("=== VALIDATED BOARD DUMP ===");
-        for (int r = 0; r < validatedBoardTiles.GetLength(0); r++)
-        {
-            string rowStr = "row " + r + " => ";
-            for (int c = 0; c < validatedBoardTiles.GetLength(1); c++)
-            {
-                var tile = validatedBoardTiles[r, c];
-                rowStr += tile == null ? "[  ]" : "[" + tile.letter + "]";
-            }
-            Debug.Log(rowStr);
-        }
-    }
-    */
-    /*private bool CanBuildWordFromBaseAndRack(string word, string baseWord, List<LetterInfo> rackTiles)
-    {
-        if (string.IsNullOrEmpty(word))
-            return false;
-
-        // Build multiset of available letters: baseWord + rack letters
-        Dictionary<char, int> available = new Dictionary<char, int>();
-
-        void AddChar(char c)
-        {
-            char upper = char.ToUpper(c);
-            if (!available.ContainsKey(upper))
-                available[upper] = 0;
-            available[upper]++;
-        }
-
-        if (!string.IsNullOrEmpty(baseWord))
-        {
-            foreach (char c in baseWord)
-                AddChar(c);
-        }
-
-        if (rackTiles != null)
-        {
-            foreach (var tile in rackTiles)
-            {
-                if (tile == null || string.IsNullOrEmpty(tile.letter))
-                    continue;
-                AddChar(tile.letter[0]);
-            }
-        }
-
-        // Consume letters required by target word
-        foreach (char c in word)
-        {
-            char upper = char.ToUpper(c);
-            if (!available.ContainsKey(upper) || available[upper] <= 0)
-                return false;
-            available[upper]--;
-        }
-
-        return true;
-    }
-    */
-    /*private TilePlacement InferMoveOrientation(RoundMove move)
-    {
-        if (move == null || move.simulatedTiles == null || move.simulatedTiles.Count <= 1)
-            return TilePlacement.Horizontal;
-
-        int firstRow = move.simulatedTiles[0].letterPosition.RowX;
-        int firstCol = move.simulatedTiles[0].letterPosition.ColY;
-
-        bool sameRow = true;
-
-        for (int i = 1; i < move.simulatedTiles.Count; i++)
-        {
-            if (move.simulatedTiles[i].letterPosition.RowX != firstRow)
-                sameRow = false;
-        }
-
-        if (sameRow)
-            return TilePlacement.Horizontal;
-
-        return TilePlacement.Vertical;
-    }
-    */
     private int CountAIMoveScore(List<List<LetterInfo>> allWords, List<SimPlacedTile> newPlacedTiles)
     {
         int totalScore = 0;
@@ -2483,47 +2329,6 @@ public class GameLogic : MonoBehaviour
 
         wordList.Add(candidateWord);
     }
-    /*private string GetSimTileLetter(SimPlacedTile tile)
-    {
-        if (tile == null || tile.letterInfo == null || string.IsNullOrEmpty(tile.letterInfo.letter))
-            return string.Empty;
-
-        return tile.letterInfo.letter;
-    }
-    */
-    /*private int GetSimTileRow(SimPlacedTile tile)
-    {
-        if (tile == null || tile.letterPosition == null)
-            return -1;
-
-        return tile.letterPosition.RowX;
-    }*/
-
-    /*private int GetSimTileCol(SimPlacedTile tile)
-    {
-        if (tile == null || tile.letterPosition == null)
-            return -1;
-
-        return tile.letterPosition.ColY;
-    }*/
-    /*private bool SimTileMatchesBoardCell(SimPlacedTile tile, int row, int col)
-    {
-        return GetSimTileRow(tile) == row && GetSimTileCol(tile) == col;
-    }
-    */
-    /*private SimPlacedTile FindSimTileAt(List<SimPlacedTile> tiles, int row, int col)
-    {
-        if (tiles == null)
-            return null;
-
-        for (int i = 0; i < tiles.Count; i++)
-        {
-            if (SimTileMatchesBoardCell(tiles[i], row, col))
-                return tiles[i];
-        }
-
-        return null;
-    }*/
 
     private string GetAIMoveSignature(RoundMove move)
     {
@@ -2586,14 +2391,6 @@ public class GameLogic : MonoBehaviour
 
         return scrabbleWordSet != null && scrabbleWordSet.Contains(word.ToUpper());
     }
-    /*private void BuildCrossChecks(List<AnchorSquare> anchors)
-    {
-        foreach (var a in anchors)
-        {
-            a.horizontalCrossChecks = BuildCrossCheckSet(a.row, a.col, TilePlacement.Horizontal);
-            a.verticalCrossChecks = BuildCrossCheckSet(a.row, a.col, TilePlacement.Vertical);
-        }
-    }*/
 
     private int BuildCrossCheckSet(int row, int col, TilePlacement mainPlacement)
     {
@@ -2774,55 +2571,6 @@ public class GameLogic : MonoBehaviour
         return false;
     }
 
-    /*private bool IsLegalCrossLetter(
-    int row,
-    int col,
-    char letter,
-    bool horizontal)
-    {
-        string word = "";
-
-        if (horizontal)
-        {
-            int r = row;
-
-            while (validatedBoardTiles[r - 1, col] != null)
-                r--;
-
-            while (validatedBoardTiles[r, col] != null || r == row)
-            {
-                if (r == row)
-                    word += letter;
-                else
-                    word += validatedBoardTiles[r, col].letter;
-
-                r++;
-            }
-        }
-        else
-        {
-            int c = col;
-
-            while (validatedBoardTiles[row, c - 1] != null)
-                c--;
-
-            while (validatedBoardTiles[row, c] != null || c == col)
-            {
-                if (c == col)
-                    word += letter;
-                else
-                    word += validatedBoardTiles[row, c].letter;
-
-                c++;
-            }
-        }
-
-        if (word.Length <= 1)
-            return true;
-
-        return scrabbleWordSet.Contains(word);
-    }
-    */
     public bool CanBuildWordFromTiles_TestHook(string word, List<LetterInfo> tiles)
     {
         return CanBuildWordFromTiles(word, tiles);
@@ -3374,47 +3122,6 @@ public class GameLogic : MonoBehaviour
         return results;
     }
 
-    /*private TilePlacement InferMoveOrientationFromBoard(
-    List<SimPlacedTile> simTiles,
-    LetterInfo[,] tempBoard)
-    {
-        if (simTiles == null || simTiles.Count == 0)
-            return TilePlacement.NoTilePlaced;
-
-        if (simTiles.Count >= 2)
-        {
-            int firstRow = simTiles[0].letterPosition.RowX;
-            bool sameRow = true;
-
-            for (int i = 1; i < simTiles.Count; i++)
-            {
-                if (simTiles[i].letterPosition.RowX != firstRow)
-                {
-                    sameRow = false;
-                    break;
-                }
-            }
-
-            return sameRow ? TilePlacement.Horizontal : TilePlacement.Vertical;
-        }
-
-        int row = simTiles[0].letterPosition.RowX;
-        int col = simTiles[0].letterPosition.ColY;
-
-        bool hasHorizontal =
-            tempBoard[row, col - 1] != null || tempBoard[row, col + 1] != null;
-
-        bool hasVertical =
-            tempBoard[row - 1, col] != null || tempBoard[row + 1, col] != null;
-
-        if (hasHorizontal)
-            return TilePlacement.Horizontal;
-
-        if (hasVertical)
-            return TilePlacement.Vertical;
-
-        return TilePlacement.SingleTile;
-    }*/
     private TilePlacement InferMoveOrientationFromSimTiles(List<SimPlacedTile> tiles)
     {
         if (tiles == null || tiles.Count == 0)
@@ -3814,25 +3521,7 @@ public class GameLogic : MonoBehaviour
 
         Debug.LogWarning("EnsurePlayableInitialRack reached maxAttempts. Keeping last rack.");
     }
-    /*private void ReturnCurrentHandToTileBag()
-    {
-        if (playerHandTiles == null)
-            return;
-
-        for (int i = 0; i < playerHandTiles.Count; i++)
-        {
-            LetterInfo tile = playerHandTiles[i];
-            if (tile != null)
-                AddLetterToBag(tile);
-        }
-
-        playerHandTiles.Clear();
-
-        if (Singleton.Instance != null && Singleton.Instance.UIManager != null)
-            Singleton.Instance.UIManager.RemoveAllHandTiles();
-
-        ResetDisplay();
-    }*/
+  
     public void AddLetterToBag(LetterInfo tile)
     {
         if (tile == null || _tileBag == null)
@@ -3854,14 +3543,6 @@ public class GameLogic : MonoBehaviour
         return b.Length.CompareTo(a.Length);
     }
 
-
-    /*private static void AllowLetter(bool[] allowed, char c)
-    {
-        char upper = char.ToUpperInvariant(c);
-        if (upper >= 'A' && upper <= 'Z')
-            allowed[upper - 'A'] = true;
-    }
-    */
 
     private const int AllLettersMask = (1 << 26) - 1;
 
@@ -3888,14 +3569,7 @@ public class GameLogic : MonoBehaviour
         int bit = 1 << (upper - 'A');
         return (mask & bit) != 0;
     }
-    /*private bool IsLetterAllowed(int mask, char c)
-    {
-        int bit = c - 'A';
-        if (bit < 0 || bit >= 26)
-            return false;
 
-        return (mask & (1 << bit)) != 0;
-    }*/
     private void StartStageTimer(string stageName)
     {
         if (!enableAITimingLogs) return;
@@ -3912,14 +3586,6 @@ public class GameLogic : MonoBehaviour
         Debug.Log("[AI-TIME] END " + stageName + " | dt=" + aiStageStopwatch.Elapsed.TotalMilliseconds.ToString("F2") + "ms | t=" + Time.realtimeSinceStartup.ToString("F3"));
     }
 
-    /*private void StartTotalAITimer()
-    {
-        if (!enableAITimingLogs) return;
-
-        aiTotalStopwatch.Restart();
-        Debug.Log("[AI-TIME] START EvaluateAIMoveIncremental TOTAL | t=" + Time.realtimeSinceStartup.ToString("F3"));
-    }
-    */
     private void EndTotalAITimer()
     {
         if (!enableAITimingLogs) return;
@@ -4066,36 +3732,6 @@ public class GameLogic : MonoBehaviour
         onComplete?.Invoke(ctx.bestMove);
     }
 
-    /*private IEnumerator SearchAnchorCoroutine(
-        AnchorSquare anchor,
-        List<LetterInfo> rack,
-        GaddagSearchContext ctx)
-    {
-        if (anchor == null || rack == null || ctx == null)
-            yield break;
-
-        if (aiGaddagLexicon == null || aiGaddagLexicon.Root == null)
-            yield break;
-
-        int leftLimit = CountEmptySquaresLeft(anchor.row, anchor.col);
-
-        var state = new SearchState
-        {
-            anchorRow = anchor.row,
-            anchorCol = anchor.col,
-            leftMostCol = anchor.col
-        };
-
-            GenerateLeftPart(
-                anchor,
-                anchor.col,
-                aiGaddagLexicon.Root,
-                rack,
-                leftLimit,
-                state,
-                ctx);
-    }
-    */
     private bool ShouldYieldSearch(GaddagSearchContext ctx)
     {
         ctx.nodeExpansions++;
