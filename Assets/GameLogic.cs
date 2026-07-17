@@ -329,6 +329,13 @@ public class GameLogic : MonoBehaviour
     {
         Debug.Log("BeginGameFromButton CALLED");
 
+        if (Singleton.Instance != null &&
+            Singleton.Instance.UIManager != null &&
+            Singleton.Instance.UIManager.gameOverPanel != null)
+        {
+            Singleton.Instance.UIManager.gameOverPanel.SetActive(false);
+        }
+
         StopAllCoroutines();
 
         ClearBoardForNewGame();
@@ -336,7 +343,6 @@ public class GameLogic : MonoBehaviour
 
         StartCoroutine(StartRound());
     }
-
 
     private void ClearBoardForNewGame()
     {
