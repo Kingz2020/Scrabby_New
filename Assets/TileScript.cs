@@ -8,6 +8,7 @@ public class TileScript : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDr
     public Image background;
     public TextMeshProUGUI textLetter;
     public TextMeshProUGUI textPoints;
+    private CanvasGroup canvasGroup;
 
     [SerializeField] private PlacedTile placedTile;
 
@@ -20,6 +21,13 @@ public class TileScript : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDr
     public LetterPosition LetterPosition => placedTile != null ? placedTile.letterPosition : null;
 
     [SerializeField] private bool isLockedOnBoard = false;
+
+    private void Awake()
+    {
+        canvasGroup = GetComponent<CanvasGroup>();
+        if (canvasGroup == null)
+            canvasGroup = gameObject.AddComponent<CanvasGroup>();
+    }
 
     public void InitTile(LetterInfo tileInfo)
     {
@@ -41,7 +49,7 @@ public class TileScript : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDr
         if (isLockedOnBoard)
             return;
 
-        background.raycastTarget = false;
+        canvasGroup.blocksRaycasts = false;
         origin = transform.position;
         originalParent = transform.parent;
 
@@ -60,6 +68,7 @@ public class TileScript : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDr
         }
     }
 
+
     public void OnDrag(PointerEventData eventData)
     {
         if (isLockedOnBoard)
@@ -73,7 +82,8 @@ public class TileScript : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDr
         if (isLockedOnBoard)
             return;
 
-        background.raycastTarget = true;
+        //background.raycastTarget = true;
+        canvasGroup.blocksRaycasts = true;
         Singleton.Instance.DropManager.isCurrentlyDragging = false;
 
         GhostTile targetLocation = Singleton.Instance.DropManager.GetCurrentLocation();

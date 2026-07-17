@@ -517,7 +517,7 @@ GameObject:
   - component: {fileID: 136636783}
   - component: {fileID: 136636782}
   m_Layer: 5
-  m_Name: Check Word (1)
+  m_Name: newgame
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -6991,7 +6991,7 @@ MonoBehaviour:
   aiScoreText: {fileID: 1746441066}
   roundText: {fileID: 486172163}
   overlayCanvasRect: {fileID: 0}
-  validatedScorePopupPrefab: {fileID: 0}
+  validatedScorePopupPrefab: {fileID: 8877962218795890567, guid: 9d10d1ecca4e6304db03ae729b07bee8, type: 3}
   validatedScorePopupOffset: {x: 40, y: -40}
 --- !u!1 &1664243237
 GameObject:
