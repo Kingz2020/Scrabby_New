@@ -1650,15 +1650,12 @@ public class GameLogic : MonoBehaviour
         if (bonusBoardView != null)
             bonusBoardView.StartRevealBonusTiles(revealDelay);
 
-        if (Singleton.Instance != null && Singleton.Instance.UIManager != null)
-            Singleton.Instance.UIManager.RemoveAllHandTiles();
 
         if (playerHandTiles == null)
             playerHandTiles = new List<LetterInfo>();
 
-        playerHandTiles.Clear();
-
         yield return StartCoroutine(RefillPlayerHandAnimated(2f));
+        RebuildHandUIFromLogicalHand();
         ResetDisplay();
         SaveCurrentRoundSnapshot();
 
@@ -1668,9 +1665,7 @@ public class GameLogic : MonoBehaviour
             Singleton.Instance.UIManager.ClearRoundMessage();
         }
 
-        //Debug.Log("Before reveal wait in StartNextRound");
         yield return new WaitForSeconds(1.5f);
-        //Debug.Log("After reveal wait in StartNextRound");
 
         if (timer != null)
         {
