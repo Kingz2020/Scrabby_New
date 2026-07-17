@@ -278,6 +278,8 @@ public class UIManager : MonoBehaviour
             return;
         }
 
+        imgChild.gameObject.SetActive(false);
+
         popupRect.localScale = Vector3.one;
 
         // Position the root popup exactly on the bottom-right corner of the tile in world space
@@ -286,21 +288,21 @@ public class UIManager : MonoBehaviour
         if (ghostRect != null)
         {
             ghostRect.GetWorldCorners(corners);
-            popupRect.position = corners[3]; // corners[3] is bottom-right corner in world space!
+            //popupRect.position = corners[3]; // corners[3] is bottom-right corner in world space!
+            popupRect.position = corners[3] + new Vector3(16f, 10f, 0f);
         }
         else
         {
             popupRect.position = ghostTile.transform.position;
         }
 
-        // Sizing the popup container to be very large (400x250) so the massive 104f font has plenty of space and won't clip
-        popupRect.sizeDelta = new Vector2(400f, 250f);
+        popupRect.sizeDelta = new Vector2(110f, 60f);
 
         float tileWidth = ghostRect != null ? ghostRect.sizeDelta.x : 100f;
         float tileHeight = ghostRect != null ? ghostRect.sizeDelta.y : 100f;
 
         // Make the background a beautifully sized circular/square score badge (60% of tile size)
-        float badgeSize = Mathf.Min(tileWidth, tileHeight) * 0.60f;
+        float badgeSize = Mathf.Min(tileWidth, tileHeight) * 0.42f;
         
         RectTransform imgRt = imgChild.GetComponent<RectTransform>();
         if (imgRt != null)
@@ -384,12 +386,12 @@ public class UIManager : MonoBehaviour
             }
 
             popupText.gameObject.SetActive(true);
-            
+
             // Set the clean text score directly
-            popupText.text = "+" + score;
+            /*popupText.text = "+" + score;
             
             // Set font size to exactly 104f (which is twice the lettering size of the tiles, 52 * 2 = 104)
-            popupText.fontSize = 104f; 
+            popupText.fontSize = 42f; 
             popupText.fontStyle = FontStyles.Bold;
             
             if (isWinningMove)
@@ -411,8 +413,31 @@ public class UIManager : MonoBehaviour
 
             // Use TextMeshPro's native high-quality shader outlines to add a strong black outer border to keep it super legible!
             popupText.outlineColor = new Color32(0, 0, 0, 255); // Solid black outline
-            popupText.outlineWidth = 0.25f; // Strong, highly visible border thickness
+            popupText.outlineWidth = 0.18f; // Strong, highly visible border thickness
+            */
+            popupText.text = "+" + score;
 
+            if (isWinningMove)
+            {
+                popupText.fontSize = 42f;
+                popupText.fontStyle = FontStyles.Bold;
+                popupText.color = new Color32(0, 180, 40, 255);
+                popupText.outlineColor = new Color32(0, 0, 0, 255);
+                popupText.outlineWidth = 0.18f;
+            }
+            else
+            {
+                popupText.fontSize = 38f;
+                popupText.fontStyle = FontStyles.Normal;
+                popupText.color = new Color32(20, 20, 20, 255);
+                popupText.outlineColor = new Color32(0, 0, 0, 180);
+                popupText.outlineWidth = 0.08f;
+            }
+
+            popupText.alignment = TextAlignmentOptions.Center;
+            popupText.enableAutoSizing = false;
+            popupText.textWrappingMode = TextWrappingModes.NoWrap;
+            popupText.overflowMode = TextOverflowModes.Overflow;
             Debug.Log("Popup text set to: " + popupText.text);
         }
         else
@@ -431,17 +456,22 @@ public class UIManager : MonoBehaviour
         ValidatedScorePopup popupScript = popup.GetComponent<ValidatedScorePopup>();
         if (popupScript != null)
         {
-            float slowLifetime = 4.0f; // Remains on screen for 4 full seconds
+            /*float slowLifetime = 4.0f; // Remains on screen for 4 full seconds
             popupScript.floatOffset = new Vector2(30f, 60f); // Float gently upwards
             popupScript.fadeDuration = 2.0f; // Remain fully solid for the first 2 seconds, then slowly fade out over the last 2 seconds
+            */
+            float popupLifetime = 0.85f;
+            popupScript.floatOffset = new Vector2(10f, 18f);
+            popupScript.fadeDuration = 0.22f;
+            popupScript.Play(popupLifetime);
 
-            Debug.Log("Playing popup animation for lifetime: " + slowLifetime);
-            popupScript.Play(slowLifetime);
+            //Debug.Log("Playing popup animation for lifetime: " + slowLifetime);
+            //popupScript.Play(slowLifetime);
         }
         else
         {
             Debug.LogWarning("ValidatedScorePopup script not found on popup. Destroying after lifetime only.");
-            Destroy(popup, 4.0f);
+            Destroy(popup, 0.85f);
         }
     }
 
