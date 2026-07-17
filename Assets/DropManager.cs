@@ -6,6 +6,7 @@ public class DropManager : MonoBehaviour
     private List<PlacedTile> _dropLocations = new List<PlacedTile>();
     private PlacedTile _tempPlacedTile;
     private GhostTile _currentLocation;
+    private GhostTile _lastValidLocation;
 
     public bool isCurrentlyDragging = false;
 
@@ -29,16 +30,19 @@ public class DropManager : MonoBehaviour
         _dropLocations.Clear();
         _tempPlacedTile = null;
         _currentLocation = null;
+        _lastValidLocation = null;
     }
 
     public void SetCurrentLocation(GhostTile location)
     {
         _currentLocation = location;
+        if (location != null)
+            _lastValidLocation = location;
     }
 
     public GhostTile GetCurrentLocation()
     {
-        return _currentLocation;
+        return _currentLocation != null ? _currentLocation : _lastValidLocation;
     }
 
     public void ClearCurrentLocation(GhostTile location)
