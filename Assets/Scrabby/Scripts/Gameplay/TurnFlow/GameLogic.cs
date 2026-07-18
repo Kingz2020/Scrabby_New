@@ -5,7 +5,7 @@ using Unity.VisualScripting;
 using UnityEngine;
 using UnityEngine.Events;
 using UnityEngine.UI;
-using static GameLogic;
+//using static GameLogic;
 using Random = UnityEngine.Random;
 using Unity.Profiling;
 
@@ -102,6 +102,23 @@ public class GameLogic : MonoBehaviour
 
     private bool aiGaddagBuildLogged = false;
     private double aiGaddagBuildMs = 0.0;
+    private IMoveAgent humanAgent;
+    private IMoveAgent aiAgent;
+    private bool opponentMoveRequested = false;
+    private bool opponentMoveReady = false;
+
+    public enum GameMode
+    {
+        HumanVsAI,
+        HumanVsHumanLocal,
+        HumanVsHumanOnline
+    }
+
+    [SerializeField] private GameMode gameMode = GameMode.HumanVsAI;
+
+    
+
+
 
     public enum TurnState
     {
@@ -110,31 +127,40 @@ public class GameLogic : MonoBehaviour
         Busy
     }
 
-    [System.Serializable]
-    public class RoundMove
+    public RoundMove EvaluatePlayerSubmissionFromAgent()
     {
-        public bool isValid;
-        public int score;
-        public string word;
-        public float timeUsed;
-        public bool isHuman;
-        public List<PlacedTile> placedTiles;
-        public List<SimPlacedTile> simulatedTiles;
+        return EvaluatePlayerSubmission();
     }
 
-    [System.Serializable]
-    public class RoundResult
+    public RoundMove GetLatestAIMove()
     {
-        public int roundNumber;
-        public int humanScore;
-        public int aiScore;
-        public string humanWord;
-        public string aiWord;
-        public bool humanValid;
-        public bool aiValid;
-        public bool humanWasWinner;
+        return aiBestMoveSoFar;
     }
+    /*  [System.Serializable]
+      public class RoundMove
+      {
+          public bool isValid;
+          public int score;
+          public string word;
+          public float timeUsed;
+          public bool isHuman;
+          public List<PlacedTile> placedTiles;
+          public List<SimPlacedTile> simulatedTiles;
+      }
 
+      [System.Serializable]
+      public class RoundResult
+      {
+          public int roundNumber;
+          public int humanScore;
+          public int aiScore;
+          public string humanWord;
+          public string aiWord;
+          public bool humanValid;
+          public bool aiValid;
+          public bool humanWasWinner;
+      }
+    */
     private class SearchState
     {
         public List<SimPlacedTile> placedTiles = new();
@@ -237,13 +263,13 @@ public class GameLogic : MonoBehaviour
         }
     }
 
-    [System.Serializable]
+   /* [System.Serializable]
     public class SimPlacedTile
     {
         public LetterInfo letterInfo;
         public LetterPosition letterPosition;
     }
-
+   */
 
     public void InitGame(int maxHandSize, int boardSizeX, int boardSizeY)
     {
@@ -270,9 +296,15 @@ public class GameLogic : MonoBehaviour
         pendingAIMove = null;
         pendingWinningMove = null;
 
+        opponentMoveRequested = false;
+        opponentMoveReady = false;
+
         roundFlowActive = false;
         roundRevealStep = 0;
         roundStarted = false;
+
+        humanAgent = new HumanMoveAgent();
+        aiAgent = new AIMoveAgent();
 
         if (bonusTileBag != null && bonusBag != null)
             bonusTileBag.ResetBonusBag(bonusBag);
@@ -380,6 +412,10 @@ public class GameLogic : MonoBehaviour
         pendingPlayerMove = null;
         pendingAIMove = null;
         pendingWinningMove = null;
+
+        opponentMoveRequested = false;
+        opponentMoveReady = false;
+
         currentState = TurnState.PlayerTurn;
         aiEvaluationRunning = false;
         aiEvaluationFinished = false;
@@ -899,22 +935,31 @@ public class GameLogic : MonoBehaviour
     {
         return CountWordPoints(word, new List<PlacedTile>());
     }
-    
+
     public void EndTurn()
     {
-        foreach (var placedTile in GetPlacedTilesThisTurn())
+        if (!roundStarted)
+            return;
+
+        if (gameMode == GameMode.HumanVsHumanLocal &&
+            roundFlowActive &&
+            opponentMoveRequested &&
+            !opponentMoveReady)
         {
-            playerHandTiles.Remove(placedTile.letterInfo);
-            SetBoardTile(placedTile);
+            SubmitLocalOpponentMove();
+            return;
         }
 
-        currentTurn++;
+        if (!roundFlowActive)
+        {
+            pendingPlayerMove = EvaluatePlayerSubmission();
+            roundFlowActive = true;
+            roundRevealStep = 0;
+            AdvanceRoundReveal();
+            return;
+        }
 
-        if (Singleton.Instance != null && Singleton.Instance.DropManager != null)
-            Singleton.Instance.DropManager.ResetLocations();
-
-        if (Singleton.Instance != null && Singleton.Instance.GameLogic != null)
-            Singleton.Instance.GameLogic.RefillPlayerHand();
+        AdvanceRoundReveal();
     }
 
     public void RefillPlayerHand()
@@ -1142,8 +1187,6 @@ public class GameLogic : MonoBehaviour
         return boardBonusTiles;
     }
 
-
-
     private void AdvanceRoundReveal()
     {
         using (AdvanceRoundRevealMarker.Auto())
@@ -1157,68 +1200,68 @@ public class GameLogic : MonoBehaviour
                     if (Singleton.Instance != null && Singleton.Instance.UIManager != null)
                     {
                         if (pendingPlayerMove != null && pendingPlayerMove.isValid)
-                        {
                             Singleton.Instance.UIManager.ShowRoundMessage(
-                                "You played " + pendingPlayerMove.word + " for " + pendingPlayerMove.score + " points. Press EndTurn.");
-                        }
+                                "You played " + pendingPlayerMove.word + " for " + pendingPlayerMove.score + " points. Press EndTurn."
+                            );
                         else
-                        {
                             Singleton.Instance.UIManager.ShowRoundMessage(
-                                "Your move was invalid. Press EndTurn.");
-                        }
+                                "Your move was invalid. Press EndTurn."
+                            );
                     }
 
                     roundRevealStep = 1;
                     break;
 
                 case 1:
-
-                    UnityEngine.Debug.Log("[FLOW] Entered roundRevealStep 1 | t=" + Time.realtimeSinceStartup.ToString("F3"));
-
-                    if (aiEvaluationRunning)
+                    if (!opponentMoveRequested)
                     {
-                        UnityEngine.Debug.Log("[FLOW] AI still running | t=" + Time.realtimeSinceStartup.ToString("F3"));
+                        Debug.Log("FLOW Opponent move not requested yet. Requesting now.");
 
                         if (Singleton.Instance != null && Singleton.Instance.UIManager != null)
-                        {
-                            Singleton.Instance.UIManager.ShowRoundMessage("AI is thinking...");
-                        }
-                        return;
-                    }
-
-                    if (!aiEvaluationFinished)
-                    {
-                        UnityEngine.Debug.Log("[FLOW] AI not started yet - starting now | t=" + Time.realtimeSinceStartup.ToString("F3"));
-
-                        if (Singleton.Instance != null && Singleton.Instance.UIManager != null)
-                        {
                             Singleton.Instance.UIManager.ReturnTilesToHand();
-                            Singleton.Instance.UIManager.ShowRoundMessage("AI is thinking...");
-                        }
 
-                        UnityEngine.Debug.Log("[FLOW] About to StartCoroutine(EvaluateAIMoveIncremental) | t=" + Time.realtimeSinceStartup.ToString("F3"));
-
-                        StartCoroutine(EvaluateAIMoveIncremental());
+                        RequestOpponentMove();
                         return;
                     }
 
-                    pendingAIMove = aiBestMoveSoFar;
+                    if (!opponentMoveReady)
+                    {
+                        Debug.Log("FLOW Waiting for opponent move...");
+
+                        if (Singleton.Instance != null && Singleton.Instance.UIManager != null)
+                        {
+                            switch (gameMode)
+                            {
+                                case GameMode.HumanVsAI:
+                                    Singleton.Instance.UIManager.ShowRoundMessage("AI is thinking...");
+                                    break;
+
+                                case GameMode.HumanVsHumanLocal:
+                                    Singleton.Instance.UIManager.ShowRoundMessage("Waiting for Player 2 move...");
+                                    break;
+
+                                case GameMode.HumanVsHumanOnline:
+                                    Singleton.Instance.UIManager.ShowRoundMessage("Waiting for online opponent move...");
+                                    break;
+                            }
+                        }
+
+                        return;
+                    }
+
+                    Debug.Log("FLOW Opponent move ready. Revealing opponent move.");
 
                     if (Singleton.Instance != null && Singleton.Instance.UIManager != null)
                     {
                         if (pendingAIMove != null && pendingAIMove.isValid)
-                        {
                             Singleton.Instance.UIManager.ShowRoundMessage(
-                                "AI played " + pendingAIMove.word + " for " + pendingAIMove.score + " points. Press EndTurn.");
-                        }
+                                "Opponent played " + pendingAIMove.word + " for " + pendingAIMove.score + " points. Press EndTurn."
+                            );
                         else
-                        {
                             Singleton.Instance.UIManager.ShowRoundMessage(
-                                "AI could not make a valid move. Press EndTurn.");
-                        }
+                                "Opponent could not make a valid move. Press EndTurn."
+                            );
                     }
-
-                    UnityEngine.Debug.Log("[FLOW] Leaving roundRevealStep 1 -> moving to step 2 | t=" + Time.realtimeSinceStartup.ToString("F3"));
 
                     roundRevealStep = 2;
                     break;
@@ -1238,33 +1281,40 @@ public class GameLogic : MonoBehaviour
                         sameScore &&
                         !string.IsNullOrEmpty(pendingPlayerMove.word) &&
                         !string.IsNullOrEmpty(pendingAIMove.word) &&
-                        string.Equals(pendingPlayerMove.word, pendingAIMove.word, StringComparison.OrdinalIgnoreCase);
+                        string.Equals(
+                            pendingPlayerMove.word,
+                            pendingAIMove.word,
+                            StringComparison.OrdinalIgnoreCase
+                        );
 
-                    if (sameWord)
+                    if (Singleton.Instance != null && Singleton.Instance.UIManager != null)
                     {
-                        Singleton.Instance.UIManager.ShowRoundMessage(
-                            "Both found " + pendingPlayerMove.word + " for " + pendingPlayerMove.score +
-                            " points. Human wins the tie against AI. Press EndTurn."
-                        );
-                    }
-                    else if (sameScore)
-                    {
-                        Singleton.Instance.UIManager.ShowRoundMessage(
-                            "Tie on score. Human wins the tie against AI. Press EndTurn."
-                        );
-                    }
-                    else if (pendingWinningMove != null && pendingWinningMove.isValid)
-                    {
-                        Singleton.Instance.UIManager.ShowRoundMessage(
-                            (pendingWinningMove.isHuman ? "You win with " : "AI wins with ") +
-                            pendingWinningMove.word + " (" + pendingWinningMove.score + " pts). Press EndTurn."
-                        );
-                    }
-                    else
-                    {
-                        Singleton.Instance.UIManager.ShowRoundMessage(
-                            "No valid move won the round. Press EndTurn."
-                        );
+                        if (sameWord)
+                        {
+                            Singleton.Instance.UIManager.ShowRoundMessage(
+                                "Both found " + pendingPlayerMove.word + " for " + pendingPlayerMove.score +
+                                " points. Human wins the tie against AI. Press EndTurn."
+                            );
+                        }
+                        else if (sameScore)
+                        {
+                            Singleton.Instance.UIManager.ShowRoundMessage(
+                                "Tie on score. Human wins the tie against AI. Press EndTurn."
+                            );
+                        }
+                        else if (pendingWinningMove != null && pendingWinningMove.isValid)
+                        {
+                            Singleton.Instance.UIManager.ShowRoundMessage(
+                                (pendingWinningMove.isHuman ? "You win with " : "AI wins with ") +
+                                pendingWinningMove.word + " (" + pendingWinningMove.score + " pts). Press EndTurn."
+                            );
+                        }
+                        else
+                        {
+                            Singleton.Instance.UIManager.ShowRoundMessage(
+                                "No valid move won the round. Press EndTurn."
+                            );
+                        }
                     }
 
                     Debug.Log("Displayed final winner message.");
@@ -1273,17 +1323,12 @@ public class GameLogic : MonoBehaviour
 
                 case 3:
                     ApplyWinningMove(pendingWinningMove);
-
                     RecordRoundResult();
 
                     if (IsGameOver())
-                    {
                         EndGame();
-                    }
                     else
-                    {
                         StartCoroutine(StartNextRound());
-                    }
 
                     Debug.Log("Applied winning move. Checked for game over.");
                     break;
@@ -1292,101 +1337,101 @@ public class GameLogic : MonoBehaviour
     }
 
 
-    private RoundMove EvaluatePlayerSubmission()
+
+    private bool HasTimedOut()
     {
-        RoundMove move = new RoundMove();
-        move.isHuman = true;
-        move.timeUsed = GetCurrentTimeUsed();
-        move.placedTiles = new List<PlacedTile>(GetPlacedTilesThisTurn());
+        if (timer == null)
+            return false;
 
-        // Populate robust, cloned simulatedTiles data for the Human move
-        move.simulatedTiles = new List<SimPlacedTile>();
-        foreach (var pt in move.placedTiles)
-        {
-            if (pt != null && pt.letterInfo != null && pt.letterPosition != null)
-            {
-                SimPlacedTile sim = new SimPlacedTile();
-                sim.letterInfo = new LetterInfo(pt.letterInfo);
-                sim.letterPosition = new LetterPosition(pt.letterPosition.RowX, pt.letterPosition.ColY);
-                move.simulatedTiles.Add(sim);
-            }
-        }
-
-        TilePlacement orientation = AllTilesInSameLine();
-
-        if (orientation == TilePlacement.NoTilePlaced || orientation == TilePlacement.WrongTilePlacement)
-        {
-            move.isValid = false;
-            move.score = 0;
-            move.word = "";
-            return move;
-        }
-
-        bool boardHasExistingTiles = HasAnyValidatedTilesOnBoard();
-
-        if (orientation == TilePlacement.SingleTile)
-        {
-            if (boardHasExistingTiles && !CheckConnectedToTiles())
-            {
-                move.isValid = false;
-                move.score = 0;
-                move.word = "";
-                return move;
-            }
-        }
-        else
-        {
-            if (HasHoles(orientation))
-            {
-                move.isValid = false;
-                move.score = 0;
-                move.word = "";
-                return move;
-            }
-
-            if (boardHasExistingTiles && !CheckConnectedToTiles())
-            {
-                move.isValid = false;
-                move.score = 0;
-                move.word = "";
-                return move;
-            }
-        }
-
-        List<List<LetterInfo>> words = CollectAllWords(orientation);
-
-        if (!CheckWordValidity(words))
-        {
-            move.isValid = false;
-            move.score = 0;
-            move.word = "";
-            return move;
-        }
-
-        move.isValid = true;
-        move.score = 0;
-        move.word = "";
-
-        foreach (var singleList in words)
-        {
-            string finalWord = "";
-            foreach (var letter in singleList)
-            {
-                finalWord += letter.letter;
-            }
-
-            if (move.word == "")
-                move.word = finalWord;
-
-            move.score += CountWordPoints(singleList, move.placedTiles);
-        }
-
-        if (move.placedTiles.Count == maxHandSize)
-            move.score += 50;
-
-        return move;
+        return timer.GetRemainingTime() <= 0f;
     }
 
+    private bool HasPlayerTimedOut()
+    {
+        if (timer == null)
+            return false;
+
+        return timer.GetRemainingTime() <= 0f;
+    }
+
+    /*private RoundMove CompareMoves(RoundMove playerMove, RoundMove aiMove)
+    {
+        using (CompareMovesMarker.Auto())
+        {
+            Debug.Log("===== CompareMoves START =====");
+
+            if (playerMove == null)
+            {
+                Debug.Log("Player move is null. Returning AI move.");
+                return aiMove;
+            }
+
+            if (aiMove == null)
+            {
+                Debug.Log("AI move is null. Returning player move.");
+                return playerMove;
+            }
+
+            Debug.Log(
+                "Player valid=" + playerMove.isValid +
+                ", score=" + playerMove.score +
+                ", time=" + playerMove.timeUsed +
+                ", word=" + playerMove.word
+            );
+
+            Debug.Log(
+                "AI valid=" + aiMove.isValid +
+                ", score=" + aiMove.score +
+                ", time=" + aiMove.timeUsed +
+                ", word=" + aiMove.word
+            );
+
+            if (playerMove.isValid && !aiMove.isValid)
+            {
+                Debug.Log("Player wins because player is valid and AI is invalid.");
+                return playerMove;
+            }
+
+            if (!playerMove.isValid && aiMove.isValid)
+            {
+                Debug.Log("AI wins because AI is valid and player is invalid.");
+                return aiMove;
+            }
+
+            if (!playerMove.isValid && !aiMove.isValid)
+            {
+                Debug.Log("Neither move is valid. No winner this round.");
+                return null;
+            }
+
+            if (playerMove.score > aiMove.score)
+            {
+                Debug.Log("Player wins on score.");
+                return playerMove;
+            }
+
+            if (aiMove.score > playerMove.score)
+            {
+                Debug.Log("AI wins on score.");
+                return aiMove;
+            }
+
+            bool sameWord =
+                !string.IsNullOrEmpty(playerMove.word) &&
+                !string.IsNullOrEmpty(aiMove.word) &&
+                string.Equals(playerMove.word, aiMove.word, StringComparison.OrdinalIgnoreCase);
+
+            if (sameWord)
+            {
+                Debug.Log("Scores tied and both sides found the same word. Human wins tie against AI.");
+                return playerMove;
+            }
+
+            Debug.Log("Scores tied on different words. Human wins tie against AI because AI has a timing advantage.");
+            return playerMove;
+        }
+    }
+    */
     public RoundMove TestCompareMoves(RoundMove playerMove, RoundMove aiMove)
     {
         return CompareMoves(playerMove, aiMove);
@@ -1411,12 +1456,14 @@ public class GameLogic : MonoBehaviour
         Debug.Log("Player => valid: " + playerMove.isValid +
                   ", score: " + playerMove.score +
                   ", time: " + playerMove.timeUsed +
-                  ", word: " + playerMove.word);
+                  ", word: " + playerMove.word +
+                  ", isHuman: " + playerMove.isHuman);
 
         Debug.Log("AI => valid: " + aiMove.isValid +
                   ", score: " + aiMove.score +
                   ", time: " + aiMove.timeUsed +
-                  ", word: " + aiMove.word);
+                  ", word: " + aiMove.word +
+                  ", isHuman: " + aiMove.isHuman);
 
         if (playerMove.isValid && !aiMove.isValid)
         {
@@ -1448,18 +1495,36 @@ public class GameLogic : MonoBehaviour
             return aiMove;
         }
 
-        bool sameWord =
-            !string.IsNullOrEmpty(playerMove.word) &&
-            !string.IsNullOrEmpty(aiMove.word) &&
-            string.Equals(playerMove.word, aiMove.word, StringComparison.OrdinalIgnoreCase);
+        Debug.Log("Scores are tied.");
 
-        if (sameWord)
+        bool playerIsHuman = playerMove.isHuman;
+        bool aiIsHuman = aiMove.isHuman;
+
+        if (playerIsHuman && !aiIsHuman)
         {
-            Debug.Log("Scores tied and both sides found the same word. Human wins tie against AI.");
+            Debug.Log("Scores tied in human vs AI. Human wins tie.");
             return playerMove;
         }
 
-        Debug.Log("Scores tied on different words. Human wins tie against AI because AI has a timing advantage.");
+        if (!playerIsHuman && aiIsHuman)
+        {
+            Debug.Log("Scores tied in AI vs human. Human wins tie.");
+            return aiMove;
+        }
+
+        if (playerMove.timeUsed < aiMove.timeUsed)
+        {
+            Debug.Log("Scores tied. Player wins on faster time.");
+            return playerMove;
+        }
+
+        if (aiMove.timeUsed < playerMove.timeUsed)
+        {
+            Debug.Log("Scores tied. AI wins on faster time.");
+            return aiMove;
+        }
+
+        Debug.Log("Scores and time are tied exactly. Falling back to first argument.");
         return playerMove;
     }
 
@@ -1633,6 +1698,10 @@ public class GameLogic : MonoBehaviour
         pendingPlayerMove = null;
         pendingAIMove = null;
         pendingWinningMove = null;
+
+        opponentMoveRequested = false;
+        opponentMoveReady = false;
+
         aiEvaluationRunning = false;
         aiEvaluationFinished = false;
         aiBestMoveSoFar = null;
@@ -1953,7 +2022,7 @@ public class GameLogic : MonoBehaviour
         move.isValid = true;
         move.word = word;
         move.score = finalScore;
-        move.timeUsed = 70f;
+        move.timeUsed = GetCurrentTimeUsed();
         move.placedTiles = null;
         move.simulatedTiles = placedTiles;
 
@@ -2577,7 +2646,6 @@ public class GameLogic : MonoBehaviour
         return CanBuildWordFromTiles(word, tiles);
     }
 
-    
     private IEnumerator EvaluateAIMoveIncremental()
     {
         aiEvaluationRunning = true;
@@ -2593,14 +2661,14 @@ public class GameLogic : MonoBehaviour
                 if (currentRoundSnapshot == null)
                 {
                     Debug.LogError("[AI-TRACE] currentRoundSnapshot is NULL");
-                    aiBestMoveSoFar = CreateInvalidMove();
+                    aiBestMoveSoFar = CreateInvalidMove(false, GetCurrentTimeUsed());
                     yield break;
                 }
 
                 if (currentRoundSnapshot.initialTiles == null)
                 {
                     Debug.LogError("[AI-TRACE] currentRoundSnapshot.initialTiles is NULL");
-                    aiBestMoveSoFar = CreateInvalidMove();
+                    aiBestMoveSoFar = CreateInvalidMove(false, GetCurrentTimeUsed());
                     yield break;
                 }
 
@@ -2666,11 +2734,11 @@ public class GameLogic : MonoBehaviour
                 if (aiBestMoveSoFar == null)
                 {
                     Debug.LogWarning("[AI-TRACE] aiBestMoveSoFar was NULL after search, creating invalid move");
-                    aiBestMoveSoFar = CreateInvalidMove();
+                    aiBestMoveSoFar = CreateInvalidMove(false, GetCurrentTimeUsed());
                 }
 
                 aiBestMoveSoFar.isHuman = false;
-                aiBestMoveSoFar.timeUsed = 70f;
+                aiBestMoveSoFar.timeUsed = GetCurrentTimeUsed();
 
                 Debug.Log(
                     "[AI-TRACE] finalize result " +
@@ -2692,6 +2760,7 @@ public class GameLogic : MonoBehaviour
             );
         }
     }
+
     private string DescribeMove(RoundMove move)
     {
         if (move == null)
@@ -2950,7 +3019,21 @@ public class GameLogic : MonoBehaviour
                col <= boardSizeY;
     }
 
-    private RoundMove CreateInvalidMove()
+    private RoundMove CreateInvalidMove(bool isHuman, float timeUsed = 0f)
+    {
+        return new RoundMove
+        {
+            isValid = false,
+            isHuman = isHuman,
+            score = 0,
+            word = "",
+            timeUsed = timeUsed,
+            placedTiles = new List<PlacedTile>(),
+            simulatedTiles = new List<SimPlacedTile>()
+        };
+    }
+
+    /*private RoundMove CreateInvalidMove()
     {
         return new RoundMove
         {
@@ -2962,7 +3045,7 @@ public class GameLogic : MonoBehaviour
             placedTiles = new List<PlacedTile>(),
             simulatedTiles = new List<SimPlacedTile>()
         };
-    }
+    }*/
 
     private bool CanBuildWordFromTiles(string word, List<LetterInfo> tiles)
     {
@@ -3033,7 +3116,7 @@ public class GameLogic : MonoBehaviour
         using (FirstTurnMarker.Auto())
         {
             if (rack == null || rack.Count == 0)
-                return CreateInvalidMove();
+                return CreateInvalidMove(false, GetCurrentTimeUsed());
 
             List<string> words;
 
@@ -3078,7 +3161,7 @@ public class GameLogic : MonoBehaviour
                 }
             }
 
-            return best ?? CreateInvalidMove();
+            return best ?? CreateInvalidMove(false, GetCurrentTimeUsed());
         }
     }
 
@@ -3322,6 +3405,101 @@ public class GameLogic : MonoBehaviour
             total += 50;
 
         return total;
+    }
+
+    private RoundMove EvaluatePlayerSubmission()
+    {
+        RoundMove move = new RoundMove();
+        move.isHuman = true;
+        move.timeUsed = GetCurrentTimeUsed();
+
+        move.placedTiles = new List<PlacedTile>(GetPlacedTilesThisTurn());
+
+        // Populate robust, cloned simulatedTiles data for the Human move
+        move.simulatedTiles = new List<SimPlacedTile>();
+        foreach (var pt in move.placedTiles)
+        {
+            if (pt != null && pt.letterInfo != null && pt.letterPosition != null)
+            {
+                SimPlacedTile sim = new SimPlacedTile();
+                sim.letterInfo = new LetterInfo(pt.letterInfo);
+                sim.letterPosition = new LetterPosition(pt.letterPosition.RowX, pt.letterPosition.ColY);
+                move.simulatedTiles.Add(sim);
+            }
+        }
+
+        TilePlacement orientation = AllTilesInSameLine();
+
+        if (orientation == TilePlacement.NoTilePlaced ||
+            orientation == TilePlacement.WrongTilePlacement)
+        {
+            move.isValid = false;
+            move.score = 0;
+            move.word = "";
+            return move;
+        }
+
+        bool boardHasExistingTiles = HasAnyValidatedTilesOnBoard();
+
+        if (orientation == TilePlacement.SingleTile)
+        {
+            if (boardHasExistingTiles && !CheckConnectedToTiles())
+            {
+                move.isValid = false;
+                move.score = 0;
+                move.word = "";
+                return move;
+            }
+        }
+        else
+        {
+            if (HasHoles(orientation))
+            {
+                move.isValid = false;
+                move.score = 0;
+                move.word = "";
+                return move;
+            }
+
+            if (boardHasExistingTiles && !CheckConnectedToTiles())
+            {
+                move.isValid = false;
+                move.score = 0;
+                move.word = "";
+                return move;
+            }
+        }
+
+        List<List<LetterInfo>> words = CollectAllWords(orientation);
+
+        if (!CheckWordValidity(words))
+        {
+            move.isValid = false;
+            move.score = 0;
+            move.word = "";
+            return move;
+        }
+
+        move.isValid = true;
+        move.score = 0;
+        move.word = "";
+
+        foreach (var singleList in words)
+        {
+            string finalWord = "";
+            foreach (var letter in singleList)
+                finalWord += letter.letter;
+
+            if (move.word == "")
+                move.word = finalWord;
+
+            move.score += CountWordPoints(singleList, move.placedTiles);
+        }
+
+        if (move.placedTiles.Count == maxHandSize)
+            move.score += 50;
+
+        return move;
     }
 
     public void EndTurnSingleGuess()
@@ -4255,6 +4433,89 @@ public class GameLogic : MonoBehaviour
                             ctx);
                 }
             }
+        }
+    }
+
+    private void RequestOpponentMove()
+    {
+        if (opponentMoveRequested)
+            return;
+
+        opponentMoveRequested = true;
+        opponentMoveReady = false;
+
+        switch (gameMode)
+        {
+            case GameMode.HumanVsAI:
+                StartCoroutine(RequestAIOpponentMove());
+                break;
+
+            case GameMode.HumanVsHumanLocal:
+                RequestLocalHumanOpponentMove();
+                break;
+
+            case GameMode.HumanVsHumanOnline:
+                RequestOnlineOpponentMove();
+                break;
+        }
+    }
+
+    private IEnumerator RequestAIOpponentMove()
+    {
+        if (!aiEvaluationFinished && !aiEvaluationRunning)
+            StartCoroutine(EvaluateAIMoveIncremental());
+
+        while (aiEvaluationRunning)
+            yield return null;
+
+        OnOpponentMoveReady(aiBestMoveSoFar);
+    }
+
+    private void RequestLocalHumanOpponentMove()
+    {
+        currentState = TurnState.PlayerTurn;
+        if (Singleton.Instance != null && Singleton.Instance.UIManager != null)
+            Singleton.Instance.UIManager.ShowRoundMessage("Player 2: build your word, then press EndTurn.");
+    }
+
+    private void RequestOnlineOpponentMove()
+    {
+        currentState = TurnState.Busy;
+        if (Singleton.Instance != null && Singleton.Instance.UIManager != null)
+            Singleton.Instance.UIManager.ShowRoundMessage("Waiting for opponent move...");
+    }
+
+    private void OnOpponentMoveReady(RoundMove move)
+    {
+        pendingAIMove = move;
+        opponentMoveReady = true;
+    }
+
+    private void SubmitLocalOpponentMove()
+    {
+        if (gameMode != GameMode.HumanVsHumanLocal)
+            return;
+
+        if (!opponentMoveRequested || opponentMoveReady)
+            return;
+
+        RoundMove move = EvaluatePlayerSubmission();
+        move.isHuman = false;
+
+        OnOpponentMoveReady(move);
+
+        currentState = TurnState.Busy;
+
+        if (Singleton.Instance != null && Singleton.Instance.UIManager != null)
+        {
+            if (move != null && move.isValid)
+                Singleton.Instance.UIManager.ShowRoundMessage(
+                    "Player 2 submitted " + move.word + " for " + move.score + " points. Press EndTurn."
+                );
+            else
+                Singleton.Instance.UIManager.ShowRoundMessage(
+                    "Player 2 submitted an invalid move. Press EndTurn."
+                );
         }
     }
 }
