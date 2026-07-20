@@ -1,0 +1,9 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources xmlns:tools="http://schemas.android.com/tools" tools:keep="@string/gcm_defaultSenderId,@string/google_storage_bucket,@string/project_id,@string/google_api_key,@string/google_crash_reporting_api_key,@string/google_app_id">
+  <string name="gcm_defaultSenderId" translatable="false">926763938521</string>
+  <string name="google_storage_bucket" translatable="false">partyscrabby.firebasestorage.app</string>
+  <string name="project_id" translatable="false">partyscrabby</string>
+  <string name="google_api_key" translatable="false">AIzaSyAbcYuBAH1GPOQlfUHOZOCN6yvGhZly5a8</string>
+  <string name="google_crash_reporting_api_key" translatable="false">AIzaSyAbcYuBAH1GPOQlfUHOZOCN6yvGhZly5a8</string>
+  <string name="google_app_id" translatable="false">1:926763938521:android:b9ffab2738e82a5e4c04c8</string>
+</resources>

@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "926763938521",
+    "project_id": "partyscrabby",
+    "storage_bucket": "partyscrabby.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:926763938521:android:b9ffab2738e82a5e4c04c8",
+        "android_client_info": {
+          "package_name": "com.Kingz.Scrabby"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAbcYuBAH1GPOQlfUHOZOCN6yvGhZly5a8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

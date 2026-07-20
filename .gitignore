@@ -61,6 +61,8 @@ sysinfo.txt
 *.unitypackage
 *.app
 
+Assets/Firebase/Plugins/x86_64/FirebaseCppApp-*.bundle
+
 # Crashlytics generated file
 crashlytics-build.properties
 
