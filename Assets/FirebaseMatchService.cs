@@ -69,80 +69,6 @@ public class FirebaseMatchService : MonoBehaviour
         var db = DbRoot();
         if (db == null) return;
 
-        Debug.Log("JoinRoom not wired fully yet for this test.");
-    }
-}
-/*using System;
-using UnityEngine;
-using Firebase.Database;
-using Firebase.Auth;
-using Firebase.Extensions;
-
-public class FirebaseMatchService : MonoBehaviour
-{
-    private DatabaseReference db;
-
-    void Start()
-    {
-        if (FirebaseInit.Database == null)
-        {
-            Debug.LogError("FirebaseInit.Database is null. Database not ready yet.");
-            return;
-        }
-
-        db = FirebaseInit.Database.RootReference;
-    }
-
-    public void CreateUserProfile(string displayName)
-    {
-        var user = FirebaseInit.Auth.CurrentUser;
-        if (user == null)
-        {
-            Debug.LogError("No signed-in user.");
-            return;
-        }
-
-        long now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-        var profile = new UserProfile(user.Email, displayName, now);
-        string json = JsonUtility.ToJson(profile);
-
-        db.Child("users").Child(user.UserId).SetRawJsonValueAsync(json)
-            .ContinueWithOnMainThread(task =>
-            {
-                if (task.IsFaulted) Debug.LogError("CreateUserProfile failed: " + task.Exception);
-                else Debug.Log("User profile saved.");
-            });
-    }
-
-    public void CreateRoom(string roomCode)
-    {
-        var user = FirebaseInit.Auth.CurrentUser;
-        if (user == null)
-        {
-            Debug.LogError("No signed-in user.");
-            return;
-        }
-
-        long now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-        var room = new RoomData(roomCode, user.UserId, now);
-        string json = JsonUtility.ToJson(room);
-
-        db.Child("rooms").Child(roomCode).SetRawJsonValueAsync(json)
-            .ContinueWithOnMainThread(task =>
-            {
-                if (task.IsFaulted)
-                {
-                    Debug.LogError("CreateRoom failed: " + task.Exception);
-                    return;
-                }
-
-                db.Child("users").Child(user.UserId).Child("currentRoomId").SetValueAsync(roomCode);
-                Debug.Log("Room created: " + roomCode);
-            });
-    }
-
-    public void JoinRoom(string roomCode)
-    {
         var user = FirebaseInit.Auth.CurrentUser;
         if (user == null)
         {
@@ -185,9 +111,11 @@ public class FirebaseMatchService : MonoBehaviour
             CreateMatch(roomCode, hostUid, user.UserId);
         });
     }
-
     public void CreateMatch(string roomCode, string hostUid, string guestUid)
     {
+        var db = DbRoot();
+        if (db == null) return;
+
         long now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
         string matchId = db.Child("matches").Push().Key;
 
@@ -212,4 +140,5 @@ public class FirebaseMatchService : MonoBehaviour
                 Debug.Log("Match created: " + matchId);
             });
     }
-}*/
+
+}
