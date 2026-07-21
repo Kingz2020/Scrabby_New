@@ -12,21 +12,7 @@ public class FirebaseMatchService : MonoBehaviour
     {
         db = FirebaseDatabase.DefaultInstance.RootReference;
     }
-    /*public void TestCreateProfile()
-    {
-        matchService.CreateUserProfile("Kingz");
-    }
 
-    public void TestCreateRoom()
-    {
-        matchService.CreateRoom("ABCD12");
-    }
-
-    public void TestJoinRoom()
-    {
-        matchService.JoinRoom("ABCD12");
-    }
-    */
     public void CreateUserProfile(string displayName)
     {
         var user = FirebaseInit.Auth.CurrentUser;
