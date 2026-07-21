@@ -28,7 +28,8 @@ public class FirebaseInit : MonoBehaviour
             }
 
             Auth = FirebaseAuth.DefaultInstance;
-            Database = FirebaseDatabase.DefaultInstance;
+            //Database = FirebaseDatabase.DefaultInstance;
+            Database = FirebaseDatabase.GetInstance("https://partyscrabby-default-rtdb.europe-west1.firebasedatabase.app/");
             Auth.StateChanged += AuthStateChanged;
             IsReady = true;
 

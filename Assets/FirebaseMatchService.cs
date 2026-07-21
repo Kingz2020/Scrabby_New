@@ -1,6 +1,80 @@
 using System;
 using UnityEngine;
 using Firebase.Database;
+using Firebase.Extensions;
+
+public class FirebaseMatchService : MonoBehaviour
+{
+    private DatabaseReference DbRoot()
+    {
+        if (FirebaseInit.Database == null)
+        {
+            Debug.LogError("Firebase database not ready yet.");
+            return null;
+        }
+
+        return FirebaseInit.Database.RootReference;
+    }
+
+    public void CreateUserProfile(string displayName)
+    {
+        var db = DbRoot();
+        if (db == null) return;
+
+        var user = FirebaseInit.Auth.CurrentUser;
+        if (user == null)
+        {
+            Debug.LogError("No signed-in user.");
+            return;
+        }
+
+        long now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        var profile = new UserProfile(user.Email, displayName, now);
+        string json = JsonUtility.ToJson(profile);
+
+        db.Child("users").Child(user.UserId).SetRawJsonValueAsync(json)
+            .ContinueWithOnMainThread(task =>
+            {
+                if (task.IsFaulted) Debug.LogError("CreateUserProfile failed: " + task.Exception);
+                else Debug.Log("User profile saved.");
+            });
+    }
+
+    public void CreateRoom(string roomCode)
+    {
+        var db = DbRoot();
+        if (db == null) return;
+
+        var user = FirebaseInit.Auth.CurrentUser;
+        if (user == null)
+        {
+            Debug.LogError("No signed-in user.");
+            return;
+        }
+
+        long now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        var room = new RoomData(roomCode, user.UserId, now);
+        string json = JsonUtility.ToJson(room);
+
+        db.Child("rooms").Child(roomCode).SetRawJsonValueAsync(json)
+            .ContinueWithOnMainThread(task =>
+            {
+                if (task.IsFaulted) Debug.LogError("CreateRoom failed: " + task.Exception);
+                else Debug.Log("Room created: " + roomCode);
+            });
+    }
+
+    public void JoinRoom(string roomCode)
+    {
+        var db = DbRoot();
+        if (db == null) return;
+
+        Debug.Log("JoinRoom not wired fully yet for this test.");
+    }
+}
+/*using System;
+using UnityEngine;
+using Firebase.Database;
 using Firebase.Auth;
 using Firebase.Extensions;
 
@@ -10,7 +84,13 @@ public class FirebaseMatchService : MonoBehaviour
 
     void Start()
     {
-        db = FirebaseDatabase.DefaultInstance.RootReference;
+        if (FirebaseInit.Database == null)
+        {
+            Debug.LogError("FirebaseInit.Database is null. Database not ready yet.");
+            return;
+        }
+
+        db = FirebaseInit.Database.RootReference;
     }
 
     public void CreateUserProfile(string displayName)
@@ -132,4 +212,4 @@ public class FirebaseMatchService : MonoBehaviour
                 Debug.Log("Match created: " + matchId);
             });
     }
-}
+}*/
