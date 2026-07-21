@@ -82,4 +82,4 @@ public class FireBaseAuthTest : MonoBehaviour
                 Debug.Log("After sign-in, CurrentUser = " + auth.CurrentUser?.UserId);
             });
     }
-}
+} 

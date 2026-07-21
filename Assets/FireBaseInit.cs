@@ -2,11 +2,13 @@ using System;
 using UnityEngine;
 using Firebase;
 using Firebase.Auth;
+using Firebase.Database;
 using Firebase.Extensions;
 
 public class FirebaseInit : MonoBehaviour
 {
     public static FirebaseAuth Auth;
+    public static FirebaseDatabase Database;
     public static bool IsReady;
 
     private FirebaseUser currentUser;
@@ -26,6 +28,7 @@ public class FirebaseInit : MonoBehaviour
             }
 
             Auth = FirebaseAuth.DefaultInstance;
+            Database = FirebaseDatabase.DefaultInstance;
             Auth.StateChanged += AuthStateChanged;
             IsReady = true;
 
