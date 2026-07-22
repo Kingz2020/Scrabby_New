@@ -4,6 +4,9 @@ using UnityEngine;
 using Firebase.Auth;
 using Firebase.Database;
 using System.Collections.Generic;
+using Firebase.Extensions;
+using System.Threading.Tasks;
+
 
 public class PreGamePanel : MonoBehaviour
 {
@@ -351,25 +354,28 @@ public class PreGamePanel : MonoBehaviour
 
         SetStatus("Creating room...");
 
-        dbRoot.Child("rooms").Child(roomCode).SetRawJsonValueAsync(json).ContinueWith(task =>
+        dbRoot.Child("rooms").Child(roomCode).SetRawJsonValueAsync(json).ContinueWithOnMainThread(task =>
         {
             if (task.IsCanceled)
             {
-                RunOnMainThread(() => SetStatus("Create room canceled."));
+                SetStatus("Create room canceled.");
                 return;
             }
 
             if (task.IsFaulted)
             {
-                RunOnMainThread(() => SetStatus("Create room failed: " + task.Exception?.GetBaseException().Message));
+                SetStatus("Create room failed: " + task.Exception?.GetBaseException().Message);
+                Debug.LogError("[PregamePanel] Create room failed: " + task.Exception);
                 return;
             }
 
-            RunOnMainThread(() =>
-            {
-                roomCodeInput.text = roomCode;
-                SetStatus("Room created: " + roomCode);
-            });
+            Debug.Log("[PregamePanel] Room created successfully: " + roomCode);
+
+            roomCodeInput.text = roomCode;
+            roomCodeInput.SetTextWithoutNotify(roomCode);
+            roomCodeInput.ForceLabelUpdate();
+
+            SetStatus("Room created: " + roomCode);
         });
     }
 
@@ -389,19 +395,22 @@ public class PreGamePanel : MonoBehaviour
             return;
         }
 
+        var uiScheduler = TaskScheduler.FromCurrentSynchronizationContext();
+
         SetStatus("Joining room...");
 
         dbRoot.Child("rooms").Child(roomCode).GetValueAsync().ContinueWith(task =>
         {
             if (task.IsCanceled)
             {
-                RunOnMainThread(() => SetStatus("Join room canceled."));
+                SetStatus("Join room canceled.");
                 return;
             }
 
             if (task.IsFaulted)
             {
-                RunOnMainThread(() => SetStatus("Join room failed: " + task.Exception?.GetBaseException().Message));
+                SetStatus("Join room failed: " + task.Exception?.GetBaseException().Message);
+                Debug.LogError("[PregamePanel] Join room read failed: " + task.Exception);
                 return;
             }
 
@@ -409,7 +418,7 @@ public class PreGamePanel : MonoBehaviour
 
             if (!snapshot.Exists)
             {
-                RunOnMainThread(() => SetStatus("Room not found."));
+                SetStatus("Room not found.");
                 return;
             }
 
@@ -418,13 +427,13 @@ public class PreGamePanel : MonoBehaviour
 
             if (room == null)
             {
-                RunOnMainThread(() => SetStatus("Room data invalid."));
+                SetStatus("Room data invalid.");
                 return;
             }
 
             if (!string.IsNullOrEmpty(room.guestUid))
             {
-                RunOnMainThread(() => SetStatus("Room is already full."));
+                SetStatus("Room is already full.");
                 return;
             }
 
@@ -438,22 +447,23 @@ public class PreGamePanel : MonoBehaviour
             {
                 if (updateTask.IsCanceled)
                 {
-                    RunOnMainThread(() => SetStatus("Join update canceled."));
+                    SetStatus("Join update canceled.");
                     return;
                 }
 
                 if (updateTask.IsFaulted)
                 {
-                    RunOnMainThread(() => SetStatus("Join update failed: " + updateTask.Exception?.GetBaseException().Message));
+                    SetStatus("Join update failed: " + updateTask.Exception?.GetBaseException().Message);
+                    Debug.LogError("[PregamePanel] Join room write failed: " + updateTask.Exception);
                     return;
                 }
 
-                RunOnMainThread(() =>
-                {
-                    SetStatus("Joined room: " + roomCode);
-                });
-            });
-        });
+                Debug.Log("[PregamePanel] Joined room successfully: " + roomCode);
+                SetStatus("Joined room successfully: " + roomCode);
+
+            }, uiScheduler);
+
+        }, uiScheduler);
     }
 
     public void OnLogoutPressed()
