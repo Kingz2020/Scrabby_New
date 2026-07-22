@@ -31,6 +31,18 @@ public class PreGamePanel : MonoBehaviour
         public string displayName;
     }
 
+    [System.Serializable]
+    public class UserData
+    {
+        public string email;
+        public string displayName;
+        public long createdAt;
+        public long lastSeenAt;
+        public string currentRoomId;
+        public string currentMatchId;
+        public string presenceState;
+    }
+
     [Serializable]
     public class RoomData
     {
@@ -46,8 +58,11 @@ public class PreGamePanel : MonoBehaviour
     private void Start()
     {
         InitializeFirebase();
-        dbRoot = FirebaseDatabase.DefaultInstance.RootReference;
+    
+        string dbUrl = "https://partyscrabby-default-rtdb.europe-west1.firebasedatabase.app/";
+        dbRoot = FirebaseDatabase.GetInstance(dbUrl).RootReference;
     }
+
 
     private void InitializeFirebase()
     {
@@ -101,73 +116,164 @@ public class PreGamePanel : MonoBehaviour
         string password = passwordInput.text;
         string displayName = displayNameInput.text.Trim();
 
+        Debug.Log("[PregamePanel] Register button pressed.");
+
+        if (auth == null)
+        {
+            SetStatus("Firebase Auth not initialized.");
+            Debug.LogError("[PregamePanel] auth is NULL.");
+            return;
+        }
+
         if (string.IsNullOrWhiteSpace(email))
         {
             SetStatus("Enter an email.");
+            Debug.LogWarning("[PregamePanel] Email is empty.");
             return;
         }
 
         if (string.IsNullOrWhiteSpace(password))
         {
             SetStatus("Enter a password.");
+            Debug.LogWarning("[PregamePanel] Password is empty.");
             return;
         }
 
         if (string.IsNullOrWhiteSpace(displayName))
         {
             SetStatus("Enter a display name.");
+            Debug.LogWarning("[PregamePanel] Display name is empty.");
             return;
         }
 
         SetStatus("Registering...");
+        Debug.Log("[PregamePanel] Trying to register email: " + email);
 
         auth.CreateUserWithEmailAndPasswordAsync(email, password).ContinueWith(task =>
         {
             if (task.IsCanceled)
             {
-                RunOnMainThread(() => SetStatus("Registration canceled."));
+                Debug.LogError("[PregamePanel] Register canceled.");
+                RunOnMainThread(() => SetStatus("Register canceled."));
                 return;
             }
 
             if (task.IsFaulted)
             {
-                RunOnMainThread(() => SetStatus("Registration failed: " + task.Exception?.GetBaseException().Message));
+                string errorMessage = GetFirebaseErrorMessage(task.Exception);
+                Debug.LogError("[PregamePanel] Register failed: " + errorMessage);
+                RunOnMainThread(() => SetStatus("Register failed: " + errorMessage));
                 return;
             }
 
-            FirebaseUser createdUser = task.Result.User;
+            Firebase.Auth.AuthResult result = task.Result;
+            FirebaseUser createdUser = result.User;
+            string uid = createdUser.UserId;
 
-            /*UserProfile profile = new UserProfile
+            Debug.Log("[PregamePanel] User created successfully. UID: " + uid);
+
+            Firebase.Auth.UserProfile profile = new Firebase.Auth.UserProfile
             {
                 DisplayName = displayName
-            };*/
-            Firebase.Auth.UserProfile profile = new Firebase.Auth.UserProfile();
-            profile.DisplayName = displayName;
+            };
 
             createdUser.UpdateUserProfileAsync(profile).ContinueWith(profileTask =>
             {
                 if (profileTask.IsCanceled)
                 {
-                    RunOnMainThread(() => SetStatus("User created, but name update canceled."));
+                    Debug.LogWarning("[PregamePanel] Profile update canceled.");
+                    RunOnMainThread(() => SetStatus("User created, name update canceled."));
                     return;
                 }
 
                 if (profileTask.IsFaulted)
                 {
-                    RunOnMainThread(() => SetStatus("User created, but name update failed."));
+                    string profileError = GetFirebaseErrorMessage(profileTask.Exception);
+                    Debug.LogError("[PregamePanel] Profile update failed: " + profileError);
+                    RunOnMainThread(() => SetStatus("User created, name update failed: " + profileError));
                     return;
                 }
 
-                RunOnMainThread(() =>
+                Debug.Log("[PregamePanel] Profile updated successfully.");
+
+                UserData userData = new UserData
                 {
-                    SetStatus("Registered successfully.");
-                    if (signedInAsText != null)
-                        signedInAsText.text = "Signed in as: " + displayName;
-                    RefreshUI();
+                    email = createdUser.Email,
+                    displayName = displayName,
+                    createdAt = System.DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
+                    lastSeenAt = System.DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
+                    currentRoomId = "",
+                    currentMatchId = "",
+                    presenceState = "online"
+                };
+
+                string json = JsonUtility.ToJson(userData);
+
+                dbRoot.Child("users").Child(uid).SetRawJsonValueAsync(json).ContinueWith(dbTask =>
+                {
+                    if (dbTask.IsCanceled)
+                    {
+                        Debug.LogError("[PregamePanel] Database write canceled.");
+                        RunOnMainThread(() => SetStatus("User created, but DB write canceled."));
+                        return;
+                    }
+
+                    if (dbTask.IsFaulted)
+                    {
+                        string dbError = GetFirebaseErrorMessage(dbTask.Exception);
+                        Debug.LogError("[PregamePanel] Database write failed: " + dbError);
+                        RunOnMainThread(() => SetStatus("User created, but DB write failed: " + dbError));
+                        return;
+                    }
+
+                    Debug.Log("[PregamePanel] User profile saved to database.");
+
+                    RunOnMainThread(() =>
+                    {
+                        SetStatus("Registered successfully.");
+                        RefreshUI();
+                    });
                 });
             });
         });
     }
+
+    private string GetFirebaseErrorMessage(Exception exception)
+    {
+        if (exception == null)
+            return "Unknown error";
+
+        AggregateException aggregate = exception as AggregateException;
+        if (aggregate != null)
+        {
+            foreach (Exception inner in aggregate.Flatten().InnerExceptions)
+            {
+                Firebase.FirebaseException firebaseEx = inner as Firebase.FirebaseException;
+                if (firebaseEx != null)
+                {
+                    return firebaseEx.Message + " (Code: " + firebaseEx.ErrorCode + ")";
+                }
+
+                if (!string.IsNullOrWhiteSpace(inner.Message))
+                {
+                    return inner.Message;
+                }
+            }
+        }
+
+        return exception.Message;
+    }
+
+    private void SetStatus(string message)
+    {
+        Debug.Log("[PregamePanel STATUS] " + message);
+
+        if (statusText != null)
+            statusText.text = message;
+        else
+            Debug.LogWarning("[PregamePanel] statusText is not assigned in Inspector.");
+    }
+
 
     public void OnLoginPressed()
     {
@@ -390,13 +496,7 @@ public class PreGamePanel : MonoBehaviour
             lobbySection.SetActive(signedIn);
     }
 
-    private void SetStatus(string message)
-    {
-        Debug.Log("[PregamePanel] " + message);
-
-        if (statusText != null)
-            statusText.text = message;
-    }
+   
 
     private void RunOnMainThread(Action action)
     {
