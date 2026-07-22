@@ -136,31 +136,7 @@ public class GameLogic : MonoBehaviour
     {
         return aiBestMoveSoFar;
     }
-    /*  [System.Serializable]
-      public class RoundMove
-      {
-          public bool isValid;
-          public int score;
-          public string word;
-          public float timeUsed;
-          public bool isHuman;
-          public List<PlacedTile> placedTiles;
-          public List<SimPlacedTile> simulatedTiles;
-      }
-
-      [System.Serializable]
-      public class RoundResult
-      {
-          public int roundNumber;
-          public int humanScore;
-          public int aiScore;
-          public string humanWord;
-          public string aiWord;
-          public bool humanValid;
-          public bool aiValid;
-          public bool humanWasWinner;
-      }
-    */
+    
     private class SearchState
     {
         public List<SimPlacedTile> placedTiles = new();
@@ -1354,84 +1330,7 @@ public class GameLogic : MonoBehaviour
         return timer.GetRemainingTime() <= 0f;
     }
 
-    /*private RoundMove CompareMoves(RoundMove playerMove, RoundMove aiMove)
-    {
-        using (CompareMovesMarker.Auto())
-        {
-            Debug.Log("===== CompareMoves START =====");
-
-            if (playerMove == null)
-            {
-                Debug.Log("Player move is null. Returning AI move.");
-                return aiMove;
-            }
-
-            if (aiMove == null)
-            {
-                Debug.Log("AI move is null. Returning player move.");
-                return playerMove;
-            }
-
-            Debug.Log(
-                "Player valid=" + playerMove.isValid +
-                ", score=" + playerMove.score +
-                ", time=" + playerMove.timeUsed +
-                ", word=" + playerMove.word
-            );
-
-            Debug.Log(
-                "AI valid=" + aiMove.isValid +
-                ", score=" + aiMove.score +
-                ", time=" + aiMove.timeUsed +
-                ", word=" + aiMove.word
-            );
-
-            if (playerMove.isValid && !aiMove.isValid)
-            {
-                Debug.Log("Player wins because player is valid and AI is invalid.");
-                return playerMove;
-            }
-
-            if (!playerMove.isValid && aiMove.isValid)
-            {
-                Debug.Log("AI wins because AI is valid and player is invalid.");
-                return aiMove;
-            }
-
-            if (!playerMove.isValid && !aiMove.isValid)
-            {
-                Debug.Log("Neither move is valid. No winner this round.");
-                return null;
-            }
-
-            if (playerMove.score > aiMove.score)
-            {
-                Debug.Log("Player wins on score.");
-                return playerMove;
-            }
-
-            if (aiMove.score > playerMove.score)
-            {
-                Debug.Log("AI wins on score.");
-                return aiMove;
-            }
-
-            bool sameWord =
-                !string.IsNullOrEmpty(playerMove.word) &&
-                !string.IsNullOrEmpty(aiMove.word) &&
-                string.Equals(playerMove.word, aiMove.word, StringComparison.OrdinalIgnoreCase);
-
-            if (sameWord)
-            {
-                Debug.Log("Scores tied and both sides found the same word. Human wins tie against AI.");
-                return playerMove;
-            }
-
-            Debug.Log("Scores tied on different words. Human wins tie against AI because AI has a timing advantage.");
-            return playerMove;
-        }
-    }
-    */
+    
     public RoundMove TestCompareMoves(RoundMove playerMove, RoundMove aiMove)
     {
         return CompareMoves(playerMove, aiMove);
@@ -3033,19 +2932,6 @@ public class GameLogic : MonoBehaviour
         };
     }
 
-    /*private RoundMove CreateInvalidMove()
-    {
-        return new RoundMove
-        {
-            isValid = false,
-            isHuman = false,
-            score = 0,
-            word = "",
-            timeUsed = 70f,
-            placedTiles = new List<PlacedTile>(),
-            simulatedTiles = new List<SimPlacedTile>()
-        };
-    }*/
 
     private bool CanBuildWordFromTiles(string word, List<LetterInfo> tiles)
     {

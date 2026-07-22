@@ -6,6 +6,7 @@ using Firebase.Database;
 using System.Collections.Generic;
 using Firebase.Extensions;
 using System.Threading.Tasks;
+using UnityEngine.UI;
 
 
 public class PreGamePanel : MonoBehaviour
@@ -26,6 +27,10 @@ public class PreGamePanel : MonoBehaviour
 
     private FirebaseAuth auth;
     private FirebaseUser user;
+    public Button startGameButton;
+
+    private DatabaseReference currentRoomRef;
+    private string watchedRoomCode = "";
 
     [Serializable]
     public class RoomPlayerData
@@ -54,14 +59,52 @@ public class PreGamePanel : MonoBehaviour
         public string hostDisplayName;
         public string guestUid;
         public string guestDisplayName;
-        public string status;
+        public string status;      // waiting, full, in_game, finished
+        public string matchId;     // empty until game starts
         public long createdAtUnix;
+    }
+
+    [Serializable]
+    public class MatchData
+    {
+        public string matchId;
+        public string roomCode;
+
+        public string player1Uid;
+        public string player1DisplayName;
+        public string player2Uid;
+        public string player2DisplayName;
+
+        public string currentTurnUid;
+        public string status; // waiting, active, finished
+
+        public int turnNumber;
+
+        public int player1Score;
+        public int player2Score;
+
+        public string boardStateJson;
+        public string bagStateJson;
+        public string player1RackJson;
+        public string player2RackJson;
+
+        public string lastMoveJson;
+
+        public long createdAtUnix;
+        public long updatedAtUnix;
     }
 
     private void Start()
     {
+
+
+        if (startGameButton != null)
+        {
+            startGameButton.interactable = false;
+            startGameButton.image.color = Color.white;
+        }
         InitializeFirebase();
-    
+
         string dbUrl = "https://partyscrabby-default-rtdb.europe-west1.firebasedatabase.app/";
         dbRoot = FirebaseDatabase.GetInstance(dbUrl).RootReference;
     }
@@ -104,14 +147,7 @@ public class PreGamePanel : MonoBehaviour
         }
     }
 
-    private void OnDestroy()
-    {
-        if (auth != null)
-        {
-            auth.StateChanged -= AuthStateChanged;
-            auth = null;
-        }
-    }
+    
 
     public void OnRegisterPressed()
     {
@@ -506,7 +542,7 @@ public class PreGamePanel : MonoBehaviour
             lobbySection.SetActive(signedIn);
     }
 
-   
+
 
     private void RunOnMainThread(Action action)
     {
@@ -524,5 +560,264 @@ public class PreGamePanel : MonoBehaviour
         }
 
         return new string(code);
+    }
+
+
+    public void WatchRoom(string roomCode)
+    {
+        if (string.IsNullOrWhiteSpace(roomCode))
+        {
+            Debug.LogWarning("[PregamePanel] WatchRoom called with empty room code.");
+            return;
+        }
+
+        roomCode = roomCode.Trim().ToUpper();
+
+        StopWatchingRoom();
+
+        watchedRoomCode = roomCode;
+        currentRoomRef = dbRoot.Child("rooms").Child(roomCode);
+        currentRoomRef.ValueChanged += OnRoomValueChanged;
+
+        Debug.Log("[PregamePanel] Now watching room: " + roomCode);
+    }
+
+    public void StopWatchingRoom()
+    {
+        if (currentRoomRef != null)
+        {
+            currentRoomRef.ValueChanged -= OnRoomValueChanged;
+            Debug.Log("[PregamePanel] Stopped watching room: " + watchedRoomCode);
+            currentRoomRef = null;
+        }
+
+        watchedRoomCode = "";
+
+        if (startGameButton != null)
+        {
+            startGameButton.interactable = false;
+            startGameButton.image.color = Color.white;
+        }
+    }
+
+    private void OnRoomValueChanged(object sender, ValueChangedEventArgs args)
+    {
+        if (args.DatabaseError != null)
+        {
+            Debug.LogError("[PregamePanel] Room listener error: " + args.DatabaseError.Message);
+            return;
+        }
+
+        if (args.Snapshot == null || !args.Snapshot.Exists)
+        {
+            Debug.LogWarning("[PregamePanel] Room snapshot missing or room deleted.");
+            return;
+        }
+
+        string json = args.Snapshot.GetRawJsonValue();
+
+        if (string.IsNullOrEmpty(json))
+        {
+            Debug.LogWarning("[PregamePanel] Room snapshot JSON was empty.");
+            return;
+        }
+
+        RoomData room = JsonUtility.FromJson<RoomData>(json);
+
+        if (room == null)
+        {
+            Debug.LogError("[PregamePanel] Failed to parse RoomData from JSON.");
+            return;
+        }
+
+        Debug.Log("[PregamePanel] Room changed. Code=" + room.code + ", Status=" + room.status);
+
+        bool roomFull = !string.IsNullOrEmpty(room.guestUid);
+
+        if (roomFull)
+        {
+            Debug.Log("[PregamePanel] Room is full. A game can begin.");
+
+            if (startGameButton != null)
+            {
+                bool isHost = IsSignedIn() && auth.CurrentUser != null && room.hostUid == auth.CurrentUser.UserId;
+                startGameButton.interactable = isHost;
+                startGameButton.image.color = isHost ? Color.green : Color.gray;
+            }
+        }
+        else
+        {
+            Debug.Log("[PregamePanel] Room is waiting for another player.");
+
+            if (startGameButton != null)
+            {
+                startGameButton.interactable = false;
+                startGameButton.image.color = Color.white;
+            }
+        }
+
+        if (!string.IsNullOrEmpty(room.matchId) && room.status == "in_game")
+        {
+            Debug.Log("[PregamePanel] Match has started. Match ID: " + room.matchId);
+        }
+    }
+
+    private void OnDestroy()
+    {
+        StopWatchingRoom();
+
+        if (auth != null)
+        {
+            auth.StateChanged -= AuthStateChanged;
+            auth = null;
+        }
+    }
+
+    public void OnStartGamePressed()
+    {
+            if (!IsSignedIn())
+            {
+                SetStatus("You must be logged in first.");
+                return;
+            }
+
+            string roomCode = roomCodeInput.text.Trim().ToUpper();
+
+            if (string.IsNullOrWhiteSpace(roomCode))
+            {
+                SetStatus("Enter a room code.");
+                return;
+            }
+
+            var uiScheduler = TaskScheduler.FromCurrentSynchronizationContext();
+
+            SetStatus("Starting game...");
+
+            dbRoot.Child("rooms").Child(roomCode).GetValueAsync().ContinueWith(task =>
+            {
+                if (task.IsCanceled)
+                {
+                    SetStatus("Start game canceled.");
+                    return;
+                }
+
+                if (task.IsFaulted)
+                {
+                    SetStatus("Start game failed: " + task.Exception?.GetBaseException().Message);
+                    Debug.LogError("[PregamePanel] Start game read failed: " + task.Exception);
+                    return;
+                }
+
+                DataSnapshot snapshot = task.Result;
+
+                if (!snapshot.Exists)
+                {
+                    SetStatus("Room not found.");
+                    return;
+                }
+
+                string json = snapshot.GetRawJsonValue();
+                RoomData room = JsonUtility.FromJson<RoomData>(json);
+
+                if (room == null)
+                {
+                    SetStatus("Room data invalid.");
+                    return;
+                }
+
+                if (room.hostUid != auth.CurrentUser.UserId)
+                {
+                    SetStatus("Only the host can start the game.");
+                    return;
+                }
+
+                if (string.IsNullOrEmpty(room.guestUid))
+                {
+                    SetStatus("Need a second player before starting.");
+                    return;
+                }
+
+                if (!string.IsNullOrEmpty(room.matchId))
+                {
+                    SetStatus("Game already started.");
+                    return;
+                }
+
+                string matchId = dbRoot.Child("matches").Push().Key;
+                long now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+
+                MatchData match = new MatchData
+                {
+                    matchId = matchId,
+                    roomCode = room.code,
+
+                    player1Uid = room.hostUid,
+                    player1DisplayName = room.hostDisplayName,
+                    player2Uid = room.guestUid,
+                    player2DisplayName = room.guestDisplayName,
+
+                    currentTurnUid = room.hostUid,
+                    status = "active",
+                    turnNumber = 1,
+
+                    player1Score = 0,
+                    player2Score = 0,
+
+                    boardStateJson = "",
+                    bagStateJson = "",
+                    player1RackJson = "",
+                    player2RackJson = "",
+                    lastMoveJson = "",
+
+                    createdAtUnix = now,
+                    updatedAtUnix = now
+                };
+
+                string matchJson = JsonUtility.ToJson(match);
+
+                dbRoot.Child("matches").Child(matchId).SetRawJsonValueAsync(matchJson).ContinueWith(matchTask =>
+                {
+                    if (matchTask.IsCanceled)
+                    {
+                        SetStatus("Match creation canceled.");
+                        return;
+                    }
+
+                    if (matchTask.IsFaulted)
+                    {
+                        SetStatus("Match creation failed: " + matchTask.Exception?.GetBaseException().Message);
+                        Debug.LogError("[PregamePanel] Match write failed: " + matchTask.Exception);
+                        return;
+                    }
+
+                    room.matchId = matchId;
+                    room.status = "in_game";
+
+                    string updatedRoomJson = JsonUtility.ToJson(room);
+
+                    dbRoot.Child("rooms").Child(roomCode).SetRawJsonValueAsync(updatedRoomJson).ContinueWith(roomTask =>
+                    {
+                        if (roomTask.IsCanceled)
+                        {
+                            SetStatus("Room update canceled after match creation.");
+                            return;
+                        }
+
+                        if (roomTask.IsFaulted)
+                        {
+                            SetStatus("Room update failed: " + roomTask.Exception?.GetBaseException().Message);
+                            Debug.LogError("[PregamePanel] Room update failed: " + roomTask.Exception);
+                            return;
+                        }
+
+                        Debug.Log("[PregamePanel] Game started successfully. Match ID: " + matchId);
+                        SetStatus("Game started successfully. Match ID: " + matchId);
+
+                    }, uiScheduler);
+
+                }, uiScheduler);
+
+            }, uiScheduler);
+        
     }
 }
