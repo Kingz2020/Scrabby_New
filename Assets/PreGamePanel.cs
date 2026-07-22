@@ -22,6 +22,10 @@ public class PreGamePanel : MonoBehaviour
     [SerializeField] private GameObject lobbySection;
     [SerializeField] private TextMeshProUGUI statusText;
     [SerializeField] private TextMeshProUGUI signedInAsText;
+    [SerializeField] private GameObject pregamePanelRoot;
+    [SerializeField] private GameObject gameplayRoot;
+
+    private bool hasEnteredGameplay = false;
 
     private DatabaseReference dbRoot;
 
@@ -642,6 +646,9 @@ public class PreGamePanel : MonoBehaviour
         if (auth == null)
             return;
 
+        StopWatchingRoom();
+        StopWatchingMatch();
+
         auth.SignOut();
         SetStatus("Logged out.");
         RefreshUI();
@@ -728,11 +735,11 @@ public class PreGamePanel : MonoBehaviour
 
         watchedRoomCode = "";
 
-        if (startGameButton != null)
+       /* if (startGameButton != null)
         {
             startGameButton.interactable = false;
             startGameButton.image.color = Color.white;
-        }
+        }*/
     }
 
     private void OnRoomValueChanged(object sender, ValueChangedEventArgs args)
@@ -767,40 +774,67 @@ public class PreGamePanel : MonoBehaviour
 
         Debug.Log("[PregamePanel] Room changed. Code=" + room.code + ", Status=" + room.status);
 
-        bool roomFull = !string.IsNullOrEmpty(room.guestUid);
+        bool roomFull = !string.IsNullOrEmpty(room.guestUid) && room.status == "full";
+        bool isHost = IsSignedIn() && auth != null && auth.CurrentUser != null && room.hostUid == auth.CurrentUser.UserId;
+
+        Debug.Log("[PregamePanel] roomFull=" + roomFull +
+                  ", isHost=" + isHost +
+                  ", hostUid=" + room.hostUid +
+                  ", currentUid=" + (auth != null && auth.CurrentUser != null ? auth.CurrentUser.UserId : "null"));
 
         if (roomFull)
         {
             Debug.Log("[PregamePanel] Room is full. A game can begin.");
-
-            if (startGameButton != null)
-            {
-                bool isHost = IsSignedIn() && auth.CurrentUser != null && room.hostUid == auth.CurrentUser.UserId;
-                startGameButton.interactable = isHost;
-                startGameButton.image.color = isHost ? Color.green : Color.gray;
-            }
         }
         else
         {
             Debug.Log("[PregamePanel] Room is waiting for another player.");
+        }
 
+        RunOnMainThread(() =>
+        {
             if (startGameButton != null)
             {
-                startGameButton.interactable = false;
-                startGameButton.image.color = Color.white;
+                bool canStart = roomFull;// && isHost;
+                Debug.Log("[PregamePanel] Setting startGameButton.interactable = " + canStart);
+                startGameButton.interactable = canStart;
+                startGameButton.image.color = canStart ? Color.green : Color.gray;
+                Debug.Log("[PregamePanel] AFTER SET: interactable=" + startGameButton.interactable);
             }
-        }
-
-        if (!string.IsNullOrEmpty(room.guestUid) && room.status == "full")
-        {
-            Debug.Log("[PregamePanel] Room is full. A game can begin.");
-        }
+            else
+            {
+                Debug.LogWarning("[PregamePanel] startGameButton is NULL inside RunOnMainThread callback!");
+            }
+        });
 
         if (!string.IsNullOrEmpty(room.matchId) && room.status == "in_game")
         {
             Debug.Log("[PregamePanel] Match started. Match ID: " + room.matchId);
             WatchMatch(room.matchId);
+
+            RunOnMainThread(() =>
+            {
+                EnterGameplayMode();
+            });
         }
+    }
+
+
+
+    private void EnterGameplayMode()
+    {
+        if (hasEnteredGameplay)
+            return;
+
+        hasEnteredGameplay = true;
+
+        if (pregamePanelRoot != null)
+            pregamePanelRoot.SetActive(false);
+
+        if (gameplayRoot != null)
+            gameplayRoot.SetActive(true);
+
+        Debug.Log("[PregamePanel] Switched from pregame UI to gameplay UI.");
     }
 
     private void OnDestroy()
@@ -815,7 +849,7 @@ public class PreGamePanel : MonoBehaviour
         }
     }
     public void OnStartGamePressed()
-{
+    {
     if (auth == null || auth.CurrentUser == null)
     {
         SetStatus("You must be signed in.");
