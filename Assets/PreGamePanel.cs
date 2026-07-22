@@ -29,8 +29,47 @@ public class PreGamePanel : MonoBehaviour
     private FirebaseUser user;
     public Button startGameButton;
 
+    private DatabaseReference currentMatchRef;
     private DatabaseReference currentRoomRef;
     private string watchedRoomCode = "";
+    private string watchedMatchId = "";
+
+    [Serializable]
+    public class TileData
+    {
+        public string letter;
+        public int value;
+        public string id;
+    }
+
+    [Serializable]
+    public class BagStateData
+    {
+        public List<TileData> tiles = new List<TileData>();
+    }
+
+    [Serializable]
+    public class RackStateData
+    {
+        public List<TileData> tiles = new List<TileData>();
+    }
+
+    [Serializable]
+    public class BoardCellData
+    {
+        public int x;
+        public int y;
+        public bool occupied;
+        public TileData tile;
+    }
+
+    [Serializable]
+    public class BoardStateData
+    {
+        public int width;
+        public int height;
+        public List<BoardCellData> cells = new List<BoardCellData>();
+    }
 
     [Serializable]
     public class RoomPlayerData
@@ -69,29 +108,24 @@ public class PreGamePanel : MonoBehaviour
     {
         public string matchId;
         public string roomCode;
-
+        public string hostUid;
+        public string guestUid;
         public string player1Uid;
-        public string player1DisplayName;
         public string player2Uid;
+        public string player1DisplayName;
         public string player2DisplayName;
-
-        public string currentTurnUid;
-        public string status; // waiting, active, finished
-
-        public int turnNumber;
-
         public int player1Score;
         public int player2Score;
+        public int turnNumber;
+        public string currentTurnUid;
+        public string status;
 
         public string boardStateJson;
         public string bagStateJson;
         public string player1RackJson;
         public string player2RackJson;
 
-        public string lastMoveJson;
-
-        public long createdAtUnix;
-        public long updatedAtUnix;
+        public long createdAt;
     }
 
     private void Start()
@@ -147,8 +181,107 @@ public class PreGamePanel : MonoBehaviour
         }
     }
 
-    
+    public void WatchMatch(string matchId)
+    {
+        if (string.IsNullOrWhiteSpace(matchId))
+        {
+            Debug.LogWarning("[PregamePanel] WatchMatch called with empty matchId.");
+            return;
+        }
 
+        matchId = matchId.Trim();
+
+        StopWatchingMatch();
+
+        watchedMatchId = matchId;
+        currentMatchRef = dbRoot.Child("matches").Child(matchId);
+        currentMatchRef.ValueChanged += OnMatchValueChanged;
+
+        Debug.Log("[PregamePanel] Now watching match: " + matchId);
+    }
+    public void StopWatchingMatch()
+    {
+        if (currentMatchRef != null)
+        {
+            currentMatchRef.ValueChanged -= OnMatchValueChanged;
+            Debug.Log("[PregamePanel] Stopped watching match: " + watchedMatchId);
+            currentMatchRef = null;
+        }
+
+        watchedMatchId = "";
+    }
+
+    private void OnMatchValueChanged(object sender, ValueChangedEventArgs args)
+    {
+        if (args.DatabaseError != null)
+        {
+            Debug.LogError("[PregamePanel] Match listener error: " + args.DatabaseError.Message);
+            return;
+        }
+
+        if (args.Snapshot == null || !args.Snapshot.Exists)
+        {
+            Debug.LogWarning("[PregamePanel] Match snapshot missing or match deleted.");
+            return;
+        }
+
+        string json = args.Snapshot.GetRawJsonValue();
+
+        if (string.IsNullOrEmpty(json))
+        {
+            Debug.LogWarning("[PregamePanel] Match snapshot JSON was empty.");
+            return;
+        }
+
+        MatchData match = JsonUtility.FromJson<MatchData>(json);
+
+        if (match == null)
+        {
+            Debug.LogError("[PregamePanel] Failed to parse MatchData from JSON.");
+            return;
+        }
+
+        Debug.Log("[PregamePanel] Match changed. MatchId=" + match.matchId +
+                  ", Status=" + match.status +
+                  ", Turn=" + match.turnNumber +
+                  ", CurrentTurnUid=" + match.currentTurnUid);
+
+        Debug.Log("[PregamePanel] Scores: " +
+                  match.player1DisplayName + "=" + match.player1Score + ", " +
+                  match.player2DisplayName + "=" + match.player2Score);
+
+        // PUT THE DEBUG PARSING HERE
+        BoardStateData board = null;
+        BagStateData bag = null;
+        RackStateData p1Rack = null;
+        RackStateData p2Rack = null;
+
+        if (!string.IsNullOrEmpty(match.boardStateJson))
+            board = JsonUtility.FromJson<BoardStateData>(match.boardStateJson);
+
+        if (!string.IsNullOrEmpty(match.bagStateJson))
+            bag = JsonUtility.FromJson<BagStateData>(match.bagStateJson);
+
+        if (!string.IsNullOrEmpty(match.player1RackJson))
+            p1Rack = JsonUtility.FromJson<RackStateData>(match.player1RackJson);
+
+        if (!string.IsNullOrEmpty(match.player2RackJson))
+            p2Rack = JsonUtility.FromJson<RackStateData>(match.player2RackJson);
+
+        Debug.Log("[PregamePanel] Board cells: " + (board != null && board.cells != null ? board.cells.Count : 0));
+        Debug.Log("[PregamePanel] Bag remaining: " + (bag != null && bag.tiles != null ? bag.tiles.Count : 0));
+        Debug.Log("[PregamePanel] P1 rack: " + GetRackDebugString(p1Rack));
+        Debug.Log("[PregamePanel] P2 rack: " + GetRackDebugString(p2Rack));
+
+        if (match.status == "active")
+        {
+            Debug.Log("[PregamePanel] Match is active.");
+        }
+        else if (match.status == "finished")
+        {
+            Debug.Log("[PregamePanel] Match is finished.");
+        }
+    }
     public void OnRegisterPressed()
     {
         string email = emailInput.text.Trim();
@@ -412,6 +545,7 @@ public class PreGamePanel : MonoBehaviour
             roomCodeInput.ForceLabelUpdate();
 
             SetStatus("Room created: " + roomCode);
+            WatchRoom(roomCode);
         });
     }
 
@@ -496,6 +630,7 @@ public class PreGamePanel : MonoBehaviour
 
                 Debug.Log("[PregamePanel] Joined room successfully: " + roomCode);
                 SetStatus("Joined room successfully: " + roomCode);
+                WatchRoom(roomCode);
 
             }, uiScheduler);
 
@@ -656,15 +791,22 @@ public class PreGamePanel : MonoBehaviour
             }
         }
 
+        if (!string.IsNullOrEmpty(room.guestUid) && room.status == "full")
+        {
+            Debug.Log("[PregamePanel] Room is full. A game can begin.");
+        }
+
         if (!string.IsNullOrEmpty(room.matchId) && room.status == "in_game")
         {
-            Debug.Log("[PregamePanel] Match has started. Match ID: " + room.matchId);
+            Debug.Log("[PregamePanel] Match started. Match ID: " + room.matchId);
+            WatchMatch(room.matchId);
         }
     }
 
     private void OnDestroy()
     {
         StopWatchingRoom();
+        StopWatchingMatch();
 
         if (auth != null)
         {
@@ -672,7 +814,126 @@ public class PreGamePanel : MonoBehaviour
             auth = null;
         }
     }
+    public void OnStartGamePressed()
+{
+    if (auth == null || auth.CurrentUser == null)
+    {
+        SetStatus("You must be signed in.");
+        return;
+    }
 
+    string uid = auth.CurrentUser.UserId;
+    string roomCode = roomCodeInput != null ? roomCodeInput.text.Trim().ToUpper() : "";
+
+    if (string.IsNullOrEmpty(roomCode))
+    {
+        SetStatus("Enter a room code first.");
+        return;
+    }
+
+    DatabaseReference roomRef = dbRoot.Child("rooms").Child(roomCode);
+
+    roomRef.GetValueAsync().ContinueWith(task =>
+    {
+        if (task.IsFaulted)
+        {
+            RunOnMainThread(() => SetStatus("Failed to load room: " + task.Exception));
+            return;
+        }
+
+        if (!task.IsCompleted || task.Result == null || !task.Result.Exists)
+        {
+            RunOnMainThread(() => SetStatus("Room not found."));
+            return;
+        }
+
+        string json = task.Result.GetRawJsonValue();
+        RoomData room = JsonUtility.FromJson<RoomData>(json);
+
+        if (room == null)
+        {
+            RunOnMainThread(() => SetStatus("Could not parse room data."));
+            return;
+        }
+
+        if (room.hostUid != uid)
+        {
+            RunOnMainThread(() => SetStatus("Only the host can start the game."));
+            return;
+        }
+
+        if (string.IsNullOrEmpty(room.guestUid))
+        {
+            RunOnMainThread(() => SetStatus("Cannot start yet. Waiting for guest."));
+            return;
+        }
+
+        string matchId = dbRoot.Child("matches").Push().Key;
+
+        BagStateData bag = CreateInitialBag();
+        RackStateData player1Rack = DrawTiles(bag, 7);
+        RackStateData player2Rack = DrawTiles(bag, 7);
+        BoardStateData board = CreateInitialBoard();
+
+        MatchData match = new MatchData
+        {
+            matchId = matchId,
+            roomCode = roomCode,
+            hostUid = room.hostUid,
+            guestUid = room.guestUid,
+            player1Uid = room.hostUid,
+            player2Uid = room.guestUid,
+            player1DisplayName = room.hostDisplayName,
+            player2DisplayName = room.guestDisplayName,
+            player1Score = 0,
+            player2Score = 0,
+            turnNumber = 1,
+            currentTurnUid = room.hostUid,
+            status = "active",
+            boardStateJson = ToJson(board),
+            bagStateJson = ToJson(bag),
+            player1RackJson = ToJson(player1Rack),
+            player2RackJson = ToJson(player2Rack),
+            createdAt = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
+        };
+
+        string matchJson = JsonUtility.ToJson(match);
+
+        room.matchId = matchId;
+        room.status = "in_game";
+        string roomJson = JsonUtility.ToJson(room);
+
+        var updates = new Dictionary<string, object>
+        {
+            [$"matches/{matchId}"] = JsonUtility.FromJson<object>(matchJson),
+            [$"rooms/{roomCode}"] = JsonUtility.FromJson<object>(roomJson)
+        };
+
+        dbRoot.UpdateChildrenAsync(new Dictionary<string, object>
+        {
+            [$"matches/{matchId}"] = matchJson,
+            [$"rooms/{roomCode}"] = roomJson
+        })
+        .ContinueWith(updateTask =>
+        {
+            if (updateTask.IsFaulted)
+            {
+                RunOnMainThread(() => SetStatus("Failed to start match: " + updateTask.Exception));
+                return;
+            }
+
+            RunOnMainThread(() =>
+            {
+                SetStatus("Game started.");
+                Debug.Log("[PregamePanel] Match created: " + matchId);
+                Debug.Log("[PregamePanel] Player1 rack: " + GetRackDebugString(player1Rack));
+                Debug.Log("[PregamePanel] Player2 rack: " + GetRackDebugString(player2Rack));
+                Debug.Log("[PregamePanel] Bag tiles remaining: " + bag.tiles.Count);
+            });
+        });
+    });
+}
+    /*
     public void OnStartGamePressed()
     {
             if (!IsSignedIn())
@@ -819,5 +1080,129 @@ public class PreGamePanel : MonoBehaviour
 
             }, uiScheduler);
         
+    }*/
+    private string NewTileId()
+    {
+        return Guid.NewGuid().ToString("N");
+    }
+
+    private void AddTiles(BagStateData bag, string letter, int value, int count)
+    {
+        for (int i = 0; i < count; i++)
+        {
+            bag.tiles.Add(new TileData
+            {
+                letter = letter,
+                value = value,
+                id = NewTileId()
+            });
+        }
+    }
+
+    private BagStateData CreateInitialBag()
+    {
+        BagStateData bag = new BagStateData();
+
+        AddTiles(bag, "A", 1, 9);
+        AddTiles(bag, "B", 3, 2);
+        AddTiles(bag, "C", 3, 2);
+        AddTiles(bag, "D", 2, 4);
+        AddTiles(bag, "E", 1, 12);
+        AddTiles(bag, "F", 4, 2);
+        AddTiles(bag, "G", 2, 3);
+        AddTiles(bag, "H", 4, 2);
+        AddTiles(bag, "I", 1, 9);
+        AddTiles(bag, "J", 8, 1);
+        AddTiles(bag, "K", 5, 1);
+        AddTiles(bag, "L", 1, 4);
+        AddTiles(bag, "M", 3, 2);
+        AddTiles(bag, "N", 1, 6);
+        AddTiles(bag, "O", 1, 8);
+        AddTiles(bag, "P", 3, 2);
+        AddTiles(bag, "Q", 10, 1);
+        AddTiles(bag, "R", 1, 6);
+        AddTiles(bag, "S", 1, 4);
+        AddTiles(bag, "T", 1, 6);
+        AddTiles(bag, "U", 1, 4);
+        AddTiles(bag, "V", 4, 2);
+        AddTiles(bag, "W", 4, 2);
+        AddTiles(bag, "X", 8, 1);
+        AddTiles(bag, "Y", 4, 2);
+        AddTiles(bag, "Z", 10, 1);
+
+        ShuffleTiles(bag.tiles);
+        return bag;
+    }
+
+    private void ShuffleTiles(List<TileData> tiles)
+    {
+        for (int i = tiles.Count - 1; i > 0; i--)
+        {
+            int j = UnityEngine.Random.Range(0, i + 1);
+            TileData temp = tiles[i];
+            tiles[i] = tiles[j];
+            tiles[j] = temp;
+        }
+    }
+
+    private RackStateData DrawTiles(BagStateData bag, int count)
+    {
+        RackStateData rack = new RackStateData();
+
+        int drawCount = Mathf.Min(count, bag.tiles.Count);
+
+        for (int i = 0; i < drawCount; i++)
+        {
+            rack.tiles.Add(bag.tiles[0]);
+            bag.tiles.RemoveAt(0);
+        }
+
+        return rack;
+    }
+
+    private BoardStateData CreateInitialBoard(int width = 15, int height = 15)
+    {
+        BoardStateData board = new BoardStateData
+        {
+            width = width,
+            height = height
+        };
+
+        for (int y = 0; y < height; y++)
+        {
+            for (int x = 0; x < width; x++)
+            {
+                board.cells.Add(new BoardCellData
+                {
+                    x = x,
+                    y = y,
+                    occupied = false,
+                    tile = null
+                });
+            }
+        }
+
+        return board;
+    }
+
+    private string ToJson<T>(T obj)
+    {
+        return JsonUtility.ToJson(obj);
+    }
+
+    private string GetRackDebugString(RackStateData rack)
+    {
+        if (rack == null || rack.tiles == null || rack.tiles.Count == 0)
+            return "(empty)";
+
+        List<string> parts = new List<string>();
+
+        for (int i = 0; i < rack.tiles.Count; i++)
+        {
+            TileData tile = rack.tiles[i];
+            parts.Add(tile.letter + tile.value);
+        }
+
+        return string.Join(", ", parts);
     }
 }
