@@ -791,8 +791,12 @@ public class PreGamePanel : MonoBehaviour
             Debug.Log("[PregamePanel] Room is waiting for another player.");
         }
 
+        /*Debug.Log("[PregamePanel] BEFORE RunOnMainThread call. roomFull=" + roomFull);
+
         RunOnMainThread(() =>
         {
+            Debug.Log("[PregamePanel] INSIDE RunOnMainThread callback");
+
             if (startGameButton != null)
             {
                 bool canStart = roomFull;// && isHost;
@@ -806,6 +810,21 @@ public class PreGamePanel : MonoBehaviour
                 Debug.LogWarning("[PregamePanel] startGameButton is NULL inside RunOnMainThread callback!");
             }
         });
+        */
+        if (startGameButton != null)
+        {
+            bool canStart = roomFull;
+            Debug.Log("[PregamePanel] Setting startGameButton.interactable = " + canStart);
+            startGameButton.interactable = canStart;
+            startGameButton.image.color = canStart ? Color.green : Color.gray;
+            Debug.Log("[PregamePanel] AFTER SET: interactable=" + startGameButton.interactable);
+        }
+        else
+        {
+            Debug.LogWarning("[PregamePanel] startGameButton is NULL in OnRoomValueChanged!");
+        }
+
+        Debug.Log("[PregamePanel] AFTER RunOnMainThread call queued");
 
         if (!string.IsNullOrEmpty(room.matchId) && room.status == "in_game")
         {
@@ -850,271 +869,130 @@ public class PreGamePanel : MonoBehaviour
     }
     public void OnStartGamePressed()
     {
-    if (auth == null || auth.CurrentUser == null)
-    {
-        SetStatus("You must be signed in.");
-        return;
-    }
+        Debug.Log("[PregamePanel] OnStartGamePressed CALLED");
 
-    string uid = auth.CurrentUser.UserId;
-    string roomCode = roomCodeInput != null ? roomCodeInput.text.Trim().ToUpper() : "";
-
-    if (string.IsNullOrEmpty(roomCode))
-    {
-        SetStatus("Enter a room code first.");
-        return;
-    }
-
-    DatabaseReference roomRef = dbRoot.Child("rooms").Child(roomCode);
-
-    roomRef.GetValueAsync().ContinueWith(task =>
-    {
-        if (task.IsFaulted)
+        if (auth == null || auth.CurrentUser == null)
         {
-            RunOnMainThread(() => SetStatus("Failed to load room: " + task.Exception));
+            SetStatus("You must be signed in.");
             return;
         }
 
-        if (!task.IsCompleted || task.Result == null || !task.Result.Exists)
+        string uid = auth.CurrentUser.UserId;
+        string roomCode = roomCodeInput != null ? roomCodeInput.text.Trim().ToUpper() : "";
+
+        Debug.Log("[PregamePanel] Start pressed by uid=" + uid + ", roomCode=" + roomCode);
+
+        if (string.IsNullOrEmpty(roomCode))
         {
-            RunOnMainThread(() => SetStatus("Room not found."));
+            Debug.LogWarning("[PregamePanel] Start blocked: roomCode is empty.");
+            SetStatus("Enter a room code first.");
             return;
         }
 
-        string json = task.Result.GetRawJsonValue();
-        RoomData room = JsonUtility.FromJson<RoomData>(json);
+        DatabaseReference roomRef = dbRoot.Child("rooms").Child(roomCode);
 
-        if (room == null)
+        roomRef.GetValueAsync().ContinueWith(task =>
         {
-            RunOnMainThread(() => SetStatus("Could not parse room data."));
-            return;
-        }
-
-        if (room.hostUid != uid)
-        {
-            RunOnMainThread(() => SetStatus("Only the host can start the game."));
-            return;
-        }
-
-        if (string.IsNullOrEmpty(room.guestUid))
-        {
-            RunOnMainThread(() => SetStatus("Cannot start yet. Waiting for guest."));
-            return;
-        }
-
-        string matchId = dbRoot.Child("matches").Push().Key;
-
-        BagStateData bag = CreateInitialBag();
-        RackStateData player1Rack = DrawTiles(bag, 7);
-        RackStateData player2Rack = DrawTiles(bag, 7);
-        BoardStateData board = CreateInitialBoard();
-
-        MatchData match = new MatchData
-        {
-            matchId = matchId,
-            roomCode = roomCode,
-            hostUid = room.hostUid,
-            guestUid = room.guestUid,
-            player1Uid = room.hostUid,
-            player2Uid = room.guestUid,
-            player1DisplayName = room.hostDisplayName,
-            player2DisplayName = room.guestDisplayName,
-            player1Score = 0,
-            player2Score = 0,
-            turnNumber = 1,
-            currentTurnUid = room.hostUid,
-            status = "active",
-            boardStateJson = ToJson(board),
-            bagStateJson = ToJson(bag),
-            player1RackJson = ToJson(player1Rack),
-            player2RackJson = ToJson(player2Rack),
-            createdAt = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
-        };
-
-        string matchJson = JsonUtility.ToJson(match);
-
-        room.matchId = matchId;
-        room.status = "in_game";
-        string roomJson = JsonUtility.ToJson(room);
-
-        var updates = new Dictionary<string, object>
-        {
-            [$"matches/{matchId}"] = JsonUtility.FromJson<object>(matchJson),
-            [$"rooms/{roomCode}"] = JsonUtility.FromJson<object>(roomJson)
-        };
-
-        dbRoot.UpdateChildrenAsync(new Dictionary<string, object>
-        {
-            [$"matches/{matchId}"] = matchJson,
-            [$"rooms/{roomCode}"] = roomJson
-        })
-        .ContinueWith(updateTask =>
-        {
-            if (updateTask.IsFaulted)
+            if (task.IsFaulted)
             {
-                RunOnMainThread(() => SetStatus("Failed to start match: " + updateTask.Exception));
+                RunOnMainThread(() => SetStatus("Failed to load room: " + task.Exception));
                 return;
             }
 
-            RunOnMainThread(() =>
+            if (!task.IsCompleted || task.Result == null || !task.Result.Exists)
             {
-                SetStatus("Game started.");
-                Debug.Log("[PregamePanel] Match created: " + matchId);
-                Debug.Log("[PregamePanel] Player1 rack: " + GetRackDebugString(player1Rack));
-                Debug.Log("[PregamePanel] Player2 rack: " + GetRackDebugString(player2Rack));
-                Debug.Log("[PregamePanel] Bag tiles remaining: " + bag.tiles.Count);
+                RunOnMainThread(() => SetStatus("Room not found."));
+                return;
+            }
+
+            string json = task.Result.GetRawJsonValue();
+            RoomData room = JsonUtility.FromJson<RoomData>(json);
+
+            if (room == null)
+            {
+                RunOnMainThread(() => SetStatus("Could not parse room data."));
+                return;
+            }
+
+            if (room.hostUid != uid)
+            {
+                RunOnMainThread(() => SetStatus("Only the host can start the game."));
+                return;
+            }
+
+            if (string.IsNullOrEmpty(room.guestUid))
+            {
+                RunOnMainThread(() => SetStatus("Cannot start yet. Waiting for guest."));
+                return;
+            }
+
+            string matchId = dbRoot.Child("matches").Push().Key;
+
+            BagStateData bag = CreateInitialBag();
+            RackStateData player1Rack = DrawTiles(bag, 7);
+            RackStateData player2Rack = DrawTiles(bag, 7);
+            BoardStateData board = CreateInitialBoard();
+
+            MatchData match = new MatchData
+            {
+                matchId = matchId,
+                roomCode = roomCode,
+                hostUid = room.hostUid,
+                guestUid = room.guestUid,
+                player1Uid = room.hostUid,
+                player2Uid = room.guestUid,
+                player1DisplayName = room.hostDisplayName,
+                player2DisplayName = room.guestDisplayName,
+                player1Score = 0,
+                player2Score = 0,
+                turnNumber = 1,
+                currentTurnUid = room.hostUid,
+                status = "active",
+                boardStateJson = ToJson(board),
+                bagStateJson = ToJson(bag),
+                player1RackJson = ToJson(player1Rack),
+                player2RackJson = ToJson(player2Rack),
+                createdAt = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
+            };
+
+            string matchJson = JsonUtility.ToJson(match);
+
+            room.matchId = matchId;
+            room.status = "in_game";
+            string roomJson = JsonUtility.ToJson(room);
+
+            var updates = new Dictionary<string, object>
+            {
+                [$"matches/{matchId}"] = JsonUtility.FromJson<object>(matchJson),
+                [$"rooms/{roomCode}"] = JsonUtility.FromJson<object>(roomJson)
+            };
+
+            dbRoot.UpdateChildrenAsync(new Dictionary<string, object>
+            {
+                [$"matches/{matchId}"] = matchJson,
+                [$"rooms/{roomCode}"] = roomJson
+            })
+            .ContinueWith(updateTask =>
+            {
+                if (updateTask.IsFaulted)
+                {
+                    RunOnMainThread(() => SetStatus("Failed to start match: " + updateTask.Exception));
+                    return;
+                }
+
+                RunOnMainThread(() =>
+                {
+                    SetStatus("Game started.");
+                    Debug.Log("[PregamePanel] Match created: " + matchId);
+                    Debug.Log("[PregamePanel] Player1 rack: " + GetRackDebugString(player1Rack));
+                    Debug.Log("[PregamePanel] Player2 rack: " + GetRackDebugString(player2Rack));
+                    Debug.Log("[PregamePanel] Bag tiles remaining: " + bag.tiles.Count);
+                });
             });
         });
-    });
-}
-    /*
-    public void OnStartGamePressed()
-    {
-            if (!IsSignedIn())
-            {
-                SetStatus("You must be logged in first.");
-                return;
-            }
+    }
+    
 
-            string roomCode = roomCodeInput.text.Trim().ToUpper();
-
-            if (string.IsNullOrWhiteSpace(roomCode))
-            {
-                SetStatus("Enter a room code.");
-                return;
-            }
-
-            var uiScheduler = TaskScheduler.FromCurrentSynchronizationContext();
-
-            SetStatus("Starting game...");
-
-            dbRoot.Child("rooms").Child(roomCode).GetValueAsync().ContinueWith(task =>
-            {
-                if (task.IsCanceled)
-                {
-                    SetStatus("Start game canceled.");
-                    return;
-                }
-
-                if (task.IsFaulted)
-                {
-                    SetStatus("Start game failed: " + task.Exception?.GetBaseException().Message);
-                    Debug.LogError("[PregamePanel] Start game read failed: " + task.Exception);
-                    return;
-                }
-
-                DataSnapshot snapshot = task.Result;
-
-                if (!snapshot.Exists)
-                {
-                    SetStatus("Room not found.");
-                    return;
-                }
-
-                string json = snapshot.GetRawJsonValue();
-                RoomData room = JsonUtility.FromJson<RoomData>(json);
-
-                if (room == null)
-                {
-                    SetStatus("Room data invalid.");
-                    return;
-                }
-
-                if (room.hostUid != auth.CurrentUser.UserId)
-                {
-                    SetStatus("Only the host can start the game.");
-                    return;
-                }
-
-                if (string.IsNullOrEmpty(room.guestUid))
-                {
-                    SetStatus("Need a second player before starting.");
-                    return;
-                }
-
-                if (!string.IsNullOrEmpty(room.matchId))
-                {
-                    SetStatus("Game already started.");
-                    return;
-                }
-
-                string matchId = dbRoot.Child("matches").Push().Key;
-                long now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-
-                MatchData match = new MatchData
-                {
-                    matchId = matchId,
-                    roomCode = room.code,
-
-                    player1Uid = room.hostUid,
-                    player1DisplayName = room.hostDisplayName,
-                    player2Uid = room.guestUid,
-                    player2DisplayName = room.guestDisplayName,
-
-                    currentTurnUid = room.hostUid,
-                    status = "active",
-                    turnNumber = 1,
-
-                    player1Score = 0,
-                    player2Score = 0,
-
-                    boardStateJson = "",
-                    bagStateJson = "",
-                    player1RackJson = "",
-                    player2RackJson = "",
-                    lastMoveJson = "",
-
-                    createdAtUnix = now,
-                    updatedAtUnix = now
-                };
-
-                string matchJson = JsonUtility.ToJson(match);
-
-                dbRoot.Child("matches").Child(matchId).SetRawJsonValueAsync(matchJson).ContinueWith(matchTask =>
-                {
-                    if (matchTask.IsCanceled)
-                    {
-                        SetStatus("Match creation canceled.");
-                        return;
-                    }
-
-                    if (matchTask.IsFaulted)
-                    {
-                        SetStatus("Match creation failed: " + matchTask.Exception?.GetBaseException().Message);
-                        Debug.LogError("[PregamePanel] Match write failed: " + matchTask.Exception);
-                        return;
-                    }
-
-                    room.matchId = matchId;
-                    room.status = "in_game";
-
-                    string updatedRoomJson = JsonUtility.ToJson(room);
-
-                    dbRoot.Child("rooms").Child(roomCode).SetRawJsonValueAsync(updatedRoomJson).ContinueWith(roomTask =>
-                    {
-                        if (roomTask.IsCanceled)
-                        {
-                            SetStatus("Room update canceled after match creation.");
-                            return;
-                        }
-
-                        if (roomTask.IsFaulted)
-                        {
-                            SetStatus("Room update failed: " + roomTask.Exception?.GetBaseException().Message);
-                            Debug.LogError("[PregamePanel] Room update failed: " + roomTask.Exception);
-                            return;
-                        }
-
-                        Debug.Log("[PregamePanel] Game started successfully. Match ID: " + matchId);
-                        SetStatus("Game started successfully. Match ID: " + matchId);
-
-                    }, uiScheduler);
-
-                }, uiScheduler);
-
-            }, uiScheduler);
-        
-    }*/
     private string NewTileId()
     {
         return Guid.NewGuid().ToString("N");
