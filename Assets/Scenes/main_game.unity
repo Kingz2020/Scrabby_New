@@ -1781,6 +1781,9 @@ MonoBehaviour:
   signedInAsText: {fileID: 1532024888}
   pregamePanelRoot: {fileID: 234334084}
   gameplayRoot: {fileID: 1281643445}
+  pregamePanel: {fileID: 234334084}
+  gameplayPanel: {fileID: 1281643445}
+  gameOverPanel: {fileID: 2021165567}
   startGameButton: {fileID: 1094806212}
 --- !u!1 &272770065
 GameObject:
