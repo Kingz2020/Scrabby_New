@@ -7,7 +7,7 @@ using System.Collections.Generic;
 using Firebase.Extensions;
 using System.Threading.Tasks;
 using UnityEngine.UI;
-
+using System.Collections;
 
 public class PreGamePanel : MonoBehaviour
 {
@@ -151,19 +151,28 @@ public class PreGamePanel : MonoBehaviour
             startGameButton.interactable = false;
             startGameButton.image.color = Color.white;
         }
-        InitializeFirebase();
 
-        string dbUrl = "https://partyscrabby-default-rtdb.europe-west1.firebasedatabase.app/";
-        dbRoot = FirebaseDatabase.GetInstance(dbUrl).RootReference;
+        StartCoroutine(WaitForFirebaseThenInit());
+    }
+
+    private IEnumerator WaitForFirebaseThenInit()
+    {
+        yield return new WaitUntil(() => FirebaseInit.IsReady);
+
+        auth = FirebaseInit.Auth;
+        dbRoot = FirebaseInit.Database.RootReference;
+
+        auth.StateChanged += AuthStateChanged;
+        AuthStateChanged(this, null);
     }
 
 
-    private void InitializeFirebase()
+    /*private void InitializeFirebase()
     {
         auth = FirebaseAuth.DefaultInstance;
         auth.StateChanged += AuthStateChanged;
         AuthStateChanged(this, null);
-    }
+    }*/
 
     private void AuthStateChanged(object sender, EventArgs eventArgs)
     {
