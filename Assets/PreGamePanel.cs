@@ -42,6 +42,7 @@ public class PreGamePanel : MonoBehaviour
     private string watchedRoomCode = "";
     private string watchedMatchId = "";
 
+    /*
     [Serializable]
     public class TileData
     {
@@ -78,14 +79,14 @@ public class PreGamePanel : MonoBehaviour
         public int height;
         public List<BoardCellData> cells = new List<BoardCellData>();
     }
-
+    */
     [Serializable]
     public class RoomPlayerData
     {
         public string uid;
         public string displayName;
     }
-
+    
     [System.Serializable]
     public class UserData
     {
@@ -111,6 +112,7 @@ public class PreGamePanel : MonoBehaviour
         public long createdAtUnix;
     }
 
+    /*
     [Serializable]
     public class MatchData
     {
@@ -135,7 +137,7 @@ public class PreGamePanel : MonoBehaviour
 
         public long createdAt;
     }
-
+    */
     private void Awake()
     {
         if (pregamePanel != null) pregamePanel.SetActive(true);
@@ -949,7 +951,7 @@ public class PreGamePanel : MonoBehaviour
                 bagStateJson = ToJson(bag),
                 player1RackJson = ToJson(player1Rack),
                 player2RackJson = ToJson(player2Rack),
-                createdAt = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
+                createdAtUnix = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
             };
 
             room.matchId = matchId;

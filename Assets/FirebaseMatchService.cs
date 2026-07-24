@@ -119,7 +119,14 @@ public class FirebaseMatchService : MonoBehaviour
         long now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
         string matchId = db.Child("matches").Push().Key;
 
-        var match = new MatchData(roomCode, hostUid, guestUid, now);
+        //var match = new MatchData(roomCode, hostUid, guestUid, now);
+        var match = new MatchData
+        {
+            roomCode = roomCode,
+            hostUid = hostUid,
+            guestUid = guestUid,
+            createdAtUnix = now
+        };
         string json = JsonUtility.ToJson(match);
 
         db.Child("matches").Child(matchId).SetRawJsonValueAsync(json)

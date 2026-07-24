@@ -107,6 +107,11 @@ public class GameLogic : MonoBehaviour
     private bool opponentMoveRequested = false;
     private bool opponentMoveReady = false;
 
+    //private bool isOnlineMatch = false;
+    private string localPlayerUid = "";
+    private string currentMatchId = "";
+
+
     public enum GameMode
     {
         HumanVsAI,
@@ -4404,4 +4409,83 @@ public class GameLogic : MonoBehaviour
                 );
         }
     }
+    public void StartOnlineMatch(MatchData match, string localUid)
+    {
+        //isOnlineMatch = true;
+        localPlayerUid = localUid;
+        currentMatchId = match.matchId;
+
+        InitFromMatchData(match, localUid);
+    }
+
+    // First load of a match — full setup
+    public void InitFromMatchData(MatchData match, string localUid)
+    {
+        if (match == null)
+            return;
+
+        // Board
+        BoardStateData board = JsonUtility.FromJson<BoardStateData>(match.boardStateJson);
+        validatedBoardTiles = new LetterInfo[boardSizeX + 2, boardSizeY + 2];
+
+        if (board != null && board.cells != null)
+        {
+            foreach (var cell in board.cells)
+            {
+                if (cell == null || !cell.occupied || cell.tile == null)
+                    continue;
+
+                int row = cell.y + 1;
+                int col = cell.x + 1;
+
+                LetterInfo placedTile = new LetterInfo(cell.tile.letter, cell.tile.value);
+
+                validatedBoardTiles[row, col] = placedTile;
+            }
+        }
+
+        // Local player's rack
+        bool isPlayerOne = match.player1Uid == localUid;
+
+        string rackJson = isPlayerOne
+            ? match.player1RackJson
+            : match.player2RackJson;
+
+        RackStateData rack = JsonUtility.FromJson<RackStateData>(rackJson);
+        playerHandTiles = new List<LetterInfo>();
+
+        if (rack != null && rack.tiles != null)
+        {
+            foreach (var tile in rack.tiles)
+            {
+                if (tile == null)
+                    continue;
+
+                LetterInfo handTile = new LetterInfo(tile.letter, tile.value);
+
+                playerHandTiles.Add(handTile);
+            }
+        }
+
+        currentRoundNumber = match.turnNumber;
+
+        ResetDisplay();
+
+        if (Singleton.Instance != null && Singleton.Instance.UIManager != null)
+            Singleton.Instance.UIManager.UpdateRoundText(currentRoundNumber, maxRounds);
+    }
+
+    // Subsequent round updates — same population, called each time MatchController sees the round advance
+    public void ApplyMatchUpdate(MatchData match)
+    {
+        InitFromMatchData(match, localPlayerUid);// for now, identical — split later if you want a lighter incremental path
+    }
+
+    // Called by MatchController when the local player hits Submit
+    public RoundMove EvaluateLocalSubmissionForOnline()
+    {
+        RoundMove move = EvaluatePlayerSubmission(); // reuses your existing validation/scoring exactly as-is
+        return move;
+    }
+
 }
