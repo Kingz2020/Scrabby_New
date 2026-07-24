@@ -11,7 +11,7 @@ public class FireBaseAuthTest : MonoBehaviour
     {
         Debug.Log("FireBaseAuthTest Start on " + gameObject.name);
 
-        Invoke(nameof(TestLogin), 2f);
+       // Invoke(nameof(TestLogin), 2f);
     }
 
     public void TestRegister()

@@ -111,6 +111,8 @@ public class GameLogic : MonoBehaviour
     private string localPlayerUid = "";
     private string currentMatchId = "";
 
+    private bool isOnlineMatch = false;
+    private bool isLocalPlayerHost = false;
 
     public enum GameMode
     {
@@ -4411,15 +4413,56 @@ public class GameLogic : MonoBehaviour
     }
     public void StartOnlineMatch(MatchData match, string localUid)
     {
-        //isOnlineMatch = true;
+        isOnlineMatch = true;
         localPlayerUid = localUid;
         currentMatchId = match.matchId;
+        isLocalPlayerHost = (localUid == match.player1Uid);
 
-        InitFromMatchData(match, localUid);
+        InitFromMatchData(match);
+    }
+
+    public void InitFromMatchData(MatchData match)
+    {
+        // Board
+        BoardStateData board = JsonUtility.FromJson<BoardStateData>(match.boardStateJson);
+        validatedBoardTiles = new LetterInfo[boardSizeX + 2, boardSizeY + 2];
+
+        foreach (var cell in board.cells)
+        {
+            if (!cell.occupied || cell.tile == null) continue;
+
+            int row = cell.y + 1;
+            int col = cell.x + 1;
+
+            validatedBoardTiles[row, col] = TileDataToLetterInfo(cell.tile);
+        }
+
+        // Local player's own rack (host = player1, guest = player2)
+        string rackJson = isLocalPlayerHost ? match.player1RackJson : match.player2RackJson;
+        RackStateData rack = JsonUtility.FromJson<RackStateData>(rackJson);
+
+        playerHandTiles = new List<LetterInfo>();
+        foreach (var tile in rack.tiles)
+        {
+            playerHandTiles.Add(TileDataToLetterInfo(tile));
+        }
+
+        ResetDisplay();
+    }
+
+   
+    public RoundMove EvaluateLocalSubmissionForOnline()
+    {
+        return EvaluatePlayerSubmission(); // reuses your existing validation/scoring exactly as-is
+    }
+
+    private LetterInfo TileDataToLetterInfo(TileData tile)
+    {
+        return new LetterInfo(tile.letter, tile.value);
     }
 
     // First load of a match — full setup
-    public void InitFromMatchData(MatchData match, string localUid)
+    /*public void InitFromMatchData(MatchData match, string localUid)
     {
         if (match == null)
             return;
@@ -4474,18 +4517,18 @@ public class GameLogic : MonoBehaviour
         if (Singleton.Instance != null && Singleton.Instance.UIManager != null)
             Singleton.Instance.UIManager.UpdateRoundText(currentRoundNumber, maxRounds);
     }
-
+    */
     // Subsequent round updates — same population, called each time MatchController sees the round advance
     public void ApplyMatchUpdate(MatchData match)
     {
-        InitFromMatchData(match, localPlayerUid);// for now, identical — split later if you want a lighter incremental path
+        InitFromMatchData(match);// for now, identical — split later if you want a lighter incremental path
     }
 
     // Called by MatchController when the local player hits Submit
-    public RoundMove EvaluateLocalSubmissionForOnline()
+   /* public RoundMove EvaluateLocalSubmissionForOnline()
     {
         RoundMove move = EvaluatePlayerSubmission(); // reuses your existing validation/scoring exactly as-is
         return move;
-    }
+    }*/
 
 }

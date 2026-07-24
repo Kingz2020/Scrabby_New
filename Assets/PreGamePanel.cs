@@ -41,45 +41,11 @@ public class PreGamePanel : MonoBehaviour
     private DatabaseReference currentRoomRef;
     private string watchedRoomCode = "";
     private string watchedMatchId = "";
+    private bool firebaseInitialized = false;
 
-    /*
-    [Serializable]
-    public class TileData
-    {
-        public string letter;
-        public int value;
-        public string id;
-    }
+    [SerializeField] private GameLogic gameLogic;
+    private bool hasInitializedMatch = false;
 
-    [Serializable]
-    public class BagStateData
-    {
-        public List<TileData> tiles = new List<TileData>();
-    }
-
-    [Serializable]
-    public class RackStateData
-    {
-        public List<TileData> tiles = new List<TileData>();
-    }
-
-    [Serializable]
-    public class BoardCellData
-    {
-        public int x;
-        public int y;
-        public bool occupied;
-        public TileData tile;
-    }
-
-    [Serializable]
-    public class BoardStateData
-    {
-        public int width;
-        public int height;
-        public List<BoardCellData> cells = new List<BoardCellData>();
-    }
-    */
     [Serializable]
     public class RoomPlayerData
     {
@@ -112,32 +78,7 @@ public class PreGamePanel : MonoBehaviour
         public long createdAtUnix;
     }
 
-    /*
-    [Serializable]
-    public class MatchData
-    {
-        public string matchId;
-        public string roomCode;
-        public string hostUid;
-        public string guestUid;
-        public string player1Uid;
-        public string player2Uid;
-        public string player1DisplayName;
-        public string player2DisplayName;
-        public int player1Score;
-        public int player2Score;
-        public int turnNumber;
-        public string currentTurnUid;
-        public string status;
-
-        public string boardStateJson;
-        public string bagStateJson;
-        public string player1RackJson;
-        public string player2RackJson;
-
-        public long createdAt;
-    }
-    */
+  
     private void Awake()
     {
         if (pregamePanel != null) pregamePanel.SetActive(true);
@@ -148,6 +89,9 @@ public class PreGamePanel : MonoBehaviour
 
     private void Start()
     {
+        Debug.Log("[PreGamePanel] Start() running on GameObject: " + gameObject.name + " (EntityId: " + gameObject.GetEntityId() + ")");
+
+
         if (startGameButton != null)
         {
             startGameButton.interactable = false;
@@ -157,24 +101,35 @@ public class PreGamePanel : MonoBehaviour
         StartCoroutine(WaitForFirebaseThenInit());
     }
 
+    private void OnEnable()
+    {
+        if (!firebaseInitialized)
+        {
+            StartCoroutine(WaitForFirebaseThenInit());
+        }
+    }
+
     private IEnumerator WaitForFirebaseThenInit()
     {
         yield return new WaitUntil(() => FirebaseInit.IsReady);
 
+        if (firebaseInitialized)
+            yield break; // an earlier run already finished this
+
         auth = FirebaseInit.Auth;
         dbRoot = FirebaseInit.Database.RootReference;
+        firebaseInitialized = true;
+
+        Debug.Log("[PreGamePanel] Firebase init complete. dbRoot assigned: " + (dbRoot != null));
 
         auth.StateChanged += AuthStateChanged;
         AuthStateChanged(this, null);
     }
 
-
-    /*private void InitializeFirebase()
+    private FirebaseUser GetCurrentUser()
     {
-        auth = FirebaseAuth.DefaultInstance;
-        auth.StateChanged += AuthStateChanged;
-        AuthStateChanged(this, null);
-    }*/
+        return FirebaseAuth.DefaultInstance?.CurrentUser;
+    }
 
     private void AuthStateChanged(object sender, EventArgs eventArgs)
     {
@@ -305,6 +260,19 @@ public class PreGamePanel : MonoBehaviour
         else if (match.status == "finished")
         {
             Debug.Log("[PregamePanel] Match is finished.");
+        }
+
+        if (gameLogic != null)
+        {
+            if (!hasInitializedMatch)
+            {
+                hasInitializedMatch = true;
+                gameLogic.StartOnlineMatch(match, auth.CurrentUser.UserId);
+            }
+            else
+            {
+                gameLogic.ApplyMatchUpdate(match);
+            }
         }
     }
     public void OnRegisterPressed()
@@ -471,9 +439,23 @@ public class PreGamePanel : MonoBehaviour
             Debug.LogWarning("[PregamePanel] statusText is not assigned in Inspector.");
     }
 
-
     public void OnLoginPressed()
     {
+        var auth = FirebaseAuth.DefaultInstance;
+        var user = auth?.CurrentUser;
+
+        if (user != null)
+        {
+            SetStatus("Already logged in.");
+            return;
+        }
+
+        if (auth == null)
+        {
+            SetStatus("Firebase Auth not ready.");
+            return;
+        }
+
         string email = emailInput.text.Trim();
         string password = passwordInput.text;
 
@@ -524,7 +506,12 @@ public class PreGamePanel : MonoBehaviour
 
     public void OnCreateRoomPressed()
     {
-        if (!IsSignedIn())
+        Debug.Log("[PreGamePanel] OnCreateRoomPressed() running on GameObject: " + gameObject.name + " (EntityId: " + gameObject.GetEntityId() + ")");
+
+        var auth = FirebaseAuth.DefaultInstance;
+        var user = auth?.CurrentUser;
+
+        if (user == null)
         {
             SetStatus("You must be logged in first.");
             return;
@@ -536,7 +523,7 @@ public class PreGamePanel : MonoBehaviour
         RoomData room = new RoomData
         {
             code = roomCode,
-            hostUid = auth.CurrentUser.UserId,
+            hostUid = user.UserId,
             hostDisplayName = hostName,
             guestUid = "",
             guestDisplayName = "",
@@ -576,12 +563,7 @@ public class PreGamePanel : MonoBehaviour
 
     public void OnJoinRoomPressed()
     {
-        if (!IsSignedIn())
-        {
-            SetStatus("You must be logged in first.");
-            return;
-        }
-
+        
         string roomCode = roomCodeInput.text.Trim().ToUpper();
 
         if (string.IsNullOrWhiteSpace(roomCode))
@@ -842,6 +824,8 @@ public class PreGamePanel : MonoBehaviour
 
     private void EnterGameplayMode()
     {
+        GameModeState.IsOnlineMatch = true;
+
         if (pregamePanel != null) pregamePanel.SetActive(false);
         if (gameplayPanel != null) gameplayPanel.SetActive(true);
         if (gameOverPanel != null) gameOverPanel.SetActive(false);
