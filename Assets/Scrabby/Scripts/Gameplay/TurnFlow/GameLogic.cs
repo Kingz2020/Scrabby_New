@@ -151,7 +151,7 @@ public class GameLogic : MonoBehaviour
         public int anchorCol;
         public int leftMostCol;
     }
-
+    
     private sealed class ScoredRackWord
     {
         public string Word;

@@ -13,6 +13,11 @@ public class Autostart: MonoBehaviour {
     public GameObject revealButton;
     
     void Start() {
+
+        if (GameModeState.IsOnlineMatch)
+            return; // online matches get their board/rack from Firebase, not a fresh local game
+
+
         Singleton.Instance.DebugManager.LoadFromJson();
         Singleton.Instance.DebugManager.StartNewGame();
     }
