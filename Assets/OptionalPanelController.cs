@@ -1,0 +1,59 @@
+using UnityEngine;
+using UnityEngine.UI;
+
+public class OptionPanelController : MonoBehaviour
+{
+    [Header("Buttons")]
+    [SerializeField] private Button soloButton;
+    [SerializeField] private Button multiplayerButton;
+
+    [Header("Panels")]
+    [SerializeField] private GameObject optionPanel;
+    [SerializeField] private GameObject pregamePanel;
+    [SerializeField] private GameObject gameplayPanel;
+    [SerializeField] private GameObject gameoverPanel;
+
+    private void Awake()
+    {
+        if (soloButton != null)
+            soloButton.onClick.AddListener(OnSoloPressed);
+
+        if (multiplayerButton != null)
+            multiplayerButton.onClick.AddListener(OnMultiplayerPressed);
+    }
+
+    private void Start()
+    {
+        ShowOptionPanel();
+    }
+
+    public void OnSoloPressed()
+    {
+        if (optionPanel != null) optionPanel.SetActive(false);
+        if (pregamePanel != null) pregamePanel.SetActive(false);
+        if (gameplayPanel != null) gameplayPanel.SetActive(true);
+        if (gameplayPanel != null) gameoverPanel.SetActive(false);
+
+        Debug.Log("[OptionPanel] Solo selected -> opening gameplay panel");
+    }
+
+    public void OnMultiplayerPressed()
+    {
+        if (optionPanel != null) optionPanel.SetActive(false);
+        if (pregamePanel != null) pregamePanel.SetActive(true);
+        if (gameplayPanel != null) gameplayPanel.SetActive(false);
+        if (gameplayPanel != null) gameoverPanel.SetActive(false);
+
+        Debug.Log("[OptionPanel] Multiplayer selected -> opening pregame panel");
+    }
+
+    public void ShowOptionPanel()
+    {
+        if (optionPanel != null) optionPanel.SetActive(true);
+        if (pregamePanel != null) pregamePanel.SetActive(false);
+        if (gameplayPanel != null) gameplayPanel.SetActive(false);
+        if (gameplayPanel != null) gameoverPanel.SetActive(false);
+
+        Debug.Log("[OptionPanel] Showing option panel");
+    }
+}
