@@ -47,8 +47,7 @@ public class PreGamePanel : MonoBehaviour
     private bool hasInitializedMatch = false;
     private MatchData currentMatch;
 
-    //public event Action<RoundMove> onlineSubmissionReady;
-
+    private int matchTraceSeq = 0;
 
     [Serializable]
     public class RoomPlayerData
@@ -141,7 +140,26 @@ public class PreGamePanel : MonoBehaviour
         auth.StateChanged += AuthStateChanged;
         AuthStateChanged(this, null);
     }
+    
 
+    private void TraceMatch(string label)
+    {
+        matchTraceSeq++;
+
+        string currentMatchId = currentMatch == null ? "NULL" : currentMatch.matchId;
+        string currentStatus = currentMatch == null ? "NULL" : currentMatch.status;
+        string currentTurn = currentMatch == null ? "NULL" : currentMatch.turnNumber.ToString();
+
+        Debug.Log(
+            $"[MATCHTRACE #{matchTraceSeq}] {label} | " +
+            $"watchedMatchId={watchedMatchId} | " +
+            $"currentMatchId={currentMatchId} | " +
+            $"currentStatus={currentStatus} | " +
+            $"currentTurn={currentTurn} | " +
+            $"hasInitializedMatch={hasInitializedMatch} | " +
+            $"frame={Time.frameCount}"
+        );
+    }
     private FirebaseUser GetCurrentUser()
     {
         return FirebaseAuth.DefaultInstance?.CurrentUser;
@@ -179,55 +197,60 @@ public class PreGamePanel : MonoBehaviour
 
     public void WatchMatch(string matchId)
     {
-        if (string.IsNullOrWhiteSpace(matchId))
-        {
-            Debug.LogWarning("[PregamePanel] WatchMatch called with empty matchId.");
-            return;
-        }
-
-        matchId = matchId.Trim();
+        TraceMatch("WatchMatch ENTER matchId=" + matchId);
 
         StopWatchingMatch();
 
-        hasInitializedMatch = false;
-        currentMatch = null;
+        TraceMatch("WatchMatch AFTER StopWatchingMatch");
 
         watchedMatchId = matchId;
         currentMatchRef = dbRoot.Child("matches").Child(matchId);
         currentMatchRef.ValueChanged += OnMatchValueChanged;
 
-        Debug.Log("[PregamePanel] Now watching match: " + matchId);
+        TraceMatch("WatchMatch AFTER subscribe");
+        Debug.Log("[PregamePanel] Now watching match " + matchId);
     }
 
     public void StopWatchingMatch()
     {
+        TraceMatch("StopWatchingMatch ENTER");
+
         if (currentMatchRef != null)
         {
             currentMatchRef.ValueChanged -= OnMatchValueChanged;
             Debug.Log("[PregamePanel] Stopped watching match: " + watchedMatchId);
             currentMatchRef = null;
-            //return;
         }
 
-        /*if (args.Snapshot == null || !args.Snapshot.Exists)
-        {
-            Debug.LogWarning("[PregamePanel] Match snapshot missing or match deleted.");
-            return;
-        }*/
+        TraceMatch("StopWatchingMatch BEFORE CLEAR");
 
-        //string json = args.Snapshot.GetRawJsonValue();
+        watchedMatchId = "";
+        currentMatch = null;
+        hasInitializedMatch = false;
 
-        //if (string.IsNullOrEmpty(json))
-        //{
-            Debug.LogWarning("[PregamePanel] Match snapshot JSON was empty.");
-            watchedMatchId = "";
-            currentMatch = null;
-            hasInitializedMatch = false;
-        //}
+        TraceMatch("StopWatchingMatch AFTER CLEAR");
     }
 
     private void OnMatchValueChanged(object sender, ValueChangedEventArgs args)
     {
+        string raw = null;
+        int rawLen = -1;
+
+        if (args != null && args.Snapshot != null)
+        {
+            raw = args.Snapshot.GetRawJsonValue();
+            rawLen = string.IsNullOrEmpty(raw) ? 0 : raw.Length;
+        }
+
+        Debug.Log(
+            $"[MATCHTRACE CALLBACK] OnMatchValueChanged ENTER | " +
+            $"dbError={(args != null && args.DatabaseError != null ? args.DatabaseError.Message : "null")} | " +
+            $"snapshotExists={(args != null && args.Snapshot != null && args.Snapshot.Exists)} | " +
+            $"rawLen={rawLen} | " +
+            $"watchedMatchId={watchedMatchId} | " +
+            $"frame={Time.frameCount}"
+        );
+
         if (args.DatabaseError != null)
         {
             Debug.LogError("[PregamePanel] Match listener error: " + args.DatabaseError.Message);
@@ -236,90 +259,28 @@ public class PreGamePanel : MonoBehaviour
 
         if (args.Snapshot == null || !args.Snapshot.Exists)
         {
-            Debug.LogWarning("[PregamePanel] Match snapshot missing or match deleted.");
-            watchedMatchId = "";
-            currentMatch = null;
-            hasInitializedMatch = false;
+            TraceMatch("OnMatchValueChanged SNAPSHOT MISSING");
             return;
         }
 
-        string json = args.Snapshot.GetRawJsonValue();
-
-        if (string.IsNullOrEmpty(json))
+        if (string.IsNullOrEmpty(raw))
         {
-            Debug.LogWarning("[PregamePanel] Match snapshot JSON was empty.");
-            watchedMatchId = "";
-            currentMatch = null;
-            hasInitializedMatch = false;
+            TraceMatch("OnMatchValueChanged RAW JSON EMPTY");
             return;
         }
 
-        MatchData match = JsonUtility.FromJson<MatchData>(json);
+        MatchData match = JsonUtility.FromJson<MatchData>(raw);
+
+        Debug.Log("[MATCHTRACE CALLBACK] parsed match id=" + (match == null ? "NULL" : match.matchId));
 
         if (match == null)
         {
-            Debug.LogError("[PregamePanel] Failed to parse MatchData from JSON.");
+            TraceMatch("OnMatchValueChanged PARSE FAILED");
             return;
         }
 
         currentMatch = match;
-
-        Debug.Log("[PregamePanel] Match changed. MatchId=" + match.matchId +
-                  ", Status=" + match.status +
-                  ", Turn=" + match.turnNumber +
-                  ", CurrentTurnUid=" + match.currentTurnUid);
-
-        Debug.Log("[PregamePanel] Scores: " +
-                  match.player1DisplayName + "=" + match.player1Score + ", " +
-                  match.player2DisplayName + "=" + match.player2Score);
-
-        BoardStateData board = null;
-        BagStateData bag = null;
-        RackStateData sharedRack = null;
-
-        if (!string.IsNullOrEmpty(match.boardStateJson))
-            board = JsonUtility.FromJson<BoardStateData>(match.boardStateJson);
-
-        if (!string.IsNullOrEmpty(match.bagStateJson))
-            bag = JsonUtility.FromJson<BagStateData>(match.bagStateJson);
-
-        if (!string.IsNullOrEmpty(match.sharedrackjson))
-            sharedRack = JsonUtility.FromJson<RackStateData>(match.sharedrackjson);
-
-        Debug.Log("[PregamePanel] Board cells: " + (board != null && board.cells != null ? board.cells.Count : 0));
-        Debug.Log("[PregamePanel] Bag remaining: " + (bag != null && bag.tiles != null ? bag.tiles.Count : 0));
-        Debug.Log("[PregamePanel] Shared rack: " + GetRackDebugString(sharedRack));
-
-        if (match.status == "active")
-        {
-            Debug.Log("[PregamePanel] Match is active.");
-        }
-        else if (match.status == "finished")
-        {
-            Debug.Log("[PregamePanel] Match is finished.");
-        }
-
-        if (gameLogic == null)
-        {
-            Debug.LogError("[PregamePanel] gameLogic is null.");
-            return;
-        }
-
-        if (auth == null || auth.CurrentUser == null)
-        {
-            Debug.LogError("[PregamePanel] Auth or CurrentUser is null.");
-            return;
-        }
-
-        if (!hasInitializedMatch)
-        {
-            hasInitializedMatch = true;
-            gameLogic.StartOnlineMatch(match, auth.CurrentUser.UserId);
-        }
-        else
-        {
-            gameLogic.ApplyMatchUpdate(match);
-        }
+        TraceMatch("OnMatchValueChanged AFTER currentMatch ASSIGN");
     }
 
     public void OnRegisterPressed()
@@ -856,7 +817,6 @@ public class PreGamePanel : MonoBehaviour
         {
             Debug.Log("[PregamePanel] Match started. Match ID: " + room.matchId);
             WatchMatch(room.matchId);
-            //EnterGameplayMode();
             return;
 
         }
@@ -864,45 +824,78 @@ public class PreGamePanel : MonoBehaviour
 
     private void EnterGameplayMode()
     {
-        Debug.Log("[PREGAME] EnterGameplayMode CALLED");
+        TraceMatch("EnterGameplayMode ENTER");
+        Debug.Log($"[PREGAME] EnterGameplayMode CALLED | frame={Time.frameCount}");
 
         if (gameLogic == null)
         {
             Debug.LogError("[PREGAME] gameLogic is NULL");
+            TraceMatch("EnterGameplayMode ABORT gameLogic NULL");
             return;
         }
 
         if (currentMatch == null)
         {
             Debug.LogError("[PREGAME] currentMatch is NULL");
+            TraceMatch("EnterGameplayMode ABORT currentMatch NULL");
             return;
         }
 
         if (auth == null || auth.CurrentUser == null)
         {
             Debug.LogError("[PREGAME] auth/current user is NULL");
+            TraceMatch("EnterGameplayMode ABORT auth/current user NULL");
             return;
         }
 
         string uid = auth.CurrentUser.UserId;
         bool isPlayer1 = currentMatch.player1Uid == uid;
 
+        Debug.Log(
+            $"[PREGAME] EnterGameplayMode PREP | " +
+            $"matchId={currentMatch.matchId} | " +
+            $"status={currentMatch.status} | " +
+            $"turn={currentMatch.turnNumber} | " +
+            $"uid={uid} | " +
+            $"isPlayer1={isPlayer1} | " +
+            $"sharedRackJsonNull={string.IsNullOrEmpty(currentMatch.sharedrackjson)}"
+        );
+
         List<LetterInfo> localRack = ParseRackJson(currentMatch.sharedrackjson);
+
+        if (localRack == null)
+        {
+            Debug.LogWarning("[PREGAME] ParseRackJson returned null. Replacing with empty rack.");
+            localRack = new List<LetterInfo>();
+        }
+
         int localScore = isPlayer1 ? currentMatch.player1Score : currentMatch.player2Score;
         int opponentScore = isPlayer1 ? currentMatch.player2Score : currentMatch.player1Score;
 
         Debug.Log("[PREGAME] Local player is " + (isPlayer1 ? "P1" : "P2"));
-        Debug.Log("[PREGAME] Local rack count = " + (localRack == null ? -1 : localRack.Count));
+        Debug.Log("[PREGAME] Local rack count = " + localRack.Count);
+        Debug.Log("[PREGAME] Local score = " + localScore + ", Opponent score = " + opponentScore);
 
-        gameLogic.BeginOnlineMatchFromRack(
-            7,
-            15,
-            15,
-            localRack,
-            localScore,
-            opponentScore,
-            currentMatch.turnNumber
-        );
+        try
+        {
+            gameLogic.BeginOnlineMatchFromRack(
+                7,
+                15,
+                15,
+                localRack,
+                localScore,
+                opponentScore,
+                currentMatch.turnNumber
+            );
+
+            Debug.Log("[PREGAME] BeginOnlineMatchFromRack completed successfully.");
+            TraceMatch("EnterGameplayMode SUCCESS");
+        }
+        catch (System.Exception ex)
+        {
+            Debug.LogError("[PREGAME] BeginOnlineMatchFromRack threw exception: " + ex);
+            TraceMatch("EnterGameplayMode EXCEPTION");
+        }
     }
 
     private List<LetterInfo> CloneLetterList(List<LetterInfo> source)
@@ -1609,25 +1602,5 @@ public class PreGamePanel : MonoBehaviour
             return new List<LetterInfo>();
         }
     }
-    /*private List<LetterInfo> ParseRackJson(string rackJson)
-    {
-        if (string.IsNullOrWhiteSpace(rackJson))
-            return new List<LetterInfo>();
 
-        try
-        {
-            string wrappedJson = "{\"items\":" + rackJson + "}";
-            LetterInfoListWrapper wrapper = JsonUtility.FromJson<LetterInfoListWrapper>(wrappedJson);
-
-            if (wrapper != null && wrapper.items != null)
-                return wrapper.items;
-
-            return new List<LetterInfo>();
-        }
-        catch (Exception ex)
-        {
-            Debug.LogError("[PREGAME] Failed to parse rack json: " + ex.Message);
-            return new List<LetterInfo>();
-        }
-    }*/
 }
