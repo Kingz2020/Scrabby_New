@@ -45,6 +45,10 @@ public class PreGamePanel : MonoBehaviour
 
     [SerializeField] private GameLogic gameLogic;
     private bool hasInitializedMatch = false;
+    private MatchData currentMatch;
+
+    public event Action<RoundMove> onlineSubmissionReady;
+
 
     [Serializable]
     public class RoomPlayerData
@@ -84,6 +88,9 @@ public class PreGamePanel : MonoBehaviour
         if (pregamePanel != null) pregamePanel.SetActive(true);
         if (gameplayPanel != null) gameplayPanel.SetActive(false);
         if (gameOverPanel != null) gameOverPanel.SetActive(false);
+
+        if (gameLogic != null)
+            gameLogic.onlineSubmissionReady += OnOnlineSubmissionReady;
     }
 
 
@@ -97,6 +104,9 @@ public class PreGamePanel : MonoBehaviour
             startGameButton.interactable = false;
             startGameButton.image.color = Color.white;
         }
+
+        if (gameLogic != null)
+            gameLogic.onlineSubmissionReady += OnOnlineSubmissionReady;
 
         StartCoroutine(WaitForFirebaseThenInit());
     }
@@ -214,6 +224,8 @@ public class PreGamePanel : MonoBehaviour
         }
 
         MatchData match = JsonUtility.FromJson<MatchData>(json);
+
+        currentMatch = match;
 
         if (match == null)
         {
@@ -738,11 +750,7 @@ public class PreGamePanel : MonoBehaviour
 
         watchedRoomCode = "";
 
-       /* if (startGameButton != null)
-        {
-            startGameButton.interactable = false;
-            startGameButton.image.color = Color.white;
-        }*/
+
     }
 
     private void OnRoomValueChanged(object sender, ValueChangedEventArgs args)
@@ -841,6 +849,9 @@ public class PreGamePanel : MonoBehaviour
             auth.StateChanged -= AuthStateChanged;
             auth = null;
         }
+
+        if (gameLogic != null)
+            gameLogic.onlineSubmissionReady -= OnOnlineSubmissionReady;
     }
 
     public void OnStartGamePressed()
@@ -853,14 +864,9 @@ public class PreGamePanel : MonoBehaviour
             return;
         }
 
-        string uid = auth.CurrentUser.UserId;
         string roomCode = roomCodeInput != null ? roomCodeInput.text.Trim().ToUpper() : "";
-
-        Debug.Log("[PregamePanel] Start pressed by uid=" + uid + ", roomCode=" + roomCode);
-
         if (string.IsNullOrEmpty(roomCode))
         {
-            Debug.LogWarning("[PregamePanel] Start blocked: roomCode is empty.");
             SetStatus("Enter a room code first.");
             return;
         }
@@ -869,8 +875,6 @@ public class PreGamePanel : MonoBehaviour
 
         roomRef.GetValueAsync().ContinueWithOnMainThread(task =>
         {
-            Debug.Log("[PregamePanel] Start callback entered");
-
             if (task.IsFaulted)
             {
                 Debug.LogError("[PregamePanel] Failed to load room: " + task.Exception);
@@ -880,104 +884,34 @@ public class PreGamePanel : MonoBehaviour
 
             if (!task.IsCompleted || task.Result == null || !task.Result.Exists)
             {
-                Debug.LogWarning("[PregamePanel] Start callback: room missing.");
                 SetStatus("Room not found.");
                 return;
             }
 
-            string json = task.Result.GetRawJsonValue();
-            Debug.Log("[PregamePanel] Start callback raw room json: " + json);
-
-            RoomData room = JsonUtility.FromJson<RoomData>(json);
+            string roomJson = task.Result.GetRawJsonValue();
+            RoomData room = JsonUtility.FromJson<RoomData>(roomJson);
 
             if (room == null)
             {
-                Debug.LogError("[PregamePanel] Could not parse room data.");
                 SetStatus("Could not parse room data.");
                 return;
             }
 
-            Debug.Log("[PregamePanel] Start callback room parsed. hostUid=" + room.hostUid +
-                      ", guestUid=" + room.guestUid +
-                      ", status=" + room.status);
-
             if (string.IsNullOrEmpty(room.guestUid))
             {
-                Debug.LogWarning("[PregamePanel] Start blocked: guestUid empty.");
                 SetStatus("Cannot start yet. Waiting for guest.");
                 return;
             }
 
-            string matchId = dbRoot.Child("matches").Push().Key;
-            Debug.Log("[PregamePanel] Generated matchId=" + matchId);
-
-            BagStateData bag = CreateInitialBag();
-            RackStateData player1Rack = DrawTiles(bag, 7);
-            RackStateData player2Rack = DrawTiles(bag, 7);
-            BoardStateData board = CreateInitialBoard();
-
-            MatchData match = new MatchData
+            if (!string.IsNullOrEmpty(room.matchId) && room.status == "in_game")
             {
-                matchId = matchId,
-                roomCode = roomCode,
-                hostUid = room.hostUid,
-                guestUid = room.guestUid,
-                player1Uid = room.hostUid,
-                player2Uid = room.guestUid,
-                player1DisplayName = room.hostDisplayName,
-                player2DisplayName = room.guestDisplayName,
-                player1Score = 0,
-                player2Score = 0,
-                turnNumber = 1,
-                currentTurnUid = room.hostUid,
-                status = "active",
-                boardStateJson = ToJson(board),
-                bagStateJson = ToJson(bag),
-                player1RackJson = ToJson(player1Rack),
-                player2RackJson = ToJson(player2Rack),
-                createdAtUnix = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
-            };
+                Debug.Log("[PregamePanel] Match already exists for room. matchId=" + room.matchId);
+                WatchMatch(room.matchId);
+                EnterGameplayMode();
+                return;
+            }
 
-            room.matchId = matchId;
-            room.status = "in_game";
-
-            string matchJson = JsonUtility.ToJson(match);
-            string roomJson = JsonUtility.ToJson(room);
-
-            Debug.Log("[PregamePanel] Writing match JSON: " + matchJson);
-            Debug.Log("[PregamePanel] Writing room JSON: " + roomJson);
-
-            dbRoot.Child("matches").Child(matchId).SetRawJsonValueAsync(matchJson)
-                .ContinueWithOnMainThread(matchWriteTask =>
-                {
-                    if (matchWriteTask.IsFaulted)
-                    {
-                        Debug.LogError("[PregamePanel] Failed writing match: " + matchWriteTask.Exception);
-                        SetStatus("Failed to write match.");
-                        return;
-                    }
-
-                    Debug.Log("[PregamePanel] Match node written successfully.");
-
-                    dbRoot.Child("rooms").Child(roomCode).SetRawJsonValueAsync(roomJson)
-                        .ContinueWithOnMainThread(roomWriteTask =>
-                        {
-                            if (roomWriteTask.IsFaulted)
-                            {
-                                Debug.LogError("[PregamePanel] Failed writing room: " + roomWriteTask.Exception);
-                                SetStatus("Failed to update room.");
-                                return;
-                            }
-
-                            Debug.Log("[PregamePanel] Room node written successfully.");
-
-                            SetStatus("Game started.");
-                            Debug.Log("[PregamePanel] Match created: " + matchId);
-                            Debug.Log("[PregamePanel] Player1 rack: " + GetRackDebugString(player1Rack));
-                            Debug.Log("[PregamePanel] Player2 rack: " + GetRackDebugString(player2Rack));
-                            Debug.Log("[PregamePanel] Bag tiles remaining: " + bag.tiles.Count);
-                        });
-                });
+            TryCreateInitialMatchFromRoom(roomCode, room);
         });
     }
 
@@ -1060,7 +994,7 @@ public class PreGamePanel : MonoBehaviour
         return rack;
     }
 
-    private BoardStateData CreateInitialBoard(int width = 15, int height = 15)
+    private BoardStateData CreateInitialBoard(int width = 9, int height = 9)
     {
         BoardStateData board = new BoardStateData
         {
@@ -1104,5 +1038,473 @@ public class PreGamePanel : MonoBehaviour
         }
 
         return string.Join(", ", parts);
+    }
+    
+    private void EndTurnOnlineSubmit(RoundMove move)
+    {
+        if (currentMatch == null || auth == null || auth.CurrentUser == null)
+        {
+            SetStatus("Match not ready.");
+            return;
+        }
+
+        string uid = auth.CurrentUser.UserId;
+
+        if (currentMatch.status != "active")
+        {
+            SetStatus("Match is not active.");
+            return;
+        }
+
+        if (currentMatch.currentTurnUid != uid)
+        {
+            SetStatus("Not your turn.");
+            return;
+        }
+
+        if (move == null || !move.isValid)
+        {
+            SetStatus("Invalid move.");
+            return;
+        }
+
+        DatabaseReference matchRef = dbRoot.Child("matches").Child(currentMatch.matchId);
+        string moveJson = JsonUtility.ToJson(move);
+
+        matchRef.RunTransaction(mutableData =>
+        {
+            if (mutableData.Value == null)
+                return TransactionResult.Abort();
+
+            var matchDict = mutableData.Value as Dictionary<string, object>;
+            if (matchDict == null)
+                return TransactionResult.Abort();
+
+            string status = matchDict.ContainsKey("status") && matchDict["status"] != null
+                ? matchDict["status"].ToString()
+                : "";
+
+            string currentTurnUid = matchDict.ContainsKey("currentTurnUid") && matchDict["currentTurnUid"] != null
+                ? matchDict["currentTurnUid"].ToString()
+                : "";
+
+            string pendingMoveJsonExisting = matchDict.ContainsKey("pendingMoveJson") && matchDict["pendingMoveJson"] != null
+                ? matchDict["pendingMoveJson"].ToString()
+                : "";
+
+            int turnNumber = matchDict.ContainsKey("turnNumber") && matchDict["turnNumber"] != null
+                ? Convert.ToInt32(matchDict["turnNumber"])
+                : 0;
+
+            if (status != "active")
+                return TransactionResult.Abort();
+
+            if (currentTurnUid != uid)
+                return TransactionResult.Abort();
+
+            if (!string.IsNullOrEmpty(pendingMoveJsonExisting))
+                return TransactionResult.Abort();
+
+            matchDict["pendingMoveJson"] = moveJson;
+            matchDict["pendingMoveByUid"] = uid;
+            matchDict["pendingMoveTurnNumber"] = turnNumber;
+            matchDict["turnResolutionStatus"] = "idle";
+            matchDict["turnResolutionByUid"] = "";
+            matchDict["lastActionUnix"] = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+
+            mutableData.Value = matchDict;
+            return TransactionResult.Success(mutableData);
+        }).ContinueWithOnMainThread(task =>
+        {
+            if (task.IsFaulted)
+            {
+                Debug.LogError("[PregamePanel] Failed to submit move: " + task.Exception);
+                SetStatus("Failed to submit move.");
+                return;
+            }
+
+            Debug.Log("[PregamePanel] Move submitted for turn " + currentMatch.turnNumber);
+            SetStatus("Move submitted.");
+
+            TryResolvePendingMove(currentMatch.matchId);
+        });
+    }
+
+    private void OnOnlineSubmissionReady(RoundMove move)
+    {
+        if (currentMatch == null || auth == null || auth.CurrentUser == null)
+            return;
+
+        string uid = auth.CurrentUser.UserId;
+
+        if (currentMatch.currentTurnUid != uid)
+        {
+            SetStatus("Not your turn.");
+            return;
+        }
+
+        EndTurnOnlineSubmit(move);
+    }
+
+    private BoardCellData FindCell(BoardStateData board, int x, int y)
+    {
+        foreach (var cell in board.cells)
+        {
+            if (cell.x == x && cell.y == y)
+                return cell;
+        }
+
+        return null;
+    }
+
+    private void TryCreateInitialMatchFromRoom(string roomCode, RoomData roomSnapshot)
+    {
+        if (auth == null || auth.CurrentUser == null)
+            return;
+
+        string myUid = auth.CurrentUser.UserId;
+        DatabaseReference roomRef = dbRoot.Child("rooms").Child(roomCode);
+
+        SetStatus("Attempting to start game...");
+
+        roomRef.RunTransaction(mutableData =>
+        {
+            if (mutableData.Value == null)
+                return TransactionResult.Abort();
+
+            var roomDict = mutableData.Value as Dictionary<string, object>;
+            if (roomDict == null)
+                return TransactionResult.Abort();
+
+            string existingMatchId = roomDict.ContainsKey("matchId") && roomDict["matchId"] != null
+                ? roomDict["matchId"].ToString()
+                : "";
+
+            string status = roomDict.ContainsKey("status") && roomDict["status"] != null
+                ? roomDict["status"].ToString()
+                : "";
+
+            string guestUid = roomDict.ContainsKey("guestUid") && roomDict["guestUid"] != null
+                ? roomDict["guestUid"].ToString()
+                : "";
+
+            if (string.IsNullOrEmpty(guestUid))
+                return TransactionResult.Abort();
+
+            if (!string.IsNullOrEmpty(existingMatchId) || status == "in_game")
+                return TransactionResult.Abort();
+
+            string newMatchId = dbRoot.Child("matches").Push().Key;
+
+            roomDict["matchId"] = newMatchId;
+            roomDict["status"] = "starting";
+            roomDict["startedByUid"] = myUid;
+            roomDict["startedAtUnix"] = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+
+            mutableData.Value = roomDict;
+            return TransactionResult.Success(mutableData);
+        }).ContinueWithOnMainThread(txTask =>
+        {
+            if (txTask.IsFaulted)
+            {
+                Debug.LogError("[PregamePanel] Room transaction failed: " + txTask.Exception);
+                SetStatus("Failed to claim game start.");
+                return;
+            }
+
+            roomRef.GetValueAsync().ContinueWithOnMainThread(readBackTask =>
+            {
+                if (readBackTask.IsFaulted || readBackTask.Result == null || !readBackTask.Result.Exists)
+                {
+                    SetStatus("Failed to verify room state.");
+                    return;
+                }
+
+                string updatedRoomJson = readBackTask.Result.GetRawJsonValue();
+                RoomData updatedRoom = JsonUtility.FromJson<RoomData>(updatedRoomJson);
+
+                if (updatedRoom == null || string.IsNullOrEmpty(updatedRoom.matchId))
+                {
+                    SetStatus("Failed to verify match creation.");
+                    return;
+                }
+
+                if (updatedRoom.status == "in_game")
+                {
+                    Debug.Log("[PregamePanel] Someone already created the match. matchId=" + updatedRoom.matchId);
+                    WatchMatch(updatedRoom.matchId);
+                    EnterGameplayMode();
+                    return;
+                }
+
+                bool iClaimedStart = updatedRoom.status == "starting" &&
+                                     updatedRoom.matchId != null &&
+                                     readBackTask.Result.Child("startedByUid").Value != null &&
+                                     readBackTask.Result.Child("startedByUid").Value.ToString() == myUid;
+
+                if (!iClaimedStart)
+                {
+                    Debug.Log("[PregamePanel] Another client claimed start. Waiting for final match...");
+                    if (!string.IsNullOrEmpty(updatedRoom.matchId))
+                    {
+                        WatchMatch(updatedRoom.matchId);
+                        EnterGameplayMode();
+                    }
+                    return;
+                }
+
+                string matchId = updatedRoom.matchId;
+
+                BagStateData bag = CreateInitialBag();
+                RackStateData player1Rack = DrawTiles(bag, 7);
+                RackStateData player2Rack = DrawTiles(bag, 7);
+                BoardStateData board = CreateInitialBoard();
+
+                MatchData match = new MatchData
+                {
+                    matchId = matchId,
+                    roomCode = roomCode,
+
+                    hostUid = updatedRoom.hostUid,
+                    guestUid = updatedRoom.guestUid,
+
+                    player1Uid = updatedRoom.hostUid,
+                    player2Uid = updatedRoom.guestUid,
+                    player1DisplayName = updatedRoom.hostDisplayName,
+                    player2DisplayName = updatedRoom.guestDisplayName,
+
+                    player1Score = 0,
+                    player2Score = 0,
+
+                    turnNumber = 1,
+                    currentTurnUid = updatedRoom.hostUid,
+                    status = "active",
+
+                    boardStateJson = JsonUtility.ToJson(board),
+                    bagStateJson = JsonUtility.ToJson(bag),
+                    player1RackJson = JsonUtility.ToJson(player1Rack),
+                    player2RackJson = JsonUtility.ToJson(player2Rack),
+
+                    createdAtUnix = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
+
+                    setupStatus = "done",
+                    setupByUid = myUid,
+                    setupAtUnix = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
+
+                    pendingMoveJson = "",
+                    pendingMoveByUid = "",
+                    pendingMoveTurnNumber = 0,
+                    turnResolutionStatus = "idle",
+                    turnResolutionByUid = "",
+                    turnDeadlineUnix = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() + 30000,
+
+                    stateVersion = 1
+                };
+
+                string matchJson = JsonUtility.ToJson(match);
+
+                dbRoot.Child("matches").Child(matchId).SetRawJsonValueAsync(matchJson)
+                    .ContinueWithOnMainThread(writeMatchTask =>
+                    {
+                        if (writeMatchTask.IsFaulted)
+                        {
+                            Debug.LogError("[PregamePanel] Failed writing match: " + writeMatchTask.Exception);
+                            SetStatus("Failed to write match.");
+                            return;
+                        }
+
+                        updatedRoom.status = "in_game";
+                        string finalRoomJson = JsonUtility.ToJson(updatedRoom);
+
+                        roomRef.SetRawJsonValueAsync(finalRoomJson).ContinueWithOnMainThread(writeRoomTask =>
+                        {
+                            if (writeRoomTask.IsFaulted)
+                            {
+                                Debug.LogError("[PregamePanel] Failed writing room final state: " + writeRoomTask.Exception);
+                                SetStatus("Match created, but room update failed.");
+                                return;
+                            }
+
+                            Debug.Log("[PregamePanel] Match created: " + matchId);
+                            Debug.Log("[PregamePanel] Player1 rack: " + GetRackDebugString(player1Rack));
+                            Debug.Log("[PregamePanel] Player2 rack: " + GetRackDebugString(player2Rack));
+                            Debug.Log("[PregamePanel] Bag tiles remaining: " + bag.tiles.Count);
+
+                            SetStatus("Game started.");
+                            WatchMatch(matchId);
+                            EnterGameplayMode();
+                        });
+                    });
+            });
+        });
+    }
+    private void TryResolvePendingMove(string matchId)
+    {
+        if (string.IsNullOrEmpty(matchId) || auth == null || auth.CurrentUser == null)
+            return;
+
+        string myUid = auth.CurrentUser.UserId;
+        DatabaseReference matchRef = dbRoot.Child("matches").Child(matchId);
+
+        matchRef.RunTransaction(mutableData =>
+        {
+            if (mutableData.Value == null)
+                return TransactionResult.Abort();
+
+            var matchDict = mutableData.Value as Dictionary<string, object>;
+            if (matchDict == null)
+                return TransactionResult.Abort();
+
+            string status = matchDict.ContainsKey("status") && matchDict["status"] != null
+                ? matchDict["status"].ToString()
+                : "";
+
+            string pendingMoveJson = matchDict.ContainsKey("pendingMoveJson") && matchDict["pendingMoveJson"] != null
+                ? matchDict["pendingMoveJson"].ToString()
+                : "";
+
+            string turnResolutionStatus = matchDict.ContainsKey("turnResolutionStatus") && matchDict["turnResolutionStatus"] != null
+                ? matchDict["turnResolutionStatus"].ToString()
+                : "idle";
+
+            if (status != "active")
+                return TransactionResult.Abort();
+
+            if (string.IsNullOrEmpty(pendingMoveJson))
+                return TransactionResult.Abort();
+
+            if (turnResolutionStatus == "resolving")
+                return TransactionResult.Abort();
+
+            string boardStateJson = matchDict.ContainsKey("boardStateJson") && matchDict["boardStateJson"] != null
+                ? matchDict["boardStateJson"].ToString()
+                : "";
+
+            string bagStateJson = matchDict.ContainsKey("bagStateJson") && matchDict["bagStateJson"] != null
+                ? matchDict["bagStateJson"].ToString()
+                : "";
+
+            string player1RackJson = matchDict.ContainsKey("player1RackJson") && matchDict["player1RackJson"] != null
+                ? matchDict["player1RackJson"].ToString()
+                : "";
+
+            string player2RackJson = matchDict.ContainsKey("player2RackJson") && matchDict["player2RackJson"] != null
+                ? matchDict["player2RackJson"].ToString()
+                : "";
+
+            string player1Uid = matchDict.ContainsKey("player1Uid") && matchDict["player1Uid"] != null
+                ? matchDict["player1Uid"].ToString()
+                : "";
+
+            string player2Uid = matchDict.ContainsKey("player2Uid") && matchDict["player2Uid"] != null
+                ? matchDict["player2Uid"].ToString()
+                : "";
+
+            string pendingMoveByUid = matchDict.ContainsKey("pendingMoveByUid") && matchDict["pendingMoveByUid"] != null
+                ? matchDict["pendingMoveByUid"].ToString()
+                : "";
+
+            int turnNumber = matchDict.ContainsKey("turnNumber") && matchDict["turnNumber"] != null
+                ? Convert.ToInt32(matchDict["turnNumber"])
+                : 0;
+
+            int pendingMoveTurnNumber = matchDict.ContainsKey("pendingMoveTurnNumber") && matchDict["pendingMoveTurnNumber"] != null
+                ? Convert.ToInt32(matchDict["pendingMoveTurnNumber"])
+                : 0;
+
+            if (pendingMoveTurnNumber != turnNumber)
+                return TransactionResult.Abort();
+
+            BoardStateData board = JsonUtility.FromJson<BoardStateData>(boardStateJson);
+            BagStateData bag = JsonUtility.FromJson<BagStateData>(bagStateJson);
+            RackStateData player1Rack = JsonUtility.FromJson<RackStateData>(player1RackJson);
+            RackStateData player2Rack = JsonUtility.FromJson<RackStateData>(player2RackJson);
+            RoundMove move = JsonUtility.FromJson<RoundMove>(pendingMoveJson);
+
+            if (board == null || bag == null || player1Rack == null || player2Rack == null || move == null || !move.isValid)
+                return TransactionResult.Abort();
+
+            bool isPlayer1Move = pendingMoveByUid == player1Uid;
+            RackStateData actingRack = isPlayer1Move ? player1Rack : player2Rack;
+
+            foreach (var simTile in move.simulatedTiles)
+            {
+                int x = simTile.letterPosition.ColY - 1;
+                int y = simTile.letterPosition.RowX - 1;
+
+                BoardCellData cell = FindCell(board, x, y);
+                if (cell == null || cell.occupied)
+                    return TransactionResult.Abort();
+
+                int rackIndex = actingRack.tiles.FindIndex(t => t.letter == simTile.letterInfo.letter);
+                if (rackIndex < 0)
+                    return TransactionResult.Abort();
+
+                TileData rackTile = actingRack.tiles[rackIndex];
+                actingRack.tiles.RemoveAt(rackIndex);
+
+                cell.occupied = true;
+                cell.tile = rackTile;
+            }
+
+            while (actingRack.tiles.Count < 7 && bag.tiles.Count > 0)
+            {
+                actingRack.tiles.Add(bag.tiles[0]);
+                bag.tiles.RemoveAt(0);
+            }
+
+            int player1Score = matchDict.ContainsKey("player1Score") && matchDict["player1Score"] != null
+                ? Convert.ToInt32(matchDict["player1Score"])
+                : 0;
+
+            int player2Score = matchDict.ContainsKey("player2Score") && matchDict["player2Score"] != null
+                ? Convert.ToInt32(matchDict["player2Score"])
+                : 0;
+
+            if (isPlayer1Move)
+                player1Score += move.score;
+            else
+                player2Score += move.score;
+
+            string nextTurnUid = isPlayer1Move ? player2Uid : player1Uid;
+
+            int stateVersion = matchDict.ContainsKey("stateVersion") && matchDict["stateVersion"] != null
+                ? Convert.ToInt32(matchDict["stateVersion"])
+                : 0;
+
+            matchDict["boardStateJson"] = JsonUtility.ToJson(board);
+            matchDict["bagStateJson"] = JsonUtility.ToJson(bag);
+            matchDict["player1RackJson"] = JsonUtility.ToJson(player1Rack);
+            matchDict["player2RackJson"] = JsonUtility.ToJson(player2Rack);
+
+            matchDict["player1Score"] = player1Score;
+            matchDict["player2Score"] = player2Score;
+
+            matchDict["currentTurnUid"] = nextTurnUid;
+            matchDict["turnNumber"] = turnNumber + 1;
+
+            matchDict["pendingMoveJson"] = "";
+            matchDict["pendingMoveByUid"] = "";
+            matchDict["pendingMoveTurnNumber"] = 0;
+
+            matchDict["turnResolutionStatus"] = "done";
+            matchDict["turnResolutionByUid"] = myUid;
+
+            matchDict["turnDeadlineUnix"] = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() + 30000;
+            matchDict["lastActionUnix"] = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+            matchDict["stateVersion"] = stateVersion + 1;
+
+            mutableData.Value = matchDict;
+            return TransactionResult.Success(mutableData);
+        }).ContinueWithOnMainThread(task =>
+        {
+            if (task.IsFaulted)
+            {
+                Debug.LogError("[PregamePanel] Failed to resolve pending move: " + task.Exception);
+                return;
+            }
+
+            Debug.Log("[PregamePanel] Resolve attempt finished.");
+        });
     }
 }

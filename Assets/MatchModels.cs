@@ -48,7 +48,7 @@ public class PlayerScoreData
     public string displayName;
     public int score;
 }
-[System.Serializable]
+[Serializable]
 public class MatchData
 {
     public string matchId;
@@ -59,7 +59,6 @@ public class MatchData
 
     public string player1Uid;
     public string player2Uid;
-
     public string player1DisplayName;
     public string player2DisplayName;
 
@@ -68,16 +67,27 @@ public class MatchData
 
     public int turnNumber;
     public string currentTurnUid;
-
     public string status;
 
     public string boardStateJson;
     public string bagStateJson;
-
     public string player1RackJson;
     public string player2RackJson;
 
     public long createdAtUnix;
+
+    public string setupStatus;           // pending, done
+    public string setupByUid;
+    public long setupAtUnix;
+
+    public string pendingMoveJson;       // empty when no move pending
+    public string pendingMoveByUid;
+    public int pendingMoveTurnNumber;    // turn being resolved
+    public string turnResolutionStatus;  // idle, resolving
+    public string turnResolutionByUid;
+    public long turnDeadlineUnix;
+
+    public int stateVersion;
 }
 
 // One player's submission for a given round
