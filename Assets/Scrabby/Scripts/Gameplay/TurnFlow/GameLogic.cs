@@ -116,6 +116,8 @@ public class GameLogic : MonoBehaviour
 
     public event Action<RoundMove> onlineSubmissionReady;
 
+    private GameInitMode currentInitMode = GameInitMode.Solo;
+
     public enum GameMode
     {
         HumanVsAI,
@@ -125,9 +127,12 @@ public class GameLogic : MonoBehaviour
 
     [SerializeField] private GameMode gameMode = GameMode.HumanVsAI;
 
-    
 
-
+    public enum GameInitMode
+    {
+        Solo,
+        Online
+    }
 
     public enum TurnState
     {
@@ -145,7 +150,12 @@ public class GameLogic : MonoBehaviour
     {
         return aiBestMoveSoFar;
     }
-    
+
+    public bool IsOnlineMatch
+    {
+        get { return currentInitMode == GameInitMode.Online; }
+    }
+
     private class SearchState
     {
         public List<SimPlacedTile> placedTiles = new();
@@ -248,103 +258,171 @@ public class GameLogic : MonoBehaviour
         }
     }
 
-   /* [System.Serializable]
-    public class SimPlacedTile
+    /* [System.Serializable]
+     public class SimPlacedTile
+     {
+         public LetterInfo letterInfo;
+         public LetterPosition letterPosition;
+     }
+    */
+    public void BeginOnlineMatchFromSnapshot(
+    int maxHandSize,
+    int boardSizeX,
+    int boardSizeY,
+    List<LetterInfo> localPlayerRack,
+    int localPlayerScore,
+    int opponentScore,
+    int turnNumber)
     {
-        public LetterInfo letterInfo;
-        public LetterPosition letterPosition;
-    }
-   */
+        Debug.Log("[ONLINE] BeginOnlineMatchFromSnapshot CALLED");
 
-    public void InitGame(int maxHandSize, int boardSizeX, int boardSizeY)
+        StopAllCoroutines();
+        ClearBoardForNewGame();
+        InitGame(maxHandSize, boardSizeX, boardSizeY, GameInitMode.Online);
+
+        if (localPlayerRack == null)
+            localPlayerRack = new List<LetterInfo>();
+
+        playerHandTiles = new List<LetterInfo>();
+        for (int i = 0; i < localPlayerRack.Count; i++)
+        {
+            if (localPlayerRack[i] != null)
+                playerHandTiles.Add(new LetterInfo(localPlayerRack[i]));
+        }
+
+        humanTotalScore = localPlayerScore;
+        aiTotalScore = opponentScore;
+        currentRoundNumber = Mathf.Max(1, turnNumber);
+
+        RebuildHandUIFromLogicalHand();
+
+        if (Singleton.Instance != null && Singleton.Instance.UIManager != null)
+        {
+            Singleton.Instance.UIManager.UpdateRoundText(currentRoundNumber, maxRounds);
+            Singleton.Instance.UIManager.UpdateTotalScores(humanTotalScore, aiTotalScore);
+            Singleton.Instance.UIManager.ClearRoundMessage();
+        }
+
+        SaveCurrentRoundSnapshot();
+
+        Debug.Log("[ONLINE] Hydrated local rack count = " + playerHandTiles.Count);
+    }
+    private void InitOnlineStateShell()
     {
-        // Automatically discover active scene's BoardGen to dynamic-scale rectangular and square board dimensions
+        currentState = TurnState.PlayerTurn;
+
+        pendingPlayerMove = null;
+        pendingAIMove = null;
+        pendingWinningMove = null;
+
+        roundFlowActive = false;
+        roundRevealStep = 0;
+        roundStarted = true;
+
+        if (Singleton.Instance != null && Singleton.Instance.UIManager != null)
+        {
+            Singleton.Instance.UIManager.ClearRoundMessage();
+        }
+    }
+    public void InitGame(int maxHandSize, int boardSizeX, int boardSizeY, GameInitMode mode)
+    {
+        currentInitMode = mode;
+
         var boardGen = UnityEngine.Object.FindAnyObjectByType<BoardGen>();
         if (boardGen != null)
         {
-            boardSizeX = boardGen.RowY; // Rows
-            boardSizeY = boardGen.RowX; // Columns
-            Debug.Log($"[GameLogic] Auto-detected board dimensions from active BoardGen: {boardSizeY}x{boardSizeX} (columns x rows)");
+            boardSizeX = boardGen.RowY; // rows
+            boardSizeY = boardGen.RowX; // cols
+            Debug.Log("[INIT] Auto-detected board size " + boardSizeX + "x" + boardSizeY);
         }
 
         this.maxHandSize = maxHandSize;
         this.boardSizeX = boardSizeX;
         this.boardSizeY = boardSizeY;
 
+        InitSharedState();
+        LoadDictionaryIfNeeded();
+        EnsureAIGaddagReady();
+
+        if (mode == GameInitMode.Solo)
+        {
+            InitSoloState();
+            Debug.Log("[INIT] Solo InitGame complete.");
+        }
+        else
+        {
+            InitOnlineStateShell();
+            Debug.Log("[INIT] Online InitGame complete. Waiting for match snapshot.");
+        }
+    }
+
+    private void InitSharedState()
+    {
         currentTurn = 0;
 
         validatedBoardTiles = new LetterInfo[boardSizeX + 2, boardSizeY + 2];
-        playerHandTiles = new List<LetterInfo>();
+
+        if (playerHandTiles == null)
+            playerHandTiles = new List<LetterInfo>();
+        else
+            playerHandTiles.Clear();
+
         boardBonusTiles = new BonusTile[boardSizeY, boardSizeX];
 
         pendingPlayerMove = null;
         pendingAIMove = null;
         pendingWinningMove = null;
 
-        opponentMoveRequested = false;
-        opponentMoveReady = false;
-
         roundFlowActive = false;
         roundRevealStep = 0;
         roundStarted = false;
 
-        humanAgent = new HumanMoveAgent();
-        aiAgent = new AIMoveAgent();
+        aiEvaluationRunning = false;
+        aiEvaluationFinished = false;
+        aiBestMoveSoFar = null;
 
-        if (bonusTileBag != null && bonusBag != null)
-            bonusTileBag.ResetBonusBag(bonusBag);
+        currentState = TurnState.PlayerTurn;
 
-        //scrabbleWords = new List<string>();
+        if (timer != null)
+            timer.ResetTimer();
+
+        if (Singleton.Instance != null && Singleton.Instance.UIManager != null)
+        {
+            Singleton.Instance.UIManager.ClearRoundMessage();
+            Singleton.Instance.UIManager.RemoveAllHandTiles();
+            Singleton.Instance.UIManager.ClearCommittedBoardTiles();
+        }
+
+        if (Singleton.Instance != null && Singleton.Instance.DropManager != null)
+            Singleton.Instance.DropManager.ResetLocations();
+    }
+
+    private void LoadDictionaryIfNeeded()
+    {
+        scrabbleWords = new List<string>();
         scrabbleWordSet = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
 
         if (scrabbleWordsList != null)
         {
             scrabbleWords = new List<string>(
                 scrabbleWordsList.text.Split(
                     new[] { '\r', '\n' },
-                    StringSplitOptions.RemoveEmptyEntries
-                )
-            );
+                    StringSplitOptions.RemoveEmptyEntries));
 
             for (int i = 0; i < scrabbleWords.Count; i++)
             {
                 string w = scrabbleWords[i];
                 if (!string.IsNullOrWhiteSpace(w))
-                    scrabbleWordSet.Add(w.Trim().ToUpper());
+                    scrabbleWordSet.Add(w.Trim().ToUpperInvariant());
             }
         }
-        else
-        {
-            scrabbleWords = new List<string>();
-            scrabbleWordSet.Clear();
-        }
-        EnsureAIGaddagReady();
-        currentState = TurnState.PlayerTurn;
 
-        if (timer != null)
-            timer.ResetTimer();
-        Debug.Log("Dictionary size: " + scrabbleWordSet.Count);
-
-        // reset totals and round number
-        humanTotalScore = 0;
-        aiTotalScore = 0;
-        currentRoundNumber = 1;
-        roundHistory = new List<RoundResult>();
-
-        if (Singleton.Instance != null && Singleton.Instance.UIManager != null)
-        {
-            Singleton.Instance.UIManager.UpdateRoundText(currentRoundNumber, maxRounds);
-            Singleton.Instance.UIManager.ClearRoundMessage();
-            Singleton.Instance.UIManager.UpdateTotalScores(humanTotalScore, aiTotalScore);
-        }
-
-
+        Debug.Log("[INIT] Dictionary size " + scrabbleWordSet.Count);
     }
 
     public void BeginGameFromButton()
     {
-        Debug.Log("BeginGameFromButton CALLED");
+        Debug.Log("[TRACE] BeginGameFromButton CALLED");
 
         if (Singleton.Instance != null &&
             Singleton.Instance.UIManager != null &&
@@ -354,12 +432,48 @@ public class GameLogic : MonoBehaviour
         }
 
         StopAllCoroutines();
-
         ClearBoardForNewGame();
-        InitGame(maxHandSize, boardSizeX, boardSizeY);
-
+        InitGame(maxHandSize, boardSizeX, boardSizeY, GameInitMode.Solo);
         StartCoroutine(StartRound());
     }
+
+    private void InitSoloState()
+    {
+        if (bonusTileBag != null && bonusBag != null)
+            bonusTileBag.ResetBonusBag(bonusBag);
+
+        humanTotalScore = 0;
+        aiTotalScore = 0;
+        currentRoundNumber = 1;
+        roundHistory = new List<RoundResult>();
+
+        currentState = TurnState.PlayerTurn;
+
+        if (Singleton.Instance != null && Singleton.Instance.UIManager != null)
+        {
+            Singleton.Instance.UIManager.UpdateRoundText(currentRoundNumber, maxRounds);
+            Singleton.Instance.UIManager.UpdateTotalScores(humanTotalScore, aiTotalScore);
+            Singleton.Instance.UIManager.ClearRoundMessage();
+        }
+    }
+
+    /*private void InitOnlineStateShell()
+    {
+        currentState = TurnState.PlayerTurn;
+
+        pendingPlayerMove = null;
+        pendingAIMove = null;
+        pendingWinningMove = null;
+
+        roundFlowActive = false;
+        roundRevealStep = 0;
+        roundStarted = true; // important: prevents EndTurnSingleGuess from auto-calling StartRound
+
+        if (Singleton.Instance != null && Singleton.Instance.UIManager != null)
+        {
+            Singleton.Instance.UIManager.ClearRoundMessage();
+        }
+    }*/
 
     private void ClearBoardForNewGame()
     {
@@ -389,7 +503,8 @@ public class GameLogic : MonoBehaviour
 
     private IEnumerator StartRound()
     {
-        Debug.Log("StartRound START");
+        Debug.Log("[ONLINE-CHECK] StartRound START. isOnlineMatch=" + isOnlineMatch);
+
 
         roundStarted = true;
         roundFlowActive = false;
@@ -949,7 +1064,7 @@ public class GameLogic : MonoBehaviour
 
     public void RefillPlayerHand()
     {
-        Debug.Log("RefillPlayerHand START");
+        Debug.Log("[ONLINE-CHECK] RefillPlayerHand START. isOnlineMatch=" + isOnlineMatch);
 
         if (playerHandTiles == null)
         {
@@ -993,6 +1108,7 @@ public class GameLogic : MonoBehaviour
 
             // Correct source for new tiles: the serialized TileBag
             LetterInfo tile = _tileBag.DrawLetterTileFromBag();
+            Debug.Log("[ONLINE-CHECK] RefillPlayerHand LOCAL DRAW -> " + tile.letter + tile.points);
             if (tile == null)
             {
                 Debug.LogWarning("DrawLetterTileFromBag returned null. Stopping refill.");
@@ -1597,7 +1713,8 @@ public class GameLogic : MonoBehaviour
 
     private IEnumerator StartNextRound()
     {
-        Debug.Log("StartNextRound START");
+        Debug.Log("[ONLINE-CHECK] StartnexttRound START. isOnlineMatch=" + isOnlineMatch);
+
 
         yield return new WaitForSeconds(1.5f);
 
@@ -3399,18 +3516,48 @@ public class GameLogic : MonoBehaviour
 
     public void EndTurnSingleGuess()
     {
-        if (isOnlineMatch)
+        Debug.Log("[TRACE] EndTurnSingleGuess CALLED. roundStarted=" + roundStarted + ", mode=" + currentInitMode);
+
+        if (IsOnlineMatch)
         {
+            if (currentState != TurnState.PlayerTurn)
+                return;
+
+            currentState = TurnState.Busy;
+
+            if (timer != null)
+                timer.StopTimer();
+
             RoundMove move = EvaluatePlayerSubmission();
 
-            if (onlineSubmissionReady != null)
-                onlineSubmissionReady.Invoke(move);
+            if (move != null && move.isValid)
+            {
+                LetterPosition popupAnchor = GetPendingMoveAnchorPosition(move);
+                if (popupAnchor != null &&
+                    Singleton.Instance != null &&
+                    Singleton.Instance.UIManager != null)
+                {
+                    Singleton.Instance.UIManager.ShowValidatedWordScore(popupAnchor, move.score, isWinningMove: false);
+                }
 
+                if (Singleton.Instance != null && Singleton.Instance.UIManager != null)
+                    Singleton.Instance.UIManager.ShowRoundMessage("Submitting move...");
+            }
+            else
+            {
+                if (Singleton.Instance != null && Singleton.Instance.UIManager != null)
+                    Singleton.Instance.UIManager.ShowRoundMessage("Invalid move.");
+                currentState = TurnState.PlayerTurn;
+                return;
+            }
+
+            onlineSubmissionReady?.Invoke(move);
             return;
         }
 
         if (!roundStarted)
         {
+            Debug.Log("[TRACE] EndTurnSingleGuess starting StartRound directly for SOLO mode");
             StartCoroutine(StartRound());
             return;
         }
@@ -3435,20 +3582,16 @@ public class GameLogic : MonoBehaviour
         if (pendingPlayerMove != null && pendingPlayerMove.isValid)
         {
             LetterPosition popupAnchor = GetPendingMoveAnchorPosition(pendingPlayerMove);
-            if (popupAnchor != null && Singleton.Instance != null && Singleton.Instance.UIManager != null)
+            if (popupAnchor != null &&
+                Singleton.Instance != null &&
+                Singleton.Instance.UIManager != null)
             {
-                Singleton.Instance.UIManager.ShowValidatedWordScore(
-                    popupAnchor,
-                    pendingPlayerMove.score,
-                    isWinningMove: false
-                );
+                Singleton.Instance.UIManager.ShowValidatedWordScore(popupAnchor, pendingPlayerMove.score, isWinningMove: false);
             }
         }
 
         if (Singleton.Instance != null && Singleton.Instance.UIManager != null)
-        {
             Singleton.Instance.UIManager.ShowRoundMessage("Checking your word...");
-        }
 
         StartCoroutine(AutoAdvanceRoundFlow());
     }
@@ -3516,7 +3659,7 @@ public class GameLogic : MonoBehaviour
                 Debug.LogWarning("DrawLetterTileFromBag returned null during animated refill.");
                 yield break;
             }
-
+            Debug.Log("[ONLINE-CHECK] RefillPlayerHandAnimated LOCAL DRAW -> " + tile.letter + tile.points);
             playerHandTiles.Add(tile);
 
             if (Singleton.Instance != null && Singleton.Instance.UIManager != null)
@@ -3528,7 +3671,7 @@ public class GameLogic : MonoBehaviour
                 yield return new WaitForSeconds(delayBetweenTiles);
         }
 
-        Debug.Log("RefillPlayerHandAnimated END");
+        Debug.Log("[ONLINE-CHECK] RefillPlayerHandAnimated END. isOnlineMatch=" + isOnlineMatch);
     }
     private bool InitialRackHasPlayableWord()
     {
@@ -3571,6 +3714,9 @@ public class GameLogic : MonoBehaviour
 
     private IEnumerator EnsurePlayableInitialRack(float refillDuration = 2f, int maxAttempts = 10)
     {
+
+        Debug.Log("[ONLINE-CHECK] EnsurePlayableInitialRack START. isOnlineMatch=" + isOnlineMatch);
+
         int attempt = 0;
 
         while (attempt < maxAttempts)
@@ -3583,7 +3729,7 @@ public class GameLogic : MonoBehaviour
                 yield break;
             }
 
-            Debug.LogWarning("Initial rack had no playable word. Redrawing rack. Attempt " + attempt);
+            Debug.LogWarning("[ONLINE-CHECK] Initial rack not playable. Redrawing. attempt=" + attempt + " isOnlineMatch=" + isOnlineMatch);
 
             if (Singleton.Instance != null && Singleton.Instance.UIManager != null)
                 Singleton.Instance.UIManager.RemoveAllHandTiles();
@@ -4435,37 +4581,59 @@ public class GameLogic : MonoBehaviour
 
     public void InitFromMatchData(MatchData match)
     {
-        BoardStateData board = JsonUtility.FromJson<BoardStateData>(match.boardStateJson);
-        validatedBoardTiles = new LetterInfo[boardSizeX + 2, boardSizeY + 2];
-
-        foreach (var cell in board.cells)
+        if (match == null)
         {
-            if (!cell.occupied || cell.tile == null) continue;
-            int row = cell.y + 1;
-            int col = cell.x + 1;
-            validatedBoardTiles[row, col] = TileDataToLetterInfo(cell.tile);
+            Debug.LogError("[GameLogic] InitFromMatchData: match is null.");
+            return;
         }
 
-        string rackJson = isLocalPlayerHost ? match.player1RackJson : match.player2RackJson;
-        RackStateData rack = JsonUtility.FromJson<RackStateData>(rackJson);
+        BoardStateData board = null;
+
+        if (!string.IsNullOrEmpty(match.boardStateJson))
+            board = JsonUtility.FromJson<BoardStateData>(match.boardStateJson);
+
+        validatedBoardTiles = new LetterInfo[boardSizeX + 2, boardSizeY + 2];
+
+        if (board != null && board.cells != null)
+        {
+            foreach (var cell in board.cells)
+            {
+                if (cell == null || !cell.occupied || cell.tile == null)
+                    continue;
+
+                int row = cell.y + 1;
+                int col = cell.x + 1;
+                validatedBoardTiles[row, col] = TileDataToLetterInfo(cell.tile);
+            }
+        }
+
+        RackStateData rack = null;
+
+        if (!string.IsNullOrEmpty(match.sharedrackjson))
+            rack = JsonUtility.FromJson<RackStateData>(match.sharedrackjson);
 
         playerHandTiles = new List<LetterInfo>();
 
         if (Singleton.Instance != null && Singleton.Instance.UIManager != null)
             Singleton.Instance.UIManager.RemoveAllHandTiles();
 
-        foreach (var tile in rack.tiles)
+        if (rack != null && rack.tiles != null)
         {
-            LetterInfo info = TileDataToLetterInfo(tile);
-            playerHandTiles.Add(info);
+            foreach (var tile in rack.tiles)
+            {
+                if (tile == null)
+                    continue;
 
-            if (Singleton.Instance != null && Singleton.Instance.UIManager != null)
-                Singleton.Instance.UIManager.AddTileToHand(info);
+                LetterInfo info = TileDataToLetterInfo(tile);
+                playerHandTiles.Add(info);
+
+                if (Singleton.Instance != null && Singleton.Instance.UIManager != null)
+                    Singleton.Instance.UIManager.AddTileToHand(info);
+            }
         }
 
         ResetDisplay();
     }
-
 
     public RoundMove EvaluateLocalSubmissionForOnline()
     {
@@ -4477,26 +4645,59 @@ public class GameLogic : MonoBehaviour
         return new LetterInfo(tile.letter, tile.value);
     }
 
-    /*private void OnOnlineSubmissionReady(RoundMove move)
-    {
-        if (currentMatch == null || auth == null || auth.CurrentUser == null)
-            return;
-
-        string uid = auth.CurrentUser.UserId;
-
-        if (currentMatch.currentTurnUid != uid)
-        {
-            SetStatus("Not your turn.");
-            return;
-        }
-
-        EndTurnOnlineSubmit(move);
-    }*/
-
     // Subsequent round updates — same population, called each time MatchController sees the round advance
     public void ApplyMatchUpdate(MatchData match)
     {
         InitFromMatchData(match);// for now, identical — split later if you want a lighter incremental path
     }
-  
+
+    public void BeginOnlineMatchFromRack(
+    int maxHandSize,
+    int boardSizeX,
+    int boardSizeY,
+    List<LetterInfo> localRack,
+    int localScore,
+    int opponentScore,
+    int turnNumber)
+    {
+        Debug.Log("[ONLINE] BeginOnlineMatchFromRack CALLED");
+
+        StopAllCoroutines();
+        ClearBoardForNewGame();
+        InitGame(maxHandSize, boardSizeX, boardSizeY, GameInitMode.Online);
+
+        if (localRack == null)
+            localRack = new List<LetterInfo>();
+
+        playerHandTiles = new List<LetterInfo>();
+        foreach (var tile in localRack)
+        {
+            if (tile != null)
+                playerHandTiles.Add(new LetterInfo(tile));
+        }
+
+        humanTotalScore = localScore;
+        aiTotalScore = opponentScore;
+        currentRoundNumber = Mathf.Max(1, turnNumber);
+        roundStarted = true;
+        currentState = TurnState.PlayerTurn;
+
+        RebuildHandUIFromLogicalHand();
+        SaveCurrentRoundSnapshot();
+
+        if (Singleton.Instance != null && Singleton.Instance.UIManager != null)
+        {
+            Singleton.Instance.UIManager.UpdateRoundText(currentRoundNumber, maxRounds);
+            Singleton.Instance.UIManager.UpdateTotalScores(humanTotalScore, aiTotalScore);
+            Singleton.Instance.UIManager.ClearRoundMessage();
+        }
+
+        if (timer != null)
+        {
+            timer.ResetTimer();
+            timer.StartTimer();
+        }
+
+        Debug.Log("[ONLINE] Local hydrated rack count = " + playerHandTiles.Count);
+    }
 }

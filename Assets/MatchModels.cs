@@ -71,8 +71,9 @@ public class MatchData
 
     public string boardStateJson;
     public string bagStateJson;
-    public string player1RackJson;
-    public string player2RackJson;
+    //public string player1RackJson;
+    //public string player2RackJson;
+    public string sharedrackjson;
 
     public long createdAtUnix;
 
