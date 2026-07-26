@@ -2123,34 +2123,44 @@ public class GameLogic : MonoBehaviour
 
     private void RebuildHandUIFromLogicalHand()
     {
+        Debug.Log("[HANDUI] playerHandTiles null? " + (playerHandTiles == null));
+        Debug.Log("[HANDUI] Singleton.Instance null? " + (Singleton.Instance == null));
+
+        UIManager ui = (Singleton.Instance != null) ? Singleton.Instance.UIManager : null;
+        Debug.Log("[HANDUI] UIManager null? " + (ui == null));
+
         Debug.Log("===== RebuildHandUIFromLogicalHand START =====");
 
         if (playerHandTiles == null)
         {
-            Debug.LogError("playerHandTiles is null in RebuildHandUIFromLogicalHand.");
+            Debug.LogError("[HANDUI] playerHandTiles is null in RebuildHandUIFromLogicalHand.");
             return;
         }
 
-        // Clear all visible tiles from the hand UI
-        Singleton.Instance.UIManager.RemoveAllHandTiles();
+        if (Singleton.Instance == null)
+        {
+            Debug.LogError("[HANDUI] Singleton.Instance is null in RebuildHandUIFromLogicalHand.");
+            return;
+        }
 
-        // Recreate hand visuals from the logical hand list
+        if (ui == null)
+        {
+            Debug.LogError("[HANDUI] Singleton.Instance.UIManager is null in RebuildHandUIFromLogicalHand.");
+            return;
+        }
+
+        ui.RemoveAllHandTiles();
+
         foreach (var tile in playerHandTiles)
         {
             if (tile == null)
-            {
-                //Debug.LogWarning("Encountered null tile in playerHandTiles while rebuilding UI.");
                 continue;
-            }
 
-            Singleton.Instance.UIManager.AddTileToHand(tile);
-            //Debug.Log("Re-added tile to UI => " + tile.letter + " (" + tile.points + ")");
+            ui.AddTileToHand(tile);
         }
 
-        // Update the word list display based on the new hand
         ResetDisplay();
-
-        //Debug.Log("Hand UI rebuilt. Logical hand count = " + playerHandTiles.Count);
+        Debug.Log("[HANDUI] Rebuilt hand with count = " + playerHandTiles.Count);
         Debug.Log("===== RebuildHandUIFromLogicalHand END =====");
     }
 
