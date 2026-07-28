@@ -80,12 +80,12 @@ public class PreGamePanel : MonoBehaviour
         public string matchId;     // empty until game starts
         public long createdAtUnix;
     }
-    [System.Serializable]
+    /*[System.Serializable]
     private class LetterInfoListWrapper
     {
         public List<LetterInfo> items;
     }
-
+    */
 
     private void Awake()
     {
@@ -1419,7 +1419,7 @@ public class PreGamePanel : MonoBehaviour
                 if (updatedRoom.status == "in_game")
                 {
                     Debug.Log("[PregamePanel] Someone already created the match. matchId=" + updatedRoom.matchId);
-                    WatchMatch(updatedRoom.matchId);
+                    WatchMatch(updatedRoom.matchId,true);
                     EnterGameplayMode();
                     return;
                 }
@@ -1434,7 +1434,7 @@ public class PreGamePanel : MonoBehaviour
                     Debug.Log("[PregamePanel] Another client claimed start. Waiting for final match...");
                     if (!string.IsNullOrEmpty(updatedRoom.matchId))
                     {
-                        WatchMatch(updatedRoom.matchId);
+                        WatchMatch(updatedRoom.matchId,true);
                         EnterGameplayMode();
                     }
                     return;
@@ -1518,8 +1518,7 @@ public class PreGamePanel : MonoBehaviour
                             Debug.Log("[PregamePanel] Bag tiles remaining: " + bag.tiles.Count);
 
                             SetStatus("Game started.");
-                            WatchMatch(matchId);
-                            //EnterGameplayMode();
+                            WatchMatch(matchId,true);
                         });
                     });
             });
