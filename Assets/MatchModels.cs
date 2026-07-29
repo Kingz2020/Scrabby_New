@@ -65,30 +65,27 @@ public class MatchData
     public int player1Score;
     public int player2Score;
 
-    public int turnNumber;
-    public string currentTurnUid;
-    public string status;
+    public string status; // "active" | "finished"
+
+    public int currentRoundNumber;
 
     public string boardStateJson;
     public string bagStateJson;
-    //public string player1RackJson;
-    //public string player2RackJson;
     public string sharedrackjson;
+
+    public string lastRoundResultJson;
+    public string roundResolutionStatus; // "idle" | "resolving" | "done"
+    public string roundResolutionByUid;
 
     public long createdAtUnix;
 
-    public string setupStatus;           // pending, done
+    public string setupStatus;
     public string setupByUid;
     public long setupAtUnix;
 
-    public string pendingMoveJson;       // empty when no move pending
-    public string pendingMoveByUid;
-    public int pendingMoveTurnNumber;    // turn being resolved
-    public string turnResolutionStatus;  // idle, resolving
-    public string turnResolutionByUid;
-    public long turnDeadlineUnix;
-
     public int stateVersion;
+
+    public string bonusBoardJson;
 }
 
 // One player's submission for a given round
@@ -103,6 +100,29 @@ public class SubmissionData
     public long submittedAt;
 }
 
+
+[Serializable]
+public class RoundSubmissionData
+{
+    public string uid;
+    public string word;
+    public int score;
+    public bool isValid;
+    public string simulatedTilesJson;
+    public long submittedAtUnix;
+}
+
+[Serializable]
+public class RoundResultData
+{
+    public int roundNumber;
+    public string winnerUid;
+    public string winnerDisplayName;
+    public string winnerWord;
+    public int winnerScore;
+    public bool anyValidMove;
+}
+
 [Serializable]
 public class SimPlacedTileData
 {
@@ -112,3 +132,22 @@ public class SimPlacedTileData
     public int col;
 }
 
+[Serializable]
+public class SimTileListWrapper
+{
+    public List<SimPlacedTileData> tiles = new List<SimPlacedTileData>();
+}
+
+[Serializable]
+public class BonusCellData
+{
+    public int x;
+    public int y;
+    public string bonusType; // "DoubleLetter" | "TripleLetter" | "DoubleWord" | "TripleWord"
+}
+
+[Serializable]
+public class BonusBoardData
+{
+    public List<BonusCellData> cells = new List<BonusCellData>();
+}

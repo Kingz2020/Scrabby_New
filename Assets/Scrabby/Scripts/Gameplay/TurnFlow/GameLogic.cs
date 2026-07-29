@@ -4643,6 +4643,7 @@ public class GameLogic : MonoBehaviour
         }
 
         ResetDisplay();
+        ApplyBonusBoardFromMatch(match.bonusBoardJson);
     }
 
     public RoundMove EvaluateLocalSubmissionForOnline()
@@ -4658,7 +4659,8 @@ public class GameLogic : MonoBehaviour
     // Subsequent round updates — same population, called each time MatchController sees the round advance
     public void ApplyMatchUpdate(MatchData match)
     {
-        InitFromMatchData(match);// for now, identical — split later if you want a lighter incremental path
+        InitFromMatchData(match);
+        ApplyOnlineRoundResult(match.lastRoundResultJson, localPlayerUid);
     }
 
     public void BeginOnlineMatchFromRack(
@@ -4668,13 +4670,17 @@ public class GameLogic : MonoBehaviour
     List<LetterInfo> localRack,
     int localScore,
     int opponentScore,
-    int turnNumber)
+    int turnNumber,
+    string bonusBoardJson)
+
     {
         Debug.Log("[ONLINE] BeginOnlineMatchFromRack CALLED");
 
         StopAllCoroutines();
         ClearBoardForNewGame();
         InitGame(maxHandSize, boardSizeX, boardSizeY, GameInitMode.Online);
+
+        ApplyBonusBoardFromMatch(bonusBoardJson);
 
         if (localRack == null)
             localRack = new List<LetterInfo>();
@@ -4709,5 +4715,156 @@ public class GameLogic : MonoBehaviour
         }
 
         Debug.Log("[ONLINE] Local hydrated rack count = " + playerHandTiles.Count);
+    }
+    public void ApplyOnlineRoundResult(string lastRoundResultJson, string localUid)
+    {
+        if (string.IsNullOrEmpty(lastRoundResultJson))
+            return;
+
+        RoundResultData result = JsonUtility.FromJson<RoundResultData>(lastRoundResultJson);
+        if (result == null)
+            return;
+
+        if (Singleton.Instance == null || Singleton.Instance.UIManager == null)
+            return;
+
+        if (!result.anyValidMove)
+        {
+            Singleton.Instance.UIManager.ShowRoundMessage("No valid move this round.");
+            return;
+        }
+
+        bool localWon = result.winnerUid == localUid;
+
+        Singleton.Instance.UIManager.ShowRoundMessage(
+            (localWon ? "You won" : (result.winnerDisplayName + " won")) +
+            " round " + result.roundNumber + " with " + result.winnerWord +
+            " for " + result.winnerScore + " points."
+        );
+    }
+
+    public void EnsureBoardInitializedForOnline()
+    {
+        if (boardSizeX <= 0 || boardSizeY <= 0)
+        {
+            var boardGen = UnityEngine.Object.FindAnyObjectByType<BoardGen>();
+            if (boardGen != null)
+            {
+                boardSizeX = boardGen.RowY;
+                boardSizeY = boardGen.RowX;
+            }
+        }
+
+        if (validatedBoardTiles == null)
+            validatedBoardTiles = new LetterInfo[boardSizeX + 2, boardSizeY + 2];
+
+        if (boardBonusTiles == null)
+            boardBonusTiles = new BonusTile[boardSizeY, boardSizeX];
+    }
+
+    public string GenerateBonusBoardJsonForOnlineMatch()
+    {
+        Debug.Log("[BONUS] GenerateBonusBoardJsonForOnlineMatch ENTER");
+
+        EnsureBoardInitializedForOnline();
+
+        Debug.Log(
+            "[BONUS] After EnsureBoardInitializedForOnline | " +
+            "boardSizeX=" + boardSizeX +
+            " boardSizeY=" + boardSizeY
+        );
+
+        Debug.Log(
+            "[BONUS] bonusTileBag=" + (bonusTileBag == null ? "NULL" : "VALID") +
+            " bonusBag=" + (bonusBag == null ? "NULL" : "VALID")
+        );
+
+        if (bonusTileBag != null && bonusBag != null)
+        {
+            Debug.Log("[BONUS] Resetting bonus bag");
+            bonusTileBag.ResetBonusBag(bonusBag);
+        }
+        else
+        {
+            Debug.LogWarning("[BONUS] Cannot reset bonus bag");
+        }
+
+        Debug.Log("[BONUS] Creating boardBonusTiles array");
+
+        boardBonusTiles = new BonusTile[boardSizeY, boardSizeX];
+
+        Debug.Log(
+            "[BONUS] boardBonusTiles created. Size=" +
+            boardBonusTiles.GetLength(0) + "x" +
+            boardBonusTiles.GetLength(1)
+        );
+
+        Debug.Log("[BONUS] Calling PlaceBonusTilesOnBoard()");
+        PlaceBonusTilesOnBoard();
+        Debug.Log("[BONUS] Returned from PlaceBonusTilesOnBoard()");
+
+        BonusBoardData data = new BonusBoardData();
+
+        int bonusCount = 0;
+
+        for (int x = 0; x < boardBonusTiles.GetLength(0); x++)
+        {
+            for (int y = 0; y < boardBonusTiles.GetLength(1); y++)
+            {
+                BonusTile tile = boardBonusTiles[x, y];
+
+                if (tile == null)
+                    continue;
+
+                bonusCount++;
+
+                data.cells.Add(new BonusCellData
+                {
+                    x = x,
+                    y = y,
+                    bonusType = tile.bonusType.ToString()
+                });
+            }
+        }
+
+        Debug.Log(
+            "[BONUS] Bonus cells collected=" +
+            bonusCount
+        );
+
+        string json = JsonUtility.ToJson(data);
+
+        Debug.Log(
+            "[BONUS] JSON length=" +
+            (string.IsNullOrEmpty(json) ? 0 : json.Length)
+        );
+
+        Debug.Log("[BONUS] GenerateBonusBoardJsonForOnlineMatch EXIT");
+
+        return json;
+    }
+
+    public void ApplyBonusBoardFromMatch(string bonusBoardJson)
+    {
+        EnsureBoardInitializedForOnline();
+
+        boardBonusTiles = new BonusTile[boardSizeY, boardSizeX];
+
+        if (string.IsNullOrEmpty(bonusBoardJson))
+            return;
+
+        BonusBoardData data = JsonUtility.FromJson<BonusBoardData>(bonusBoardJson);
+        if (data == null || data.cells == null) return;
+
+        foreach (var cell in data.cells)
+        {
+            if (Enum.TryParse<BonusType>(cell.bonusType, out BonusType parsedType))
+            {
+                boardBonusTiles[cell.x, cell.y] = new BonusTile(parsedType);
+            }
+        }
+
+        if (bonusBoardView != null)
+            bonusBoardView.StartRevealBonusTiles(0.3f);
     }
 }

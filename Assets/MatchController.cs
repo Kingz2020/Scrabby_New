@@ -1,4 +1,4 @@
-using System;
+/*using System;
 using System.Collections.Generic;
 using UnityEngine;
 using Firebase.Database;
@@ -46,7 +46,7 @@ public class MatchController : MonoBehaviour
             return;
 
         bool isFirstLoad = currentMatch == null;
-        bool roundAdvanced = !isFirstLoad && match.turnNumber != currentMatch.turnNumber;
+        bool roundAdvanced = !isFirstLoad && match.currentRoundNumber != currentMatch.currentRoundNumber;
 
         currentMatch = match;
 
@@ -59,7 +59,7 @@ public class MatchController : MonoBehaviour
             gameLogic.ApplyMatchUpdate(match);
         }
 
-        WatchSubmissionsForRound(match.turnNumber);
+        WatchSubmissionsForRound(match.currentRoundNumber);
     }
 
     private void WatchSubmissionsForRound(int roundNumber)
@@ -97,7 +97,7 @@ public class MatchController : MonoBehaviour
         dbRoot.Child("matches")
             .Child(matchId)
             .Child("rounds")
-            .Child(currentMatch.turnNumber.ToString())
+            .Child(currentMatch.currentRoundNumber.ToString())
             .Child("submissions")
             .Child(localUid)
             .SetRawJsonValueAsync(json);
@@ -113,7 +113,7 @@ public class MatchController : MonoBehaviour
 
         if (expectedCount > 0 && submittedCount >= expectedCount)
         {
-            TryResolveRound(currentMatch.turnNumber);
+            TryResolveRound(currentMatch.currentRoundNumber);
         }
     }
 
@@ -236,4 +236,4 @@ public class MatchController : MonoBehaviour
 
         return best;
     }
-}
+}*/
