@@ -1002,6 +1002,7 @@ public class PreGamePanel : MonoBehaviour
         Debug.Log("[PregamePanel] Room changed. Code=" + room.code + ", Status=" + room.status);
 
         bool roomFull = !string.IsNullOrEmpty(room.guestUid) && room.status == "full";
+        bool matchExists = !string.IsNullOrEmpty(room.matchId);
         bool isHost = IsSignedIn() && auth != null && auth.CurrentUser != null && room.hostUid == auth.CurrentUser.UserId;
 
         Debug.Log("[PregamePanel] roomFull=" + roomFull +
@@ -1020,7 +1021,7 @@ public class PreGamePanel : MonoBehaviour
 
         if (startGameButton != null)
         {
-            bool canStart = roomFull;
+            bool canStart = roomFull || matchExists;
             Debug.Log("[PregamePanel] Setting startGameButton.interactable = " + canStart);
             startGameButton.interactable = canStart;
             startGameButton.image.color = canStart ? Color.green : Color.gray;
