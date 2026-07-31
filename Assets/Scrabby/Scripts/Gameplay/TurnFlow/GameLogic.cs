@@ -127,6 +127,11 @@ public class GameLogic : MonoBehaviour
 
     [SerializeField] private GameMode gameMode = GameMode.HumanVsAI;
 
+    public void SetBoardSize(int rows, int cols)
+    {
+        boardSizeX = rows;
+        boardSizeY = cols;
+    }
 
     public enum GameInitMode
     {
@@ -457,23 +462,7 @@ public class GameLogic : MonoBehaviour
         }
     }
 
-    /*private void InitOnlineStateShell()
-    {
-        currentState = TurnState.PlayerTurn;
-
-        pendingPlayerMove = null;
-        pendingAIMove = null;
-        pendingWinningMove = null;
-
-        roundFlowActive = false;
-        roundRevealStep = 0;
-        roundStarted = true; // important: prevents EndTurnSingleGuess from auto-calling StartRound
-
-        if (Singleton.Instance != null && Singleton.Instance.UIManager != null)
-        {
-            Singleton.Instance.UIManager.ClearRoundMessage();
-        }
-    }*/
+    
 
     private void ClearBoardForNewGame()
     {
@@ -4662,6 +4651,11 @@ public class GameLogic : MonoBehaviour
         InitFromMatchData(match);
         ApplyOnlineRoundResult(match.lastRoundResultJson, localPlayerUid);
     }
+    private IEnumerator ApplyBonusBoardDelayed(string bonusBoardJson)
+    {
+        yield return null; // wait one frame so BoardGen.Start() has built the GhostTile grid
+        ApplyBonusBoardFromMatch(bonusBoardJson);
+    }
 
     public void BeginOnlineMatchFromRack(
     int maxHandSize,
@@ -4680,7 +4674,8 @@ public class GameLogic : MonoBehaviour
         ClearBoardForNewGame();
         InitGame(maxHandSize, boardSizeX, boardSizeY, GameInitMode.Online);
 
-        ApplyBonusBoardFromMatch(bonusBoardJson);
+        StartCoroutine(ApplyBonusBoardDelayed(bonusBoardJson));
+        //ApplyBonusBoardFromMatch(bonusBoardJson);
 
         if (localRack == null)
             localRack = new List<LetterInfo>();
@@ -4766,17 +4761,21 @@ public class GameLogic : MonoBehaviour
     {
         Debug.Log("[BONUS] GenerateBonusBoardJsonForOnlineMatch ENTER");
 
-        EnsureBoardInitializedForOnline();
+        if (boardSizeX <= 0 || boardSizeY <= 0)
+        {
+            Debug.LogError("[BONUS] Invalid board size before generation: " + boardSizeX + "x" + boardSizeY);
+            return JsonUtility.ToJson(new BonusBoardData());
+        }
+
+        if (validatedBoardTiles == null)
+            validatedBoardTiles = new LetterInfo[boardSizeX + 2, boardSizeY + 2];
+
+        boardBonusTiles = new BonusTile[boardSizeY, boardSizeX];
 
         Debug.Log(
-            "[BONUS] After EnsureBoardInitializedForOnline | " +
-            "boardSizeX=" + boardSizeX +
-            " boardSizeY=" + boardSizeY
-        );
-
-        Debug.Log(
-            "[BONUS] bonusTileBag=" + (bonusTileBag == null ? "NULL" : "VALID") +
-            " bonusBag=" + (bonusBag == null ? "NULL" : "VALID")
+            "[BONUS] boardBonusTiles created. Size=" +
+            boardBonusTiles.GetLength(0) + "x" +
+            boardBonusTiles.GetLength(1)
         );
 
         if (bonusTileBag != null && bonusBag != null)
@@ -4787,24 +4786,14 @@ public class GameLogic : MonoBehaviour
         else
         {
             Debug.LogWarning("[BONUS] Cannot reset bonus bag");
+            return JsonUtility.ToJson(new BonusBoardData());
         }
-
-        Debug.Log("[BONUS] Creating boardBonusTiles array");
-
-        boardBonusTiles = new BonusTile[boardSizeY, boardSizeX];
-
-        Debug.Log(
-            "[BONUS] boardBonusTiles created. Size=" +
-            boardBonusTiles.GetLength(0) + "x" +
-            boardBonusTiles.GetLength(1)
-        );
 
         Debug.Log("[BONUS] Calling PlaceBonusTilesOnBoard()");
         PlaceBonusTilesOnBoard();
         Debug.Log("[BONUS] Returned from PlaceBonusTilesOnBoard()");
 
         BonusBoardData data = new BonusBoardData();
-
         int bonusCount = 0;
 
         for (int x = 0; x < boardBonusTiles.GetLength(0); x++)
@@ -4812,12 +4801,9 @@ public class GameLogic : MonoBehaviour
             for (int y = 0; y < boardBonusTiles.GetLength(1); y++)
             {
                 BonusTile tile = boardBonusTiles[x, y];
-
-                if (tile == null)
-                    continue;
+                if (tile == null) continue;
 
                 bonusCount++;
-
                 data.cells.Add(new BonusCellData
                 {
                     x = x,
@@ -4827,18 +4813,11 @@ public class GameLogic : MonoBehaviour
             }
         }
 
-        Debug.Log(
-            "[BONUS] Bonus cells collected=" +
-            bonusCount
-        );
+        Debug.Log("[BONUS] Bonus cells collected=" + bonusCount);
 
         string json = JsonUtility.ToJson(data);
 
-        Debug.Log(
-            "[BONUS] JSON length=" +
-            (string.IsNullOrEmpty(json) ? 0 : json.Length)
-        );
-
+        Debug.Log("[BONUS] JSON length=" + (string.IsNullOrEmpty(json) ? 0 : json.Length));
         Debug.Log("[BONUS] GenerateBonusBoardJsonForOnlineMatch EXIT");
 
         return json;

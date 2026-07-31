@@ -23,7 +23,7 @@ public class PreGamePanel : MonoBehaviour
     [SerializeField] private TextMeshProUGUI statusText;
     [SerializeField] private TextMeshProUGUI signedInAsText;
     [SerializeField] private GameObject pregamePanelRoot;
-    [SerializeField] private GameObject gameplayRoot;
+    //[SerializeField] private GameObject gameplayRoot;
 
     [SerializeField] private GameObject pregamePanel;
     [SerializeField] private GameObject gameplayPanel;
@@ -1198,14 +1198,16 @@ public class PreGamePanel : MonoBehaviour
             {
                 Debug.Log("[PregamePanel] Loading existing match: " + room.matchId);
 
-                //pendingEnterGameplay = true;
-
+                Debug.Log($"[STARTFLOW] Existing match detected matchId={room.matchId}");
                 WatchMatch(room.matchId, true);
+                Debug.Log("[STARTFLOW] WatchMatch called for existing match");
 
                 return;
             }
 
+            Debug.Log($"[STARTFLOW] About to call TryCreateInitialMatchFromRoom roomCode={roomCode} matchId={(room.matchId ?? "null")}");
             TryCreateInitialMatchFromRoom(roomCode, room);
+            Debug.Log("[STARTFLOW] Returned from TryCreateInitialMatchFromRoom call");
         });
     }
 
@@ -1355,6 +1357,8 @@ public class PreGamePanel : MonoBehaviour
 
     private void TryCreateInitialMatchFromRoom(string roomCode, RoomData roomSnapshot)
     {
+        Debug.Log($"[STARTFLOW] TryCreateInitialMatchFromRoom ENTER roomCode={roomCode} matchId={(roomSnapshot != null ? roomSnapshot.matchId : "null")}");
+
         if (auth == null || auth.CurrentUser == null)
             return;
 
@@ -1453,10 +1457,23 @@ public class PreGamePanel : MonoBehaviour
 
                 BagStateData bag = CreateInitialBag();
                 RackStateData sharedrackjson = DrawTiles(bag, 7);
-                //RackStateData player2Rack = DrawTiles(bag, 7);
                 BoardStateData board = CreateInitialBoard();
 
-                string bonusBoardJson = gameLogic != null ? gameLogic.GenerateBonusBoardJsonForOnlineMatch() : "";
+                Debug.Log("[BONUS] gameLogic reference null? " + (gameLogic == null));
+                string bonusBoardJson = "";
+
+                if (gameLogic != null)
+                {
+                    // This snapshot uses a 9x9 board via CreateInitialBoard(9, 9) [13].
+                    gameLogic.SetBoardSize(9, 9);
+
+                    bonusBoardJson = gameLogic.GenerateBonusBoardJsonForOnlineMatch();
+                    Debug.Log("[BONUS] bonusBoardJson length=" + (bonusBoardJson == null ? -1 : bonusBoardJson.Length));
+                }
+                else
+                {
+                    Debug.LogWarning("[BONUS] gameLogic was NULL in TryCreateInitialMatchFromRoom. Skipping bonus board JSON.");
+                }
 
                 MatchData match = new MatchData
                 {

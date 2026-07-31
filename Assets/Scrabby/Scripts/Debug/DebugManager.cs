@@ -22,7 +22,7 @@ public class DebugManager: MonoBehaviour {
     public void StartNewGame()
     {
         Singleton.Instance.GameLogic.GetTileBag().ResetLetterBag(letterBag);
-        Singleton.Instance.GameLogic.InitGame(6, 9, 9, GameLogic.GameInitMode.Solo);
+        Singleton.Instance.GameLogic.InitGame(6, 15, 15, GameLogic.GameInitMode.Solo);
     }
 
     public void RefillHand() {
