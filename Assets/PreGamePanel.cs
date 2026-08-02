@@ -28,7 +28,7 @@ public class PreGamePanel : MonoBehaviour
     [SerializeField] private GameObject pregamePanel;
     [SerializeField] private GameObject gameplayPanel;
     [SerializeField] private GameObject gameOverPanel;
-
+    [SerializeField] private GameObject optionPanel;
     //private bool hasEnteredGameplay = false;
 
     private DatabaseReference dbRoot;
@@ -139,8 +139,12 @@ public class PreGamePanel : MonoBehaviour
         auth.StateChanged += AuthStateChanged;
         AuthStateChanged(this, null);
     }
-    
 
+    public void OnRefreshPressed()
+    {
+        Debug.Log("[MATCH STATUS] Refresh requested");
+        SetStatus("Refresh not implemented yet");
+    }
     private void TraceMatch(string label)
     {
         matchTraceSeq++;
@@ -1802,7 +1806,7 @@ public class PreGamePanel : MonoBehaviour
         return JsonUtility.ToJson(new SimTileListWrapper { tiles = list });
     }
 
-    private void TryResumeActiveMatch()
+    public void TryResumeActiveMatch()
     {
         if (auth == null || auth.CurrentUser == null)
             return;
@@ -1810,14 +1814,13 @@ public class PreGamePanel : MonoBehaviour
         string uid = auth.CurrentUser.UserId;
 
         dbRoot.Child("matches")
-            .OrderByChild("status")
-            .EqualTo("active")
             .GetValueAsync()
             .ContinueWithOnMainThread(task =>
             {
                 if (task.IsFaulted || task.Result == null)
                 {
-                    Debug.LogError("Failed to load active matches.");
+                    Debug.LogError("[RESUME] Failed to load matches.");
+                    ShowPregamePanel();
                     return;
                 }
 
@@ -1834,6 +1837,9 @@ public class PreGamePanel : MonoBehaviour
                     if (match == null)
                         continue;
 
+                    if (match.status != "active")
+                        continue;
+
                     bool belongsToUser =
                         match.player1Uid == uid ||
                         match.player2Uid == uid;
@@ -1842,22 +1848,39 @@ public class PreGamePanel : MonoBehaviour
                         continue;
 
                     Debug.Log(
-                        "[RESUME] Found active match: "
-                        + match.matchId);
+                        "[RESUME] Found active match: " +
+                        match.matchId);
 
                     currentMatch = match;
 
-                    WatchMatch(match.matchId);
+                    WatchMatch(match.matchId,true);
 
-                    pendingEnterGameplay = true;
+                    //pendingEnterGameplay = true;
 
-                    EnterGameplayMode();
+                    //EnterGameplayMode();
 
                     return;
                 }
 
                 Debug.Log("[RESUME] No active match found.");
+
+                ShowPregamePanel();
             });
     }
+    public void ShowPregamePanel()
+    {
+        if (optionPanel != null)
+            optionPanel.SetActive(false);
 
+        if (pregamePanel != null)
+            pregamePanel.SetActive(true);
+
+        if (gameplayPanel != null)
+            gameplayPanel.SetActive(false);
+
+        if (gameOverPanel != null)
+            gameOverPanel.SetActive(false);
+
+        Debug.Log("[RESUME] Showing pregame panel");
+    }
 }

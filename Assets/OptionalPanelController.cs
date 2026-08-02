@@ -12,6 +12,8 @@ public class OptionPanelController : MonoBehaviour
     [SerializeField] private GameObject pregamePanel;
     [SerializeField] private GameObject gameplayPanel;
     [SerializeField] private GameObject gameoverPanel;
+    [SerializeField] private PreGamePanel preGamePanelController;
+    [SerializeField] private GameObject matchstatusPanel;
 
     private void Awake()
     {
@@ -32,19 +34,20 @@ public class OptionPanelController : MonoBehaviour
         if (optionPanel != null) optionPanel.SetActive(false);
         if (pregamePanel != null) pregamePanel.SetActive(false);
         if (gameplayPanel != null) gameplayPanel.SetActive(true);
-        if (gameplayPanel != null) gameoverPanel.SetActive(false);
+        if (gameoverPanel != null) gameoverPanel.SetActive(false);
+        if (matchstatusPanel != null) matchstatusPanel.SetActive(false);
 
         Debug.Log("[OptionPanel] Solo selected -> opening gameplay panel");
     }
 
     public void OnMultiplayerPressed()
     {
-        if (optionPanel != null) optionPanel.SetActive(false);
-        if (pregamePanel != null) pregamePanel.SetActive(true);
-        if (gameplayPanel != null) gameplayPanel.SetActive(false);
-        if (gameplayPanel != null) gameoverPanel.SetActive(false);
+        Debug.Log("[OptionPanel] Multiplayer selected");
 
-        Debug.Log("[OptionPanel] Multiplayer selected -> opening pregame panel");
+        if (preGamePanelController != null)
+        {
+            preGamePanelController.TryResumeActiveMatch();
+        }
     }
 
     public void ShowOptionPanel()
