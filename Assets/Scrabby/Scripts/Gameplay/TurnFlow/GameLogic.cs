@@ -4846,4 +4846,8 @@ public class GameLogic : MonoBehaviour
         if (bonusBoardView != null)
             bonusBoardView.StartRevealBonusTiles(0.3f);
     }
+    public void SetInputLocked(bool locked)
+    {
+        currentState = locked ? TurnState.Busy : TurnState.PlayerTurn;
+    }
 }

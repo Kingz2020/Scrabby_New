@@ -51,6 +51,7 @@ public class PreGamePanel : MonoBehaviour
 
     private DatabaseReference currentSubmissionsRef;
     private int watchedRoundNumber = -1;
+    private int lastProcessedRound = 0;
 
     [Serializable]
     public class RoomPlayerData
@@ -251,6 +252,12 @@ public class PreGamePanel : MonoBehaviour
 
         currentMatch = match;
 
+        if (currentMatch.currentRoundNumber > lastProcessedRound + 1)
+        {
+            HandleResolvedRound();
+            lastProcessedRound = currentMatch.currentRoundNumber - 1;
+        }
+
         Debug.Log(
                 "[MATCH LOADED] " +
                 currentMatch.matchId +
@@ -274,6 +281,138 @@ public class PreGamePanel : MonoBehaviour
             EnterGameplayMode();
         }
     }
+
+    private void ShowOnlineRoundResult(RoundResultData result)
+    {
+        if (Singleton.Instance == null ||
+            Singleton.Instance.UIManager == null)
+            return;
+
+        string uid = auth.CurrentUser.UserId;
+        bool isPlayer1 = currentMatch.player1Uid == uid;
+
+        int localScore =
+            isPlayer1
+            ? currentMatch.player1Score
+            : currentMatch.player2Score;
+
+        int opponentScore =
+            isPlayer1
+            ? currentMatch.player2Score
+            : currentMatch.player1Score;
+
+        Singleton.Instance.UIManager.UpdateTotalScores(
+            localScore,
+            opponentScore);
+
+        if (result.anyValidMove)
+        {
+            Singleton.Instance.UIManager.ShowRoundMessage(
+                result.winnerDisplayName +
+                " wins with " +
+                result.winnerWord +
+                " (" +
+                result.winnerScore +
+                " pts)");
+        }
+        else
+        {
+            Singleton.Instance.UIManager.ShowRoundMessage(
+                "No valid move this round.");
+        }
+    }
+
+    private void HandleResolvedRound()
+    {
+        if (string.IsNullOrEmpty(currentMatch.lastRoundResultJson))
+            return;
+
+        RoundResultData result =
+            JsonUtility.FromJson<RoundResultData>(
+                currentMatch.lastRoundResultJson);
+
+        if (result == null)
+            return;
+
+        StartCoroutine(ShowOnlineRoundResultDelayed(result));
+    }
+
+    private IEnumerator ShowOnlineRoundResultDelayed(
+    RoundResultData result)
+    {
+        string uid = auth.CurrentUser.UserId;
+
+        DatabaseReference submissionRef =
+            dbRoot.Child("matches")
+                  .Child(currentMatch.matchId)
+                  .Child("rounds")
+                  .Child(result.roundNumber.ToString())
+                  .Child("submissions")
+                  .Child(uid);
+
+        var task = submissionRef.GetValueAsync();
+
+        yield return new WaitUntil(() => task.IsCompleted);
+
+        if (!task.IsFaulted &&
+            task.Result != null &&
+            task.Result.Exists)
+        {
+            string json = task.Result.GetRawJsonValue();
+
+            RoundSubmissionData localSubmission =
+                JsonUtility.FromJson<RoundSubmissionData>(json);
+
+            if (localSubmission != null &&
+                localSubmission.isValid &&
+                !string.IsNullOrEmpty(localSubmission.simulatedTilesJson))
+            {
+                SimTileListWrapper wrapper =
+                    JsonUtility.FromJson<SimTileListWrapper>(
+                        localSubmission.simulatedTilesJson);
+
+                if (wrapper != null &&
+                    wrapper.tiles != null &&
+                    wrapper.tiles.Count > 0)
+                {
+                    SimPlacedTileData bestTile = wrapper.tiles[0];
+
+                    foreach (SimPlacedTileData tile in wrapper.tiles)
+                    {
+                        if (tile.row > bestTile.row)
+                        {
+                            bestTile = tile;
+                        }
+                        else if (tile.row == bestTile.row &&
+                                 tile.col > bestTile.col)
+                        {
+                            bestTile = tile;
+                        }
+                    }
+
+                    LetterPosition anchor =
+                        new LetterPosition(
+                            bestTile.row,
+                            bestTile.col);
+
+                    if (Singleton.Instance != null &&
+                        Singleton.Instance.UIManager != null)
+                    {
+                        Singleton.Instance.UIManager.ShowValidatedWordScore(
+                            anchor,
+                            localSubmission.score,
+                            false);
+                    }
+                }
+            }
+        }
+
+        // Give the player time to see THEIR score first
+        yield return new WaitForSeconds(1.5f);
+
+        ShowOnlineRoundResult(result);
+    }
+
     private void WatchSubmissionsForRound(int roundNumber)
     {
         if (currentSubmissionsRef != null)
@@ -332,111 +471,119 @@ public class PreGamePanel : MonoBehaviour
 
             matchRef.RunTransaction(mutableData =>
             {
-                var matchDict = mutableData.Value as Dictionary<string, object>;
-                if (matchDict == null)
-                    return TransactionResult.Abort();
-
-                int liveRoundNumber = matchDict.ContainsKey("currentRoundNumber") && matchDict["currentRoundNumber"] != null
-                    ? Convert.ToInt32(matchDict["currentRoundNumber"]) : 0;
-
-                if (liveRoundNumber != roundNumber)
-                    return TransactionResult.Abort(); // already resolved by someone else
-
-                string resStatus = matchDict.ContainsKey("roundResolutionStatus") && matchDict["roundResolutionStatus"] != null
-                    ? matchDict["roundResolutionStatus"].ToString() : "idle";
-
-                if (resStatus == "resolving" || resStatus == "done")
-                    return TransactionResult.Abort();
-
-                RoundSubmissionData winner = null;
-                foreach (var sub in submissions)
+                try
                 {
-                    if (!sub.isValid) continue;
-                    if (winner == null || IsBetterSubmission(sub, winner))
-                        winner = sub;
-                }
+                    var matchDict = mutableData.Value as Dictionary<string, object>;
+                    if (matchDict == null)
+                        return TransactionResult.Abort();
 
-                string boardJson = matchDict.ContainsKey("boardStateJson") ? matchDict["boardStateJson"]?.ToString() : "";
-                string bagJson = matchDict.ContainsKey("bagStateJson") ? matchDict["bagStateJson"]?.ToString() : "";
-                string rackJson = matchDict.ContainsKey("sharedrackjson") ? matchDict["sharedrackjson"]?.ToString() : "";
+                    int liveRoundNumber = matchDict.ContainsKey("currentRoundNumber") && matchDict["currentRoundNumber"] != null
+                        ? Convert.ToInt32(matchDict["currentRoundNumber"]) : 0;
 
-                BoardStateData board = JsonUtility.FromJson<BoardStateData>(boardJson) ?? new BoardStateData();
-                BagStateData bag = JsonUtility.FromJson<BagStateData>(bagJson) ?? new BagStateData();
-                RackStateData sharedRack = JsonUtility.FromJson<RackStateData>(rackJson) ?? new RackStateData();
+                    if (liveRoundNumber != roundNumber)
+                        return TransactionResult.Abort(); // already resolved by someone else
 
-                RoundResultData result = new RoundResultData
-                {
-                    roundNumber = roundNumber,
-                    anyValidMove = winner != null
-                };
+                    string resStatus = matchDict.ContainsKey("roundResolutionStatus") && matchDict["roundResolutionStatus"] != null
+                        ? matchDict["roundResolutionStatus"].ToString() : "idle";
 
-                string player1Uid = matchDict.ContainsKey("player1Uid") ? matchDict["player1Uid"]?.ToString() : "";
+                    if (resStatus == "resolving" || resStatus == "done")
+                        return TransactionResult.Abort();
 
-                if (winner != null)
-                {
-                    SimTileListWrapper wrapper = JsonUtility.FromJson<SimTileListWrapper>(winner.simulatedTilesJson);
-
-                    if (wrapper != null && wrapper.tiles != null)
+                    RoundSubmissionData winner = null;
+                    foreach (var sub in submissions)
                     {
-                        foreach (var tile in wrapper.tiles)
-                        {
-                            int idx = sharedRack.tiles.FindIndex(t => t.letter == tile.letter);
-                            if (idx >= 0)
-                                sharedRack.tiles.RemoveAt(idx);
+                        if (!sub.isValid) continue;
+                        if (winner == null || IsBetterSubmission(sub, winner))
+                            winner = sub;
+                    }
 
-                            int x = tile.col - 1;
-                            int y = tile.row - 1;
-                            BoardCellData cell = FindCell(board, x, y);
-                            if (cell != null)
+                    string boardJson = matchDict.ContainsKey("boardStateJson") ? matchDict["boardStateJson"]?.ToString() : "";
+                    string bagJson = matchDict.ContainsKey("bagStateJson") ? matchDict["bagStateJson"]?.ToString() : "";
+                    string rackJson = matchDict.ContainsKey("sharedrackjson") ? matchDict["sharedrackjson"]?.ToString() : "";
+
+                    BoardStateData board = JsonUtility.FromJson<BoardStateData>(boardJson) ?? new BoardStateData();
+                    BagStateData bag = JsonUtility.FromJson<BagStateData>(bagJson) ?? new BagStateData();
+                    RackStateData sharedRack = JsonUtility.FromJson<RackStateData>(rackJson) ?? new RackStateData();
+
+                    RoundResultData result = new RoundResultData
+                    {
+                        roundNumber = roundNumber,
+                        anyValidMove = winner != null
+                    };
+
+                    string player1Uid = matchDict.ContainsKey("player1Uid") ? matchDict["player1Uid"]?.ToString() : "";
+
+                    if (winner != null)
+                    {
+                        SimTileListWrapper wrapper = JsonUtility.FromJson<SimTileListWrapper>(winner.simulatedTilesJson);
+
+                        if (wrapper != null && wrapper.tiles != null)
+                        {
+                            foreach (var tile in wrapper.tiles)
                             {
-                                cell.occupied = true;
-                                cell.tile = new TileData
+                                int idx = sharedRack.tiles.FindIndex(t => t.letter == tile.letter);
+                                if (idx >= 0)
+                                    sharedRack.tiles.RemoveAt(idx);
+
+                                int x = tile.col - 1;
+                                int y = tile.row - 1;
+                                BoardCellData cell = FindCell(board, x, y);
+                                if (cell != null)
                                 {
-                                    letter = tile.letter,
-                                    value = tile.points,
-                                    id = Guid.NewGuid().ToString("N")
-                                };
+                                    cell.occupied = true;
+                                    cell.tile = new TileData
+                                    {
+                                        letter = tile.letter,
+                                        value = tile.points,
+                                        id = Guid.NewGuid().ToString("N")
+                                    };
+                                }
                             }
+                        }
+
+                        result.winnerUid = winner.uid;
+                        result.winnerWord = winner.word;
+                        result.winnerScore = winner.score;
+
+                        bool winnerIsPlayer1 = winner.uid == player1Uid;
+                        result.winnerDisplayName = winnerIsPlayer1
+                            ? (matchDict.ContainsKey("player1DisplayName") ? matchDict["player1DisplayName"]?.ToString() : "")
+                            : (matchDict.ContainsKey("player2DisplayName") ? matchDict["player2DisplayName"]?.ToString() : "");
+
+                        if (winnerIsPlayer1)
+                        {
+                            int p1 = matchDict.ContainsKey("player1Score") && matchDict["player1Score"] != null ? Convert.ToInt32(matchDict["player1Score"]) : 0;
+                            matchDict["player1Score"] = p1 + winner.score;
+                        }
+                        else
+                        {
+                            int p2 = matchDict.ContainsKey("player2Score") && matchDict["player2Score"] != null ? Convert.ToInt32(matchDict["player2Score"]) : 0;
+                            matchDict["player2Score"] = p2 + winner.score;
                         }
                     }
 
-                    result.winnerUid = winner.uid;
-                    result.winnerWord = winner.word;
-                    result.winnerScore = winner.score;
-
-                    bool winnerIsPlayer1 = winner.uid == player1Uid;
-                    result.winnerDisplayName = winnerIsPlayer1
-                        ? (matchDict.ContainsKey("player1DisplayName") ? matchDict["player1DisplayName"]?.ToString() : "")
-                        : (matchDict.ContainsKey("player2DisplayName") ? matchDict["player2DisplayName"]?.ToString() : "");
-
-                    if (winnerIsPlayer1)
+                    while (sharedRack.tiles.Count < 7 && bag.tiles != null && bag.tiles.Count > 0)
                     {
-                        int p1 = matchDict.ContainsKey("player1Score") && matchDict["player1Score"] != null ? Convert.ToInt32(matchDict["player1Score"]) : 0;
-                        matchDict["player1Score"] = p1 + winner.score;
+                        sharedRack.tiles.Add(bag.tiles[0]);
+                        bag.tiles.RemoveAt(0);
                     }
-                    else
-                    {
-                        int p2 = matchDict.ContainsKey("player2Score") && matchDict["player2Score"] != null ? Convert.ToInt32(matchDict["player2Score"]) : 0;
-                        matchDict["player2Score"] = p2 + winner.score;
-                    }
+
+                    matchDict["boardStateJson"] = JsonUtility.ToJson(board);
+                    matchDict["bagStateJson"] = JsonUtility.ToJson(bag);
+                    matchDict["sharedrackjson"] = JsonUtility.ToJson(sharedRack);
+                    matchDict["lastRoundResultJson"] = JsonUtility.ToJson(result);
+                    matchDict["currentRoundNumber"] = liveRoundNumber + 1;
+                    matchDict["roundResolutionStatus"] = "done";
+                    matchDict["roundResolutionByUid"] = auth.CurrentUser.UserId;
+
+                    mutableData.Value = matchDict;
+                    return TransactionResult.Success(mutableData);
                 }
-
-                while (sharedRack.tiles.Count < 7 && bag.tiles != null && bag.tiles.Count > 0)
+                catch (Exception ex)
                 {
-                    sharedRack.tiles.Add(bag.tiles[0]);
-                    bag.tiles.RemoveAt(0);
+                    Debug.LogError("[RESOLVE] Exception INSIDE transaction: " + ex);
+                    throw; // rethrow so the transaction still aborts/fails as before
                 }
-
-                matchDict["boardStateJson"] = JsonUtility.ToJson(board);
-                matchDict["bagStateJson"] = JsonUtility.ToJson(bag);
-                matchDict["sharedrackjson"] = JsonUtility.ToJson(sharedRack);
-                matchDict["lastRoundResultJson"] = JsonUtility.ToJson(result);
-                matchDict["currentRoundNumber"] = liveRoundNumber + 1;
-                matchDict["roundResolutionStatus"] = "done";
-                matchDict["roundResolutionByUid"] = auth.CurrentUser.UserId;
-
-                mutableData.Value = matchDict;
-                return TransactionResult.Success(mutableData);
             })
             .ContinueWithOnMainThread(txTask =>
             {
@@ -1613,7 +1760,22 @@ public class PreGamePanel : MonoBehaviour
 
                 Debug.Log("[PregamePanel] Round " + roundNumber + " submission written.");
                 SetStatus("Move submitted. Waiting for other players...");
+                StartCoroutine(ShowSubmittedWaitingSequence());
             });
+    }
+
+    private IEnumerator ShowSubmittedWaitingSequence()
+    {
+        if (gameLogic != null)
+            gameLogic.SetInputLocked(true); // disable tile placement / submit button
+
+        if (Singleton.Instance != null && Singleton.Instance.UIManager != null)
+            Singleton.Instance.UIManager.ShowRoundMessage("Move submitted!");
+
+        yield return new WaitForSeconds(1.5f);
+
+        if (Singleton.Instance != null && Singleton.Instance.UIManager != null)
+            Singleton.Instance.UIManager.ShowRoundMessage("Waiting for other players...");
     }
 
     private string SerializeSimulatedTiles(RoundMove move)
@@ -1638,6 +1800,64 @@ public class PreGamePanel : MonoBehaviour
         }
 
         return JsonUtility.ToJson(new SimTileListWrapper { tiles = list });
+    }
+
+    private void TryResumeActiveMatch()
+    {
+        if (auth == null || auth.CurrentUser == null)
+            return;
+
+        string uid = auth.CurrentUser.UserId;
+
+        dbRoot.Child("matches")
+            .OrderByChild("status")
+            .EqualTo("active")
+            .GetValueAsync()
+            .ContinueWithOnMainThread(task =>
+            {
+                if (task.IsFaulted || task.Result == null)
+                {
+                    Debug.LogError("Failed to load active matches.");
+                    return;
+                }
+
+                foreach (var child in task.Result.Children)
+                {
+                    string raw = child.GetRawJsonValue();
+
+                    if (string.IsNullOrEmpty(raw))
+                        continue;
+
+                    MatchData match =
+                        JsonUtility.FromJson<MatchData>(raw);
+
+                    if (match == null)
+                        continue;
+
+                    bool belongsToUser =
+                        match.player1Uid == uid ||
+                        match.player2Uid == uid;
+
+                    if (!belongsToUser)
+                        continue;
+
+                    Debug.Log(
+                        "[RESUME] Found active match: "
+                        + match.matchId);
+
+                    currentMatch = match;
+
+                    WatchMatch(match.matchId);
+
+                    pendingEnterGameplay = true;
+
+                    EnterGameplayMode();
+
+                    return;
+                }
+
+                Debug.Log("[RESUME] No active match found.");
+            });
     }
 
 }

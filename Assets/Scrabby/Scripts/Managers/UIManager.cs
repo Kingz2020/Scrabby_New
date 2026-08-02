@@ -388,33 +388,6 @@ public class UIManager : MonoBehaviour
             popupText.gameObject.SetActive(true);
 
             // Set the clean text score directly
-            /*popupText.text = "+" + score;
-            
-            // Set font size to exactly 104f (which is twice the lettering size of the tiles, 52 * 2 = 104)
-            popupText.fontSize = 42f; 
-            popupText.fontStyle = FontStyles.Bold;
-            
-            if (isWinningMove)
-            {
-                // Bright, highly visible positive dark/forest green color so it feels like a winning score!
-                popupText.color = new Color32(0, 180, 40, 255); 
-            }
-            else
-            {
-                // Bright yellow color for tentative, unvalidated player move
-                popupText.color = new Color32(0, 0, 0, 255);
-            }
-            
-            popupText.alignment = TextAlignmentOptions.Center;
-            
-            popupText.enableAutoSizing = false; // Disable auto-sizing so it stays exactly at the massive 104f font size
-            popupText.textWrappingMode = TextWrappingModes.NoWrap;
-            popupText.overflowMode = TextOverflowModes.Overflow;
-
-            // Use TextMeshPro's native high-quality shader outlines to add a strong black outer border to keep it super legible!
-            popupText.outlineColor = new Color32(0, 0, 0, 255); // Solid black outline
-            popupText.outlineWidth = 0.18f; // Strong, highly visible border thickness
-            */
             popupText.text = "+" + score;
 
             if (isWinningMove)
@@ -456,17 +429,13 @@ public class UIManager : MonoBehaviour
         ValidatedScorePopup popupScript = popup.GetComponent<ValidatedScorePopup>();
         if (popupScript != null)
         {
-            /*float slowLifetime = 4.0f; // Remains on screen for 4 full seconds
-            popupScript.floatOffset = new Vector2(30f, 60f); // Float gently upwards
-            popupScript.fadeDuration = 2.0f; // Remain fully solid for the first 2 seconds, then slowly fade out over the last 2 seconds
-            */
-            float popupLifetime = 0.85f;
+
+            //float popupLifetime = 0.85f;
+            float popupLifetime = 5f;
             popupScript.floatOffset = new Vector2(10f, 18f);
             popupScript.fadeDuration = 0.22f;
             popupScript.Play(popupLifetime);
 
-            //Debug.Log("Playing popup animation for lifetime: " + slowLifetime);
-            //popupScript.Play(slowLifetime);
         }
         else
         {
