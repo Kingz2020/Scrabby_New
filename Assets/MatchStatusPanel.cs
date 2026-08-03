@@ -1,6 +1,10 @@
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
+using System.Collections.Generic;
+using Firebase.Auth;
+using Firebase.Database;
+using Firebase.Extensions;
 
 public class MatchStatusPanel : MonoBehaviour
 {
@@ -22,6 +26,17 @@ public class MatchStatusPanel : MonoBehaviour
 
     [SerializeField] private PreGamePanel preGamePanel;
 
+    [SerializeField]
+    private Transform contentParent;
+
+    [SerializeField]
+    private MatchStatusRow rowPrefab;
+
+    private readonly List<MatchStatusRow> rows =
+        new List<MatchStatusRow>();
+
+    private DatabaseReference dbRoot;
+
     private void Awake()
     {
         if (createRoomButton != null)
@@ -37,6 +52,12 @@ public class MatchStatusPanel : MonoBehaviour
             refreshButton.onClick.AddListener(OnRefreshPressed);
     }
 
+    private void Start()
+    {
+        if (FirebaseInit.IsReady)
+            dbRoot = FirebaseInit.Database.RootReference;
+    }
+
     private void OnEnable()
     {
         ShowStatus("Checking for active matches...");
@@ -48,6 +69,8 @@ public class MatchStatusPanel : MonoBehaviour
         if (statusText != null)
             statusText.text = text;
     }
+
+
 
     public void ShowMatchInfo(string text)
     {
@@ -135,9 +158,66 @@ public class MatchStatusPanel : MonoBehaviour
 
     private void RefreshMatchState()
     {
-        Debug.Log("[MATCH STATUS] Refreshing match state");
+        if (!FirebaseInit.IsReady)
+        {
+            ShowStatus("Firebase not ready.");
+            return;
+        }
 
-        ShowStatus("Checking Firebase...");
+        var auth = FirebaseAuth.DefaultInstance;
+
+        if (auth == null || auth.CurrentUser == null)
+        {
+            ShowStatus("Not logged in.");
+            return;
+        }
+
+        string uid = auth.CurrentUser.UserId;
+
+        dbRoot.Child("users").Child(uid)
+            .GetValueAsync()
+            .ContinueWithOnMainThread(task =>
+            {
+                if (task.IsFaulted)
+                {
+                    ShowStatus("Failed to load user.");
+                    Debug.LogError(task.Exception);
+                    return;
+                }
+
+                if (!task.Result.Exists)
+                {
+                    ShowStatus("User profile not found.");
+                    return;
+                }
+
+                string json = task.Result.GetRawJsonValue();
+
+                PreGamePanel.UserData user = JsonUtility.FromJson<PreGamePanel.UserData>(json);
+
+                if (user == null)
+                {
+                    ShowStatus("User data invalid.");
+                    return;
+                }
+
+                Debug.Log($"[MATCH STATUS] state={user.presenceState}");
+
+                List<MatchListItemData> items =
+                    new List<MatchListItemData>();
+
+                foreach (string matchId in user.activeMatchIds)
+                {
+                    items.Add(
+                        new MatchListItemData
+                        {
+                            matchId = matchId,
+                            status = "Unknown"
+                        });
+                }
+
+                BuildMatchList(items);
+            });
     }
 
     public void OnCreateMatchPressed()
@@ -161,5 +241,69 @@ public class MatchStatusPanel : MonoBehaviour
         preGamePanel.TryResumeActiveMatch();
     }
 
+    private void ClearRows()
+    {
+        foreach (var row in rows)
+        {
+            if (row != null)
+                Destroy(row.gameObject);
+        }
 
+        rows.Clear();
+    }
+
+    private void CreateRow(MatchListItemData data)
+    {
+        MatchStatusRow row =
+            Instantiate(rowPrefab, contentParent);
+
+        row.Setup(
+            data,
+            OnRowSelected);
+
+        rows.Add(row);
+    }
+
+    private void OnRowSelected(
+    string roomCode,
+    string matchId)
+    {
+        Debug.Log(
+            "[MATCH STATUS] Selected room=" +
+            roomCode +
+            " match=" +
+            matchId);
+
+        if (!string.IsNullOrEmpty(matchId))
+        {
+            preGamePanel.WatchMatch(matchId, false);
+            return;
+        }
+
+        if (!string.IsNullOrEmpty(roomCode))
+        {
+            preGamePanel.WatchRoom(roomCode);
+        }
+    }
+    private void BuildMatchList(
+    List<MatchListItemData> items)
+    {
+        ClearRows();
+
+        foreach (var item in items)
+        {
+            CreateRow(item);
+        }
+
+        if (items.Count == 0)
+        {
+            ShowStatus("No active games.");
+        }
+        else
+        {
+            ShowStatus(
+                items.Count +
+                " active matches");
+        }
+    }
 }

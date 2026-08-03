@@ -59,17 +59,28 @@ public class PreGamePanel : MonoBehaviour
         public string uid;
         public string displayName;
     }
-    
+
+    [Serializable]
+    public class StringListWrapper
+    {
+        public List<string> items = new List<string>();
+    }
+
     [System.Serializable]
     public class UserData
     {
         public string email;
         public string displayName;
+
+        public string avatarId;
+
         public long createdAt;
         public long lastSeenAt;
-        public string currentRoomId;
-        public string currentMatchId;
+
         public string presenceState;
+
+        public List<string> activeRoomIds = new List<string>();
+        public List<string> activeMatchIds = new List<string>();
     }
 
     [Serializable]
@@ -766,8 +777,10 @@ public class PreGamePanel : MonoBehaviour
                     displayName = displayName,
                     createdAt = System.DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
                     lastSeenAt = System.DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
-                    currentRoomId = "",
-                    currentMatchId = "",
+                    //currentRoomId = "",
+                    activeRoomIds = new List<string>(),
+                    activeMatchIds = new List<string>(),
+                    //currentMatchId = "",
                     presenceState = "online"
                 };
 
@@ -978,9 +991,60 @@ public class PreGamePanel : MonoBehaviour
             roomCodeInput.SetTextWithoutNotify(roomCode);
             roomCodeInput.ForceLabelUpdate();
 
+            //SetStatus("Room created: " + roomCode);
+            //WatchRoom(roomCode);
+
+            AddRoomToUser(roomCode);
+
+            roomCodeInput.text = roomCode;
+            roomCodeInput.SetTextWithoutNotify(roomCode);
+            roomCodeInput.ForceLabelUpdate();
+
             SetStatus("Room created: " + roomCode);
             WatchRoom(roomCode);
+
+            //user.activeRoomIds.Add(roomCode);
+            //presenceState = "waiting";
+
         });
+    }
+
+    private void AddRoomToUser(string roomCode)
+    {
+        if (auth == null || auth.CurrentUser == null)
+            return;
+
+        string uid = auth.CurrentUser.UserId;
+
+        dbRoot.Child("users")
+              .Child(uid)
+              .Child("activeRoomIds")
+              .GetValueAsync()
+              .ContinueWithOnMainThread(task =>
+              {
+                  if (task.IsFaulted || task.Result == null)
+                      return;
+
+                  List<string> rooms = new List<string>();
+
+                  if (task.Result.Exists)
+                  {
+                      foreach (var child in task.Result.Children)
+                      {
+                          if (child.Value != null)
+                              rooms.Add(child.Value.ToString());
+                      }
+                  }
+
+                  if (!rooms.Contains(roomCode))
+                      rooms.Add(roomCode);
+
+                  dbRoot.Child("users")
+                    .Child(uid)
+                    .Child("activeRoomIds")
+                    .SetRawJsonValueAsync(JsonUtility.ToJson(
+                        new StringListWrapper { items = rooms }));
+              });
     }
 
     public void OnJoinRoomPressed()
@@ -1060,6 +1124,8 @@ public class PreGamePanel : MonoBehaviour
                 Debug.Log("[PregamePanel] Joined room successfully: " + roomCode);
                 SetStatus("Joined room successfully: " + roomCode);
                 WatchRoom(roomCode);
+
+                
 
             }, uiScheduler);
 
