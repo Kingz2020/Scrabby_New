@@ -4538,7 +4538,8 @@ MonoBehaviour:
   pregamePanel: {fileID: 234334084}
   gameplayPanel: {fileID: 1281643445}
   gameoverPanel: {fileID: 2021165567}
-  preGamePanelController: {fileID: 0}
+  preGamePanelController: {fileID: 234334086}
+  matchstatusPanel: {fileID: 1320798986}
 --- !u!1 &417657285
 GameObject:
   m_ObjectHideFlags: 0

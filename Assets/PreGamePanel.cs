@@ -100,7 +100,8 @@ public class PreGamePanel : MonoBehaviour
     private void Start()
     {
         Debug.Log("[PreGamePanel] Start() running on GameObject: " + gameObject.name + " (EntityId: " + gameObject.GetEntityId() + ")");
-
+        Debug.Log("[PreGamePanel] Start running");
+        //Debug.Log("[PreGamePanel] START instance = " + GetInstanceID());
 
         if (startGameButton != null)
         {
@@ -119,20 +120,34 @@ public class PreGamePanel : MonoBehaviour
     {
         if (!firebaseInitialized)
         {
+            Debug.Log("[PreGamePanel] ENABLED");
             StartCoroutine(WaitForFirebaseThenInit());
         }
     }
 
     private IEnumerator WaitForFirebaseThenInit()
     {
+        Debug.Log("[PreGamePanel] WaitForFirebaseThenInit started");
+
         yield return new WaitUntil(() => FirebaseInit.IsReady);
+
+        Debug.Log("[PreGamePanel] Firebase became ready");
 
         if (firebaseInitialized)
             yield break; // an earlier run already finished this
 
         auth = FirebaseInit.Auth;
+
+        Debug.Log("FirebaseInit.Database = " + FirebaseInit.Database);
+        Debug.Log("FirebaseInit.Auth = " + FirebaseInit.Auth);
+
         dbRoot = FirebaseInit.Database.RootReference;
+
+        Debug.Log("[PreGamePanel] dbRoot assigned = " + dbRoot);
+
         firebaseInitialized = true;
+
+        
 
         Debug.Log("[PreGamePanel] Firebase init complete. dbRoot assigned: " + (dbRoot != null));
 
@@ -166,6 +181,11 @@ public class PreGamePanel : MonoBehaviour
     private FirebaseUser GetCurrentUser()
     {
         return FirebaseAuth.DefaultInstance?.CurrentUser;
+    }
+
+    private void OnDisable()
+    {
+        Debug.Log("[PreGamePanel] DISABLED");
     }
 
     private void AuthStateChanged(object sender, EventArgs eventArgs)
@@ -896,6 +916,25 @@ public class PreGamePanel : MonoBehaviour
             return;
         }
 
+        // Self-heal dbRoot if this panel's Firebase-init coroutine never completed
+        // (e.g. it was interrupted by the panel being disabled before FirebaseInit.IsReady).
+        if (dbRoot == null)
+        {
+            if (FirebaseInit.IsReady && FirebaseInit.Database != null)
+            {
+                dbRoot = FirebaseInit.Database.RootReference;
+                this.auth = FirebaseInit.Auth;
+                firebaseInitialized = true;
+                Debug.Log("[PreGamePanel] dbRoot was null — recovered from FirebaseInit.");
+            }
+            else
+            {
+                SetStatus("Firebase not ready yet. Try again in a moment.");
+                Debug.LogWarning("[PreGamePanel] OnCreateRoomPressed aborted: dbRoot null and FirebaseInit not ready.");
+                return;
+            }
+        }
+
         string roomCode = GenerateRoomCode();
         string hostName = GetBestDisplayName();
 
@@ -911,6 +950,10 @@ public class PreGamePanel : MonoBehaviour
         };
 
         string json = JsonUtility.ToJson(room);
+
+        Debug.Log("user = " + user);
+        Debug.Log("dbRoot = " + dbRoot);
+        Debug.Log("roomCodeInput = " + roomCodeInput);
 
         SetStatus("Creating room...");
 

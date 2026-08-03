@@ -30,6 +30,18 @@ public class FirebaseInit : MonoBehaviour
             Auth = FirebaseAuth.DefaultInstance;
             //Database = FirebaseDatabase.DefaultInstance;
             Database = FirebaseDatabase.GetInstance("https://partyscrabby-default-rtdb.europe-west1.firebasedatabase.app/");
+            Debug.Log("Database object: " + Database);
+
+            if (Database != null)
+            {
+                Debug.Log("RootReference: " + Database.RootReference);
+            }
+            else
+            {
+                Debug.LogError("Database is NULL!");
+            }
+
+
             Auth.StateChanged += AuthStateChanged;
             IsReady = true;
 
