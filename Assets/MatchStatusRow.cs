@@ -38,10 +38,7 @@ public class MatchStatusRow : MonoBehaviour
                 data.myScore + "-" + data.opponentScore;
         }
 
-        actionButtonText.text =
-            data.status == "Your Turn"
-            ? "Play"
-            : "Open";
+        actionButtonText.text = data.isRoom ? "Open" : "Resume";
 
         actionButton.onClick.RemoveAllListeners();
 

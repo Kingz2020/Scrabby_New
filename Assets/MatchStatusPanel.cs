@@ -26,6 +26,10 @@ public class MatchStatusPanel : MonoBehaviour
     [SerializeField] private Button resumeMatchButton;
     [SerializeField] private Button refreshButton;
 
+    [SerializeField] private Button loginButton;
+    [SerializeField] private Button logoutbutton;
+    [SerializeField] private TMP_Text loginnameText;
+
     [SerializeField] private PreGamePanel preGamePanel;
 
     [SerializeField]
@@ -38,9 +42,12 @@ public class MatchStatusPanel : MonoBehaviour
         new List<MatchStatusRow>();
 
     private DatabaseReference dbRoot;
-
+    private FirebaseAuth auth;
     private void Awake()
     {
+        Debug.Log("[WIRING CHECK] loginButton=" + (loginButton != null ? loginButton.name : "NULL") +
+               " | logoutbutton=" + (logoutbutton != null ? logoutbutton.name : "NULL"));
+
         if (createRoomButton != null)
             createRoomButton.onClick.AddListener(OnCreateMatchPressed);
 
@@ -52,6 +59,12 @@ public class MatchStatusPanel : MonoBehaviour
 
         if (refreshButton != null)
             refreshButton.onClick.AddListener(OnRefreshPressed);
+
+        if (loginButton != null)
+            loginButton.onClick.AddListener(OnLoginButtonPressed);
+
+        if (logoutbutton != null)
+            logoutbutton.onClick.AddListener(OnLogoutButtonPressed);
     }
 
     private void Start()
@@ -63,11 +76,27 @@ public class MatchStatusPanel : MonoBehaviour
     {
         yield return new WaitUntil(() => FirebaseInit.IsReady);
         dbRoot = FirebaseInit.Database.RootReference;
+        auth = FirebaseInit.Auth;
+
+        auth.StateChanged += OnAuthStateChanged;
+        UpdateLoginNameDisplay();
+    }
+
+    private void OnDestroy()
+    {
+        if (auth != null)
+            auth.StateChanged -= OnAuthStateChanged;
+    }
+
+    private void OnAuthStateChanged(object sender, System.EventArgs e)
+    {
+        UpdateLoginNameDisplay();
     }
 
     private void OnEnable()
     {
         ShowStatus("Checking for active matches...");
+        UpdateLoginNameDisplay();
         RefreshMatchState();
     }
 
@@ -77,7 +106,50 @@ public class MatchStatusPanel : MonoBehaviour
             statusText.text = text;
     }
 
+    public void OnLoginButtonPressed()
+    {
+        if (preGamePanel == null)
+        {
+            Debug.LogWarning("[MATCH STATUS] preGamePanel reference not assigned.");
+            return;
+        }
 
+        preGamePanel.OnLoginPressed();
+    }
+
+    public void OnLogoutButtonPressed()
+    {
+        Debug.Log("[MATCH STATUS] Logout button pressed");
+
+        if (preGamePanel == null)
+        {
+            Debug.LogWarning("[MATCH STATUS] preGamePanel reference not assigned.");
+            return;
+        }
+
+        preGamePanel.OnLogoutPressed();
+        UpdateLoginNameDisplay();
+    }
+
+    private void UpdateLoginNameDisplay()
+    {
+        if (loginnameText == null)
+            return;
+
+        var user = auth != null ? auth.CurrentUser : null;
+
+        if (user == null)
+        {
+            loginnameText.text = "Not signed in";
+            return;
+        }
+
+        string shownName = string.IsNullOrWhiteSpace(user.DisplayName)
+            ? user.Email
+            : user.DisplayName;
+
+        loginnameText.text = "Signed in as: " + shownName;
+    }
 
     public void ShowMatchInfo(string text)
     {
@@ -163,60 +235,6 @@ public class MatchStatusPanel : MonoBehaviour
     }
 
 
-    /*private void RefreshMatchState()
-    {
-        if (!FirebaseInit.IsReady)
-        {
-            ShowStatus("Firebase not ready.");
-            return;
-        }
-
-        var auth = FirebaseAuth.DefaultInstance;
-
-        if (auth == null || auth.CurrentUser == null)
-        {
-            ShowStatus("Not logged in.");
-            return;
-        }
-
-        string uid = auth.CurrentUser.UserId;
-
-        dbRoot.Child("users")
-              .Child(uid)
-              .GetValueAsync()
-              .ContinueWithOnMainThread(task =>
-              {
-                  if (task.IsFaulted)
-                  {
-                      ShowStatus("Failed to load user.");
-                      Debug.LogError(task.Exception);
-                      return;
-                  }
-
-                  if (!task.Result.Exists)
-                  {
-                      ShowStatus("User profile not found.");
-                      return;
-                  }
-
-                  string json = task.Result.GetRawJsonValue();
-
-                  PreGamePanel.UserData user =
-                      JsonUtility.FromJson<PreGamePanel.UserData>(json);
-
-                  if (user == null)
-                  {
-                      ShowStatus("User data invalid.");
-                      return;
-                  }
-
-                  StartCoroutine(
-                      LoadMatchList(
-                          uid,
-                          user.activeRoomIds,
-                          user.activeMatchIds));
-              });
-    }*/
     private void RefreshMatchState()
     {
         // Self-heal: OnEnable can fire before Start()'s Firebase-wait coroutine finishes
@@ -235,6 +253,8 @@ public class MatchStatusPanel : MonoBehaviour
             }
         }
 
+        UpdateLoginNameDisplay();
+
         var auth = FirebaseAuth.DefaultInstance;
 
         if (auth == null || auth.CurrentUser == null)
@@ -245,11 +265,16 @@ public class MatchStatusPanel : MonoBehaviour
 
         string uid = auth.CurrentUser.UserId;
 
+        Debug.Log("[MATCH STATUS] uid=" + uid);
+        Debug.Log("[MATCH STATUS] path=users/" + uid);
+
         dbRoot.Child("users")
               .Child(uid)
               .GetValueAsync()
               .ContinueWithOnMainThread(task =>
               {
+                  Debug.Log("[MATCH STATUS] Exists = " + (task.Result != null && task.Result.Exists));
+
                   if (task.IsFaulted)
                   {
                       ShowStatus("Failed to load user.");
@@ -257,8 +282,23 @@ public class MatchStatusPanel : MonoBehaviour
                       return;
                   }
 
+                  Debug.Log(
+                    "[MATCH STATUS] Exists = " +
+                        task.Result.Exists);
+
+                  Debug.Log(
+                      "[MATCH STATUS] Key = " +
+                      task.Result.Key);
+
+                  Debug.Log(
+                      "[MATCH STATUS] Raw JSON = " +
+                      task.Result.GetRawJsonValue());
+
+
                   if (!task.Result.Exists)
                   {
+
+
                       ShowStatus("User profile not found.");
                       return;
                   }

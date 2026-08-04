@@ -30,6 +30,7 @@ public class PreGamePanel : MonoBehaviour
     [SerializeField] private GameObject gameOverPanel;
     [SerializeField] private GameObject optionPanel;
     //private bool hasEnteredGameplay = false;
+    [SerializeField] private MatchStatusPanel matchStatusPanel;
 
     private DatabaseReference dbRoot;
 
@@ -912,6 +913,13 @@ public class PreGamePanel : MonoBehaviour
                     signedInAsText.text = "Signed in as: " + shownName;
 
                 RefreshUI();
+
+                // Return to MatchStatusPanel now that login succeeded.
+                if (matchStatusPanel != null)
+                {
+                    matchStatusPanel.gameObject.SetActive(true);
+                    gameObject.SetActive(false);
+                }
             });
         });
     }
@@ -1015,39 +1023,23 @@ public class PreGamePanel : MonoBehaviour
 
         string uid = auth.CurrentUser.UserId;
 
-        dbRoot.Child("users")
-              .Child(uid)
-              .Child("activeMatchIds")
-              .GetValueAsync()
-              .ContinueWithOnMainThread(task =>
-              {
-                  if (task.IsFaulted || task.Result == null)
-                      return;
+        dbRoot.Child("users").Child(uid).GetValueAsync().ContinueWithOnMainThread(task =>
+        {
+            if (task.IsFaulted || task.Result == null || !task.Result.Exists)
+                return;
 
-                  List<string> matches = new List<string>();
+            UserData userData = JsonUtility.FromJson<UserData>(task.Result.GetRawJsonValue());
+            if (userData == null)
+                return;
 
-                  if (task.Result.Exists)
-                  {
-                      foreach (var child in task.Result.Children)
-                      {
-                          if (child.Value != null)
-                              matches.Add(child.Value.ToString());
-                      }
-                  }
+            if (userData.activeMatchIds == null)
+                userData.activeMatchIds = new List<string>();
 
-                  if (!matches.Contains(matchId))
-                      matches.Add(matchId);
+            if (!userData.activeMatchIds.Contains(matchId))
+                userData.activeMatchIds.Add(matchId);
 
-                  dbRoot.Child("users")
-                        .Child(uid)
-                        .Child("activeMatchIds")
-                        .SetRawJsonValueAsync(
-                            JsonUtility.ToJson(
-                                new StringListWrapper
-                                {
-                                    items = matches
-                                }));
-              });
+            dbRoot.Child("users").Child(uid).SetRawJsonValueAsync(JsonUtility.ToJson(userData));
+        });
     }
     private void AddRoomToUser(string roomCode)
     {
@@ -1056,35 +1048,23 @@ public class PreGamePanel : MonoBehaviour
 
         string uid = auth.CurrentUser.UserId;
 
-        dbRoot.Child("users")
-              .Child(uid)
-              .Child("activeRoomIds")
-              .GetValueAsync()
-              .ContinueWithOnMainThread(task =>
-              {
-                  if (task.IsFaulted || task.Result == null)
-                      return;
+        dbRoot.Child("users").Child(uid).GetValueAsync().ContinueWithOnMainThread(task =>
+        {
+            if (task.IsFaulted || task.Result == null || !task.Result.Exists)
+                return;
 
-                  List<string> rooms = new List<string>();
+            UserData userData = JsonUtility.FromJson<UserData>(task.Result.GetRawJsonValue());
+            if (userData == null)
+                return;
 
-                  if (task.Result.Exists)
-                  {
-                      foreach (var child in task.Result.Children)
-                      {
-                          if (child.Value != null)
-                              rooms.Add(child.Value.ToString());
-                      }
-                  }
+            if (userData.activeRoomIds == null)
+                userData.activeRoomIds = new List<string>();
 
-                  if (!rooms.Contains(roomCode))
-                      rooms.Add(roomCode);
+            if (!userData.activeRoomIds.Contains(roomCode))
+                userData.activeRoomIds.Add(roomCode);
 
-                  dbRoot.Child("users")
-                    .Child(uid)
-                    .Child("activeRoomIds")
-                    .SetRawJsonValueAsync(JsonUtility.ToJson(
-                        new StringListWrapper { items = rooms }));
-              });
+            dbRoot.Child("users").Child(uid).SetRawJsonValueAsync(JsonUtility.ToJson(userData));
+        });
     }
 
     public void OnJoinRoomPressed()
@@ -1501,6 +1481,7 @@ public class PreGamePanel : MonoBehaviour
                 Debug.Log("[PregamePanel] Loading existing match: " + room.matchId);
 
                 Debug.Log($"[STARTFLOW] Existing match detected matchId={room.matchId}");
+                AddMatchToUser(room.matchId);
                 WatchMatch(room.matchId, true);
                 Debug.Log("[STARTFLOW] WatchMatch called for existing match");
 
@@ -1843,6 +1824,8 @@ public class PreGamePanel : MonoBehaviour
                             Debug.Log("[PregamePanel] Player1 rack: " + GetRackDebugString(sharedrackjson));
                             Debug.Log("[PregamePanel] Player2 rack: " + GetRackDebugString(sharedrackjson));
                             Debug.Log("[PregamePanel] Bag tiles remaining: " + bag.tiles.Count);
+
+                            AddMatchToUser(matchId); // for the local (host) player
 
                             SetStatus("Game started.");
                             WatchMatch(matchId,true);
