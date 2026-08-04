@@ -1,4 +1,4 @@
-using UnityEngine;
+/*using UnityEngine;
 
 public class FirebaseDebugButtons : MonoBehaviour
 {
@@ -18,4 +18,4 @@ public class FirebaseDebugButtons : MonoBehaviour
     {
         matchService.JoinRoom("ABCD12");
     }
-}
+}*/

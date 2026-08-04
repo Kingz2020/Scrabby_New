@@ -1,10 +1,12 @@
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
+using System.Collections;
 using System.Collections.Generic;
 using Firebase.Auth;
 using Firebase.Database;
 using Firebase.Extensions;
+
 
 public class MatchStatusPanel : MonoBehaviour
 {
@@ -54,8 +56,13 @@ public class MatchStatusPanel : MonoBehaviour
 
     private void Start()
     {
-        if (FirebaseInit.IsReady)
-            dbRoot = FirebaseInit.Database.RootReference;
+        StartCoroutine(WaitForFirebaseThenInit());
+    }
+
+    private IEnumerator WaitForFirebaseThenInit()
+    {
+        yield return new WaitUntil(() => FirebaseInit.IsReady);
+        dbRoot = FirebaseInit.Database.RootReference;
     }
 
     private void OnEnable()
@@ -156,7 +163,7 @@ public class MatchStatusPanel : MonoBehaviour
     }
 
 
-    private void RefreshMatchState()
+    /*private void RefreshMatchState()
     {
         if (!FirebaseInit.IsReady)
         {
@@ -174,50 +181,244 @@ public class MatchStatusPanel : MonoBehaviour
 
         string uid = auth.CurrentUser.UserId;
 
-        dbRoot.Child("users").Child(uid)
-            .GetValueAsync()
-            .ContinueWithOnMainThread(task =>
+        dbRoot.Child("users")
+              .Child(uid)
+              .GetValueAsync()
+              .ContinueWithOnMainThread(task =>
+              {
+                  if (task.IsFaulted)
+                  {
+                      ShowStatus("Failed to load user.");
+                      Debug.LogError(task.Exception);
+                      return;
+                  }
+
+                  if (!task.Result.Exists)
+                  {
+                      ShowStatus("User profile not found.");
+                      return;
+                  }
+
+                  string json = task.Result.GetRawJsonValue();
+
+                  PreGamePanel.UserData user =
+                      JsonUtility.FromJson<PreGamePanel.UserData>(json);
+
+                  if (user == null)
+                  {
+                      ShowStatus("User data invalid.");
+                      return;
+                  }
+
+                  StartCoroutine(
+                      LoadMatchList(
+                          uid,
+                          user.activeRoomIds,
+                          user.activeMatchIds));
+              });
+    }*/
+    private void RefreshMatchState()
+    {
+        // Self-heal: OnEnable can fire before Start()'s Firebase-wait coroutine finishes
+        // (e.g. this panel gets enabled the same frame the scene loads).
+        if (dbRoot == null)
+        {
+            if (FirebaseInit.IsReady && FirebaseInit.Database != null)
             {
-                if (task.IsFaulted)
+                dbRoot = FirebaseInit.Database.RootReference;
+            }
+            else
+            {
+                ShowStatus("Firebase not ready.");
+                StartCoroutine(RetryRefreshWhenReady());
+                return;
+            }
+        }
+
+        var auth = FirebaseAuth.DefaultInstance;
+
+        if (auth == null || auth.CurrentUser == null)
+        {
+            ShowStatus("Not logged in.");
+            return;
+        }
+
+        string uid = auth.CurrentUser.UserId;
+
+        dbRoot.Child("users")
+              .Child(uid)
+              .GetValueAsync()
+              .ContinueWithOnMainThread(task =>
+              {
+                  if (task.IsFaulted)
+                  {
+                      ShowStatus("Failed to load user.");
+                      Debug.LogError(task.Exception);
+                      return;
+                  }
+
+                  if (!task.Result.Exists)
+                  {
+                      ShowStatus("User profile not found.");
+                      return;
+                  }
+
+                  string json = task.Result.GetRawJsonValue();
+
+                  PreGamePanel.UserData user =
+                      JsonUtility.FromJson<PreGamePanel.UserData>(json);
+
+                  if (user == null)
+                  {
+                      ShowStatus("User data invalid.");
+                      return;
+                  }
+
+                  StartCoroutine(
+                      LoadMatchList(
+                          uid,
+                          user.activeRoomIds,
+                          user.activeMatchIds));
+              });
+    }
+
+    private IEnumerator RetryRefreshWhenReady()
+    {
+        yield return new WaitUntil(() => FirebaseInit.IsReady && FirebaseInit.Database != null);
+        dbRoot = FirebaseInit.Database.RootReference;
+        RefreshMatchState();
+    }
+    private IEnumerator LoadMatchList(
+    string myUid,
+    List<string> roomIds,
+    List<string> matchIds)
+    {
+        List<MatchListItemData> items =
+            new List<MatchListItemData>();
+
+        //
+        // ROOMS
+        //
+        foreach (string roomCode in roomIds)
+        {
+            var roomTask =
+                dbRoot.Child("rooms")
+                      .Child(roomCode)
+                      .GetValueAsync();
+
+            yield return new WaitUntil(() => roomTask.IsCompleted);
+
+            if (roomTask.IsFaulted ||
+                roomTask.Result == null ||
+                !roomTask.Result.Exists)
+            {
+                continue;
+            }
+
+            RoomData room =
+                JsonUtility.FromJson<RoomData>(
+                    roomTask.Result.GetRawJsonValue());
+
+            if (room == null)
+                continue;
+
+            string opponentName =
+                room.hostUid == myUid
+                ? room.guestDisplayName
+                : room.hostDisplayName;
+
+            if (string.IsNullOrEmpty(opponentName))
+                opponentName = "(waiting)";
+
+            items.Add(
+                new MatchListItemData
                 {
-                    ShowStatus("Failed to load user.");
-                    Debug.LogError(task.Exception);
-                    return;
-                }
+                    isRoom = true,
+                    roomCode = room.code,
+                    opponentDisplayName = opponentName,
+                    status = room.status
+                });
+        }
 
-                if (!task.Result.Exists)
+        //
+        // MATCHES
+        //
+        foreach (string matchId in matchIds)
+        {
+            var matchTask =
+                dbRoot.Child("matches")
+                      .Child(matchId)
+                      .GetValueAsync();
+
+            yield return new WaitUntil(() => matchTask.IsCompleted);
+
+            if (matchTask.IsFaulted ||
+                matchTask.Result == null ||
+                !matchTask.Result.Exists)
+            {
+                continue;
+            }
+
+            MatchData match =
+                JsonUtility.FromJson<MatchData>(
+                    matchTask.Result.GetRawJsonValue());
+
+            if (match == null)
+                continue;
+
+            bool amPlayer1 =
+                match.player1Uid == myUid;
+
+            string opponentName =
+                amPlayer1
+                ? match.player2DisplayName
+                : match.player1DisplayName;
+
+            int myScore =
+                amPlayer1
+                ? match.player1Score
+                : match.player2Score;
+
+            int opponentScore =
+                amPlayer1
+                ? match.player2Score
+                : match.player1Score;
+
+            items.Add(
+                new MatchListItemData
                 {
-                    ShowStatus("User profile not found.");
-                    return;
-                }
+                    isRoom = false,
+                    matchId = match.matchId,
+                    roomCode = match.roomCode,
 
-                string json = task.Result.GetRawJsonValue();
+                    opponentDisplayName =
+                        opponentName,
 
-                PreGamePanel.UserData user = JsonUtility.FromJson<PreGamePanel.UserData>(json);
+                    status =
+                        match.status,
 
-                if (user == null)
-                {
-                    ShowStatus("User data invalid.");
-                    return;
-                }
+                    currentRound =
+                        match.currentRoundNumber,
 
-                Debug.Log($"[MATCH STATUS] state={user.presenceState}");
+                    myScore =
+                        myScore,
 
-                List<MatchListItemData> items =
-                    new List<MatchListItemData>();
+                    opponentScore =
+                        opponentScore
+                });
+        }
 
-                foreach (string matchId in user.activeMatchIds)
-                {
-                    items.Add(
-                        new MatchListItemData
-                        {
-                            matchId = matchId,
-                            status = "Unknown"
-                        });
-                }
+        BuildMatchList(items);
 
-                BuildMatchList(items);
-            });
+        if (items.Count == 0)
+        {
+            ShowStatus("No active games.");
+        }
+        else
+        {
+            ShowStatus(
+                $"{items.Count} games found");
+        }
     }
 
     public void OnCreateMatchPressed()
@@ -233,7 +434,8 @@ public class MatchStatusPanel : MonoBehaviour
     public void OnRefreshPressed()
     {
         Debug.Log("[MATCH STATUS] Refresh requested");
-        ShowStatus("Refresh not implemented yet");
+        ShowStatus("Checking for active matches...");
+        RefreshMatchState();
     }
 
     public void OnResumePressed()

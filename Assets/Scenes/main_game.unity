@@ -1669,7 +1669,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 5478c1b04a9e1b345aebf6f356287ad1, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::FirebaseDebugButtons
-  matchService: {fileID: 142773866}
 --- !u!114 &142773866
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -2458,7 +2457,7 @@ MonoBehaviour:
     m_Top: 0
     m_Bottom: 0
   m_ChildAlignment: 0
-  m_Spacing: 0
+  m_Spacing: 5
   m_ChildForceExpandWidth: 1
   m_ChildForceExpandHeight: 0
   m_ChildControlWidth: 1
@@ -4333,8 +4332,8 @@ MonoBehaviour:
   m_TargetGraphic: {fileID: 1185748093}
   m_HandleRect: {fileID: 1185748092}
   m_Direction: 0
-  m_Value: 1
-  m_Size: 0.99999934
+  m_Value: 0
+  m_Size: 1
   m_NumberOfSteps: 0
   m_OnValueChanged:
     m_PersistentCalls:
@@ -8114,7 +8113,7 @@ MonoBehaviour:
   m_TargetGraphic: {fileID: 1789655221}
   m_HandleRect: {fileID: 1789655220}
   m_Direction: 2
-  m_Value: 0
+  m_Value: 1
   m_Size: 1
   m_NumberOfSteps: 0
   m_OnValueChanged:
@@ -13359,6 +13358,8 @@ MonoBehaviour:
   resumeMatchButton: {fileID: 1773982491}
   refreshButton: {fileID: 2028308787}
   preGamePanel: {fileID: 234334086}
+  contentParent: {fileID: 209921923}
+  rowPrefab: {fileID: 3581404545213219368, guid: d3ae5777021739641929917d061d8d9c, type: 3}
 --- !u!1 &1350827182
 GameObject:
   m_ObjectHideFlags: 0
@@ -15710,10 +15711,10 @@ RectTransform:
   - {fileID: 750183907}
   m_Father: {fileID: 1320798987}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 0.5, y: 0.5}
-  m_AnchorMax: {x: 0.5, y: 0.5}
-  m_AnchoredPosition: {x: 0, y: 0}
-  m_SizeDelta: {x: 200, y: 200}
+  m_AnchorMin: {x: 0, y: 1}
+  m_AnchorMax: {x: 1, y: 1}
+  m_AnchoredPosition: {x: 26, y: -1138}
+  m_SizeDelta: {x: -100, y: 50}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &1627750264
 MonoBehaviour:

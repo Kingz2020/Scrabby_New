@@ -83,7 +83,7 @@ public class PreGamePanel : MonoBehaviour
         public List<string> activeMatchIds = new List<string>();
     }
 
-    [Serializable]
+    /*[Serializable]
     public class RoomData
     {
         public string code;
@@ -95,7 +95,7 @@ public class PreGamePanel : MonoBehaviour
         public string matchId;     // empty until game starts
         public long createdAtUnix;
     }
-
+    */
 
     private void Awake()
     {
@@ -1008,7 +1008,47 @@ public class PreGamePanel : MonoBehaviour
 
         });
     }
+    private void AddMatchToUser(string matchId)
+    {
+        if (auth == null || auth.CurrentUser == null)
+            return;
 
+        string uid = auth.CurrentUser.UserId;
+
+        dbRoot.Child("users")
+              .Child(uid)
+              .Child("activeMatchIds")
+              .GetValueAsync()
+              .ContinueWithOnMainThread(task =>
+              {
+                  if (task.IsFaulted || task.Result == null)
+                      return;
+
+                  List<string> matches = new List<string>();
+
+                  if (task.Result.Exists)
+                  {
+                      foreach (var child in task.Result.Children)
+                      {
+                          if (child.Value != null)
+                              matches.Add(child.Value.ToString());
+                      }
+                  }
+
+                  if (!matches.Contains(matchId))
+                      matches.Add(matchId);
+
+                  dbRoot.Child("users")
+                        .Child(uid)
+                        .Child("activeMatchIds")
+                        .SetRawJsonValueAsync(
+                            JsonUtility.ToJson(
+                                new StringListWrapper
+                                {
+                                    items = matches
+                                }));
+              });
+    }
     private void AddRoomToUser(string roomCode)
     {
         if (auth == null || auth.CurrentUser == null)
@@ -1319,6 +1359,7 @@ public class PreGamePanel : MonoBehaviour
 
         // Switch panels FIRST — Singleton/UIManager may live under gameplayPanel
         // and won't be ready (Awake hasn't run) until it's actually active.
+        if (optionPanel != null) optionPanel.SetActive(false);
         if (pregamePanel != null) pregamePanel.SetActive(false);
         if (gameplayPanel != null) gameplayPanel.SetActive(true);
         if (gameOverPanel != null) gameOverPanel.SetActive(false);
