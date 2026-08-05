@@ -54,6 +54,13 @@ public class PreGamePanel : MonoBehaviour
     private int watchedRoundNumber = -1;
     private int lastProcessedRound = 0;
 
+    private const string TestUserA_Email = "sexy@bikini.com";
+    private const string TestUserB_Email = "zia@far.com";
+    private const string TestUserPassword = "Scrabby1234";
+    private DatabaseReference watchedRoomRef;
+
+    private EventHandler<ValueChangedEventArgs> roomWatcher;
+
     [Serializable]
     public class RoomPlayerData
     {
@@ -83,20 +90,6 @@ public class PreGamePanel : MonoBehaviour
         public List<string> activeRoomIds = new List<string>();
         public List<string> activeMatchIds = new List<string>();
     }
-
-    /*[Serializable]
-    public class RoomData
-    {
-        public string code;
-        public string hostUid;
-        public string hostDisplayName;
-        public string guestUid;
-        public string guestDisplayName;
-        public string status;      // waiting, full, in_game, finished
-        public string matchId;     // empty until game starts
-        public long createdAtUnix;
-    }
-    */
 
     private void Awake()
     {
@@ -198,8 +191,27 @@ public class PreGamePanel : MonoBehaviour
     private void OnDisable()
     {
         Debug.Log("[PreGamePanel] DISABLED");
+        StopWatchingRoom();
     }
 
+    // on PreGamePanel
+    public void EnterMultiplayerFlow()
+    {
+        if (optionPanel != null) optionPanel.SetActive(false);
+
+        if (IsSignedIn())
+        {
+            // Already authenticated — skip the login screen entirely.
+            gameObject.SetActive(false);
+            if (matchStatusPanel != null) matchStatusPanel.gameObject.SetActive(true);
+        }
+        else
+        {
+            // Show the login/register screen; OnLoginPressed's success path
+            // already hands off to MatchStatusPanel once auth completes.
+            if (pregamePanel != null) pregamePanel.SetActive(true);
+        }
+    }
     private void AuthStateChanged(object sender, EventArgs eventArgs)
     {
         if (auth.CurrentUser != user)
@@ -219,6 +231,16 @@ public class PreGamePanel : MonoBehaviour
                 SetStatus("Signed in.");
                 if (signedInAsText != null)
                     signedInAsText.text = "Signed in as: " + shownName;
+
+                // Auto-login (persisted session) reached this point too — hand off
+                // to MatchStatusPanel the same way OnLoginPressed's success path does,
+                // but only if PreGamePanel is the one currently visible (avoid stealing
+                // focus if the user is mid-gameplay or elsewhere when a session refreshes).
+                if (matchStatusPanel != null && pregamePanel != null && pregamePanel.activeInHierarchy)
+                {
+                    matchStatusPanel.gameObject.SetActive(true);
+                    gameObject.SetActive(false);
+                }
             }
             else
             {
@@ -650,6 +672,12 @@ public class PreGamePanel : MonoBehaviour
 
     public void WatchMatch(string matchId, bool enterWhenReady = false)
     {
+        if (!EnsureFirebaseReady())
+        {
+            Debug.LogWarning("[PreGamePanel] WatchMatch aborted: Firebase not ready.");
+            return;
+        }
+
         TraceMatch("WatchMatch ENTER matchId=" + matchId);
 
         if (currentMatchRef != null)
@@ -694,10 +722,9 @@ public class PreGamePanel : MonoBehaviour
 
         Debug.Log("[PregamePanel] Register button pressed.");
 
-        if (auth == null)
+        if (!EnsureFirebaseReady())
         {
-            SetStatus("Firebase Auth not initialized.");
-            Debug.LogError("[PregamePanel] auth is NULL.");
+            SetStatus("Firebase not ready yet. Try again in a moment.");
             return;
         }
 
@@ -1078,6 +1105,12 @@ public class PreGamePanel : MonoBehaviour
             return;
         }
 
+        if (!EnsureFirebaseReady())
+        {
+            SetStatus("Firebase not ready yet. Try again in a moment.");
+            return;
+        }
+
         var uiScheduler = TaskScheduler.FromCurrentSynchronizationContext();
 
         SetStatus("Joining room...");
@@ -1215,38 +1248,98 @@ public class PreGamePanel : MonoBehaviour
         return new string(code);
     }
 
-
-    public void WatchRoom(string roomCode)
+    private void HandleRoomState(string roomCode, RoomData room)
     {
-        if (string.IsNullOrWhiteSpace(roomCode))
+        bool roomIsFull =
+            !string.IsNullOrEmpty(room.hostUid) &&
+            !string.IsNullOrEmpty(room.guestUid);
+
+        if (!roomIsFull)
+            return;
+
+        // Room is full but no match yet.
+        if (string.IsNullOrEmpty(room.matchId))
         {
-            Debug.LogWarning("[PregamePanel] WatchRoom called with empty room code.");
+            TryCreateInitialMatchFromRoom(roomCode, room);
             return;
         }
 
-        roomCode = roomCode.Trim().ToUpper();
+        // Match already exists.
+        AddMatchToUser(room.matchId);
+        WatchMatch(room.matchId, false);
+    }
+
+    public void WatchRoom(string roomCode)
+    {
+        if (string.IsNullOrEmpty(roomCode))
+            return;
+
+        // Self-heal dbRoot if this panel's Firebase-init coroutine never completed.
+        if (dbRoot == null)
+        {
+            if (FirebaseInit.IsReady && FirebaseInit.Database != null)
+            {
+                dbRoot = FirebaseInit.Database.RootReference;
+                auth = FirebaseInit.Auth;
+                firebaseInitialized = true;
+                Debug.Log("[PreGamePanel] dbRoot was null in WatchRoom — recovered from FirebaseInit.");
+            }
+            else
+            {
+                Debug.LogWarning("[PreGamePanel] WatchRoom aborted: dbRoot null and FirebaseInit not ready.");
+                return;
+            }
+        }
 
         StopWatchingRoom();
 
-        watchedRoomCode = roomCode;
-        currentRoomRef = dbRoot.Child("rooms").Child(roomCode);
-        currentRoomRef.ValueChanged += OnRoomValueChanged;
+        watchedRoomRef =
+            dbRoot.Child("rooms").Child(roomCode);
 
-        Debug.Log("[PregamePanel] Now watching room: " + roomCode);
+        roomWatcher = (sender, args) =>
+        {
+            if (args.DatabaseError != null)
+            {
+                Debug.LogError(
+                    "[ROOM WATCH] " +
+                    args.DatabaseError.Message);
+
+                return;
+            }
+
+            if (args.Snapshot == null ||
+                !args.Snapshot.Exists)
+            {
+                return;
+            }
+
+            string json =
+                args.Snapshot.GetRawJsonValue();
+
+            RoomData room =
+                JsonUtility.FromJson<RoomData>(json);
+
+            if (room == null)
+                return;
+
+            HandleRoomState(roomCode, room);
+        };
+
+        watchedRoomRef.ValueChanged += roomWatcher;
+
+        Debug.Log("[ROOM WATCH] Watching room " + roomCode);
     }
 
-    public void StopWatchingRoom()
+    private void StopWatchingRoom()
     {
-        if (currentRoomRef != null)
+        if (watchedRoomRef != null &&
+            roomWatcher != null)
         {
-            currentRoomRef.ValueChanged -= OnRoomValueChanged;
-            Debug.Log("[PregamePanel] Stopped watching room: " + watchedRoomCode);
-            currentRoomRef = null;
+            watchedRoomRef.ValueChanged -= roomWatcher;
         }
 
-        watchedRoomCode = "";
-
-
+        watchedRoomRef = null;
+        roomWatcher = null;
     }
 
     private void OnRoomValueChanged(object sender, ValueChangedEventArgs args)
@@ -1341,6 +1434,7 @@ public class PreGamePanel : MonoBehaviour
         // and won't be ready (Awake hasn't run) until it's actually active.
         if (optionPanel != null) optionPanel.SetActive(false);
         if (pregamePanel != null) pregamePanel.SetActive(false);
+        if (matchStatusPanel != null) matchStatusPanel.gameObject.SetActive(false);
         if (gameplayPanel != null) gameplayPanel.SetActive(true);
         if (gameOverPanel != null) gameOverPanel.SetActive(false);
 
@@ -1441,6 +1535,12 @@ public class PreGamePanel : MonoBehaviour
         if (string.IsNullOrEmpty(roomCode))
         {
             SetStatus("Enter a room code first.");
+            return;
+        }
+
+        if (!EnsureFirebaseReady())
+        {
+            SetStatus("Firebase not ready yet. Try again in a moment.");
             return;
         }
 
@@ -1855,7 +1955,7 @@ public class PreGamePanel : MonoBehaviour
     }
     private void SubmitRoundMove(RoundMove move)
     {
-        if (currentMatch == null || auth == null || auth.CurrentUser == null)
+        if (!EnsureFirebaseReady() || currentMatch == null || auth.CurrentUser == null)
         {
             SetStatus("Match not ready.");
             return;
@@ -1941,7 +2041,10 @@ public class PreGamePanel : MonoBehaviour
 
     public void TryResumeActiveMatch()
     {
-        if (auth == null || auth.CurrentUser == null)
+        if (!EnsureFirebaseReady())
+            return;
+
+        if (auth.CurrentUser == null)
             return;
 
         string uid = auth.CurrentUser.UserId;
@@ -2015,5 +2118,83 @@ public class PreGamePanel : MonoBehaviour
             gameOverPanel.SetActive(false);
 
         Debug.Log("[RESUME] Showing pregame panel");
+    }
+
+    public void OnSwitchTestUserPressed()
+    {
+        if (auth == null)
+        {
+            Debug.LogWarning("[PregamePanel] Cannot switch test user, auth is null.");
+            return;
+        }
+
+        string currentEmail = auth.CurrentUser != null ? auth.CurrentUser.Email : null;
+
+        string targetEmail = (currentEmail == TestUserA_Email)
+            ? TestUserB_Email
+            : TestUserA_Email;
+
+        Debug.Log("[PregamePanel] Switching test user: " + (currentEmail ?? "none") + " -> " + targetEmail);
+
+        if (auth.CurrentUser != null)
+            auth.SignOut();
+
+        SetStatus("Switching to " + targetEmail + "...");
+
+        auth.SignInWithEmailAndPasswordAsync(targetEmail, TestUserPassword).ContinueWith(task =>
+        {
+            if (task.IsCanceled)
+            {
+                RunOnMainThread(() => SetStatus("Switch canceled."));
+                return;
+            }
+
+            if (task.IsFaulted)
+            {
+                string err = GetFirebaseErrorMessage(task.Exception);
+                Debug.LogError("[PregamePanel] Switch test user failed: " + err);
+                RunOnMainThread(() => SetStatus("Switch failed: " + err));
+                return;
+            }
+
+            FirebaseUser signedInUser = task.Result.User;
+
+            RunOnMainThread(() =>
+            {
+                string shownName = string.IsNullOrWhiteSpace(signedInUser.DisplayName)
+                    ? signedInUser.Email
+                    : signedInUser.DisplayName;
+
+                SetStatus("Switched to: " + shownName);
+                if (signedInAsText != null)
+                    signedInAsText.text = "Signed in as: " + shownName;
+
+                RefreshUI();
+
+                if (matchStatusPanel != null)
+                {
+                    matchStatusPanel.gameObject.SetActive(true);
+                    matchStatusPanel.UpdateLoginNameDisplay();
+                }
+            });
+        });
+    }
+
+    private bool EnsureFirebaseReady()
+    {
+        if (dbRoot != null && auth != null)
+            return true;
+
+        if (FirebaseInit.IsReady && FirebaseInit.Database != null)
+        {
+            dbRoot = FirebaseInit.Database.RootReference;
+            auth = FirebaseInit.Auth;
+            firebaseInitialized = true;
+            Debug.Log("[PreGamePanel] Firebase self-healed via EnsureFirebaseReady.");
+            return true;
+        }
+
+        Debug.LogWarning("[PreGamePanel] EnsureFirebaseReady failed: Firebase not ready yet.");
+        return false;
     }
 }

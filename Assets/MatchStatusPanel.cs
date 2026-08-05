@@ -6,7 +6,7 @@ using System.Collections.Generic;
 using Firebase.Auth;
 using Firebase.Database;
 using Firebase.Extensions;
-
+using System;
 
 public class MatchStatusPanel : MonoBehaviour
 {
@@ -25,6 +25,7 @@ public class MatchStatusPanel : MonoBehaviour
     [SerializeField] private Button joinRoomButton;
     [SerializeField] private Button resumeMatchButton;
     [SerializeField] private Button refreshButton;
+    [SerializeField] private Button switchUserButton;
 
     [SerializeField] private Button loginButton;
     [SerializeField] private Button logoutbutton;
@@ -43,6 +44,11 @@ public class MatchStatusPanel : MonoBehaviour
 
     private DatabaseReference dbRoot;
     private FirebaseAuth auth;
+
+    private DatabaseReference watchedRoomRef;
+    private EventHandler<ValueChangedEventArgs> roomWatcher;
+    private string currentlyWatchedMatchId;
+
     private void Awake()
     {
         Debug.Log("[WIRING CHECK] loginButton=" + (loginButton != null ? loginButton.name : "NULL") +
@@ -65,6 +71,9 @@ public class MatchStatusPanel : MonoBehaviour
 
         if (logoutbutton != null)
             logoutbutton.onClick.AddListener(OnLogoutButtonPressed);
+
+        if (switchUserButton != null)
+            switchUserButton.onClick.AddListener(() => preGamePanel.OnSwitchTestUserPressed());
     }
 
     private void Start()
@@ -131,7 +140,7 @@ public class MatchStatusPanel : MonoBehaviour
         UpdateLoginNameDisplay();
     }
 
-    private void UpdateLoginNameDisplay()
+    public void UpdateLoginNameDisplay()
     {
         if (loginnameText == null)
             return;
@@ -518,7 +527,7 @@ public class MatchStatusPanel : MonoBehaviour
 
         if (!string.IsNullOrEmpty(matchId))
         {
-            preGamePanel.WatchMatch(matchId, false);
+            preGamePanel.WatchMatch(matchId, true);
             return;
         }
 
@@ -548,4 +557,5 @@ public class MatchStatusPanel : MonoBehaviour
                 " active matches");
         }
     }
+    
 }

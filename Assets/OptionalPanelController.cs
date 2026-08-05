@@ -44,15 +44,12 @@ public class OptionPanelController : MonoBehaviour
     {
         Debug.Log("[OptionPanel] Multiplayer selected");
 
-        if (optionPanel != null) optionPanel.SetActive(false); 
-        if (matchstatusPanel != null) matchstatusPanel.SetActive(true);
-
         if (preGamePanelController != null)
         {
-            preGamePanelController.TryResumeActiveMatch();
+            preGamePanelController.EnterMultiplayerFlow();
         }
     }
-
+ 
     public void ShowOptionPanel()
     {
         if (optionPanel != null) optionPanel.SetActive(true);
