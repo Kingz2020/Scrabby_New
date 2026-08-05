@@ -23,13 +23,13 @@ public class PreGamePanel : MonoBehaviour
     [SerializeField] private TextMeshProUGUI statusText;
     [SerializeField] private TextMeshProUGUI signedInAsText;
     [SerializeField] private GameObject pregamePanelRoot;
-    //[SerializeField] private GameObject gameplayRoot;
+
 
     [SerializeField] private GameObject pregamePanel;
     [SerializeField] private GameObject gameplayPanel;
     [SerializeField] private GameObject gameOverPanel;
     [SerializeField] private GameObject optionPanel;
-    //private bool hasEnteredGameplay = false;
+
     [SerializeField] private MatchStatusPanel matchStatusPanel;
 
     private DatabaseReference dbRoot;
@@ -1997,7 +1997,7 @@ public class PreGamePanel : MonoBehaviour
 
                 Debug.Log("[PregamePanel] Round " + roundNumber + " submission written.");
                 SetStatus("Move submitted. Waiting for other players...");
-                StartCoroutine(ShowSubmittedWaitingSequence());
+                gameLogic.StartCoroutine(ShowSubmittedWaitingSequence());
             });
     }
 
