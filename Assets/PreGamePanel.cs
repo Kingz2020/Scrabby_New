@@ -385,14 +385,20 @@ public class PreGamePanel : MonoBehaviour
         if (string.IsNullOrEmpty(currentMatch.lastRoundResultJson))
             return;
 
-        RoundResultData result =
-            JsonUtility.FromJson<RoundResultData>(
-                currentMatch.lastRoundResultJson);
-
+        RoundResultData result = JsonUtility.FromJson<RoundResultData>(currentMatch.lastRoundResultJson);
         if (result == null)
             return;
 
-        StartCoroutine(ShowOnlineRoundResultDelayed(result));
+        bool isViewingThisMatch =
+            gameplayPanel != null &&
+            gameplayPanel.activeInHierarchy &&
+            watchedMatchId == currentMatch.matchId;
+
+        if (isViewingThisMatch && gameLogic != null)
+        {
+            gameLogic.StartCoroutine(ShowOnlineRoundResultDelayed(result));
+        }
+        // else: player wasn't watching live — just let the round-2 rack/board load normally, no popup
     }
 
     private IEnumerator ShowOnlineRoundResultDelayed(
@@ -631,6 +637,22 @@ public class PreGamePanel : MonoBehaviour
                     matchDict["sharedrackjson"] = JsonUtility.ToJson(sharedRack);
                     matchDict["lastRoundResultJson"] = JsonUtility.ToJson(result);
                     matchDict["currentRoundNumber"] = liveRoundNumber + 1;
+
+                    int totalRounds = matchDict.ContainsKey("totalRounds") && matchDict["totalRounds"] != null
+                        ? Convert.ToInt32(matchDict["totalRounds"]) : 5;
+
+                    int nextRound = liveRoundNumber + 1;
+                    bool isFinalRoundJustPlayed = nextRound > totalRounds;
+
+                    matchDict["boardStateJson"] = JsonUtility.ToJson(board);
+                    matchDict["bagStateJson"] = JsonUtility.ToJson(bag);
+                    matchDict["sharedrackjson"] = JsonUtility.ToJson(sharedRack);
+                    matchDict["lastRoundResultJson"] = JsonUtility.ToJson(result);
+                    matchDict["currentRoundNumber"] = nextRound;
+                    matchDict["roundResolutionStatus"] = "done";
+                    matchDict["roundResolutionByUid"] = auth.CurrentUser.UserId;
+                    matchDict["status"] = isFinalRoundJustPlayed ? "completed" : "active";
+
                     matchDict["roundResolutionStatus"] = "done";
                     matchDict["roundResolutionByUid"] = auth.CurrentUser.UserId;
 
@@ -655,7 +677,28 @@ public class PreGamePanel : MonoBehaviour
             });
         });
     }
+    public void ShowGameOverForMatch(string matchId)
+    {
+        dbRoot.Child("matches").Child(matchId).GetValueAsync().ContinueWithOnMainThread(task =>
+        {
+            if (task.IsFaulted || task.Result == null || !task.Result.Exists)
+            {
+                SetStatus("Could not load game.");
+                return;
+            }
 
+            MatchData match = JsonUtility.FromJson<MatchData>(task.Result.GetRawJsonValue());
+            if (match == null) return;
+
+            if (optionPanel != null) optionPanel.SetActive(false);
+            if (pregamePanel != null) pregamePanel.SetActive(false);
+            if (gameplayPanel != null) gameplayPanel.SetActive(false);
+            if (matchStatusPanel != null) matchStatusPanel.gameObject.SetActive(false);
+            if (gameOverPanel != null) gameOverPanel.SetActive(true);
+
+            // populate gameOverPanel with match stats here
+        });
+    }
     private bool IsBetterSubmission(RoundSubmissionData candidate, RoundSubmissionData currentBest)
     {
         if (candidate.score != currentBest.score)
@@ -1887,6 +1930,8 @@ public class PreGamePanel : MonoBehaviour
                     roundResolutionStatus = "idle",
                     roundResolutionByUid = "",
 
+                    totalRounds = matchStatusPanel != null ? matchStatusPanel.GetRoundCount() : 5,
+
                     createdAtUnix = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
 
                     setupStatus = "done",
@@ -2013,6 +2058,19 @@ public class PreGamePanel : MonoBehaviour
 
         if (Singleton.Instance != null && Singleton.Instance.UIManager != null)
             Singleton.Instance.UIManager.ShowRoundMessage("Waiting for other players...");
+
+        yield return new WaitForSeconds(1.5f); // give them a beat to read it
+
+        // --- Switch back to MatchStatusPanel ---
+        if (gameplayPanel != null) gameplayPanel.SetActive(false);
+        if (pregamePanel != null) pregamePanel.SetActive(false);
+        if (gameOverPanel != null) gameOverPanel.SetActive(false);
+
+        if (matchStatusPanel != null)
+        {
+            matchStatusPanel.gameObject.SetActive(true);
+            matchStatusPanel.OnRefreshPressed(); // optional: refresh the match list so it shows current state
+        }
     }
 
     private string SerializeSimulatedTiles(RoundMove move)

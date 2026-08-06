@@ -86,6 +86,8 @@ public class MatchData
     public int stateVersion;
 
     public string bonusBoardJson;
+
+    public int totalRounds;
 }
 
 // One player's submission for a given round

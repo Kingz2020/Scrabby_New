@@ -13,13 +13,15 @@ public class MatchStatusRow : MonoBehaviour
 
     private string roomCode;
     private string matchId;
+    private bool isCompleted;
 
     public void Setup(
         MatchListItemData data,
-        System.Action<string, string> onAction)
+        System.Action<string, string, bool> onAction)
     {
         roomCode = data.roomCode;
         matchId = data.matchId;
+        isCompleted = !data.isRoom && data.status == "completed";
 
         opponentText.text = data.opponentDisplayName;
         statusText.text = data.status;
@@ -38,13 +40,16 @@ public class MatchStatusRow : MonoBehaviour
                 data.myScore + "-" + data.opponentScore;
         }
 
-        actionButtonText.text = data.isRoom ? "Open" : "Resume";
+        actionButtonText.text =
+            data.isRoom ? "Open" :
+            isCompleted ? "View Results" :
+            "Resume";
 
         actionButton.onClick.RemoveAllListeners();
 
         actionButton.onClick.AddListener(() =>
         {
-            onAction?.Invoke(roomCode, matchId);
+            onAction?.Invoke(roomCode, matchId, isCompleted);
         });
     }
 }
