@@ -231,9 +231,34 @@ public class MatchStatusPanel : MonoBehaviour
 
     private void OnJoinRoomPressed()
     {
-        Debug.Log("[MATCH STATUS] Join Room");
+        if (roomCodeText == null)
+        {
+            Debug.LogWarning("[MATCH STATUS] roomCodeText not assigned.");
+            return;
+        }
 
-        ShowStatus("Joining room...");
+        string roomCode = roomCodeText.text.Trim().ToUpper();
+
+        Debug.Log("[MATCH STATUS] OnJoinRoomPressed — raw input='" + roomCodeText.text +
+                  "' | normalized roomCode='" + roomCode + "' | length=" + roomCode.Length);
+
+        if (string.IsNullOrWhiteSpace(roomCode))
+        {
+            ShowStatus("Enter a room code.");
+            return;
+        }
+
+        if (preGamePanel == null)
+        {
+            Debug.LogWarning("[MATCH STATUS] preGamePanel reference not assigned.");
+            return;
+        }
+
+        // Sync the code into PreGamePanel's input field
+        preGamePanel.SetRoomCodeInput(roomCode);
+
+        // Now call the actual join logic
+        preGamePanel.OnJoinRoomPressed();
     }
 
     private void OnResumeMatchPressed()
@@ -246,6 +271,7 @@ public class MatchStatusPanel : MonoBehaviour
 
     private void RefreshMatchState()
     {
+        Debug.Log("[MATCH STATUS] RefreshMatchState (legacy) called");
         // Self-heal: OnEnable can fire before Start()'s Firebase-wait coroutine finishes
         // (e.g. this panel gets enabled the same frame the scene loads).
         if (dbRoot == null)
@@ -395,6 +421,19 @@ public class MatchStatusPanel : MonoBehaviour
                 opponentScore = opponentScore
             };
 
+            if (match.status != "completed")
+            {
+                var subTask = dbRoot.Child("matches").Child(match.matchId)
+                    .Child("rounds").Child(match.currentRoundNumber.ToString())
+                    .Child("submissions").Child(myUid)
+                    .GetValueAsync();
+
+                yield return new WaitUntil(() => subTask.IsCompleted);
+
+                itemData.hasSubmittedThisRound =
+                    !subTask.IsFaulted && subTask.Result != null && subTask.Result.Exists;
+            }
+
             if (match.status == "completed")
                 completedItems.Add(itemData);
             else
@@ -403,7 +442,61 @@ public class MatchStatusPanel : MonoBehaviour
 
         BuildMatchList(activeItems, completedItems);
     }
+    public void RefreshMatchStateForUser(string uid)
+    {
+        Debug.Log("[MATCH STATUS] RefreshMatchStateForUser called with uid=" + uid);
 
+        if (dbRoot == null)
+        {
+            if (FirebaseInit.IsReady && FirebaseInit.Database != null)
+            {
+                dbRoot = FirebaseInit.Database.RootReference;
+            }
+            else
+            {
+                ShowStatus("Firebase not ready.");
+                StartCoroutine(RetryRefreshForUserWhenReady(uid));
+                return;
+            }
+        }
+
+        UpdateLoginNameDisplay();
+
+        if (string.IsNullOrEmpty(uid))
+        {
+            ShowStatus("Not logged in.");
+            return;
+        }
+
+        dbRoot.Child("users")
+              .Child(uid)
+              .GetValueAsync()
+              .ContinueWithOnMainThread(task =>
+              {
+                  if (task.IsFaulted || task.Result == null || !task.Result.Exists)
+                  {
+                      ShowStatus("User profile not found.");
+                      return;
+                  }
+
+                  string json = task.Result.GetRawJsonValue();
+                  PreGamePanel.UserData user = JsonUtility.FromJson<PreGamePanel.UserData>(json);
+                  if (user == null)
+                  {
+                      ShowStatus("User data invalid.");
+                      return;
+                  }
+
+                  StartCoroutine(LoadMatchList(uid, user.activeRoomIds, user.activeMatchIds));
+              });
+    }
+
+    private IEnumerator RetryRefreshForUserWhenReady(string uid)
+    {
+        yield return new WaitUntil(() => FirebaseInit.IsReady && FirebaseInit.Database != null);
+        dbRoot = FirebaseInit.Database.RootReference;
+        RefreshMatchStateForUser(uid);
+    }
     public void OnCreateMatchPressed()
     {
         preGamePanel.OnCreateRoomPressed();

@@ -61,6 +61,10 @@ public class PreGamePanel : MonoBehaviour
 
     private EventHandler<ValueChangedEventArgs> roomWatcher;
 
+    private bool pendingEnterGameplay = false;
+
+    private string pendingResolutionMatchId = null;
+
     [Serializable]
     public class RoomPlayerData
     {
@@ -89,6 +93,15 @@ public class PreGamePanel : MonoBehaviour
 
         public List<string> activeRoomIds = new List<string>();
         public List<string> activeMatchIds = new List<string>();
+    }
+
+    [Serializable]
+    public class RoomInviteData
+    {
+        public string roomCode;
+        public string fromUid;
+        public string fromDisplayName;
+        public long createdAtUnix;
     }
 
     private void Awake()
@@ -252,8 +265,6 @@ public class PreGamePanel : MonoBehaviour
         }
     }
 
-    private bool pendingEnterGameplay = false;
-
     private void OnMatchValueChanged(object sender, ValueChangedEventArgs args)
     {
         if (args == null)
@@ -310,6 +321,13 @@ public class PreGamePanel : MonoBehaviour
 
         currentMatch = match;
 
+        if (currentMatch.matchId == pendingResolutionMatchId && currentMatch.status == "completed")
+        {
+            pendingResolutionMatchId = null;
+            ShowGameOverForMatch(currentMatch); // overload that takes the MatchData directly — no need to re-fetch
+            return; // skip the normal round-progression/waiting flow entirely
+        }
+
         if (currentMatch.currentRoundNumber > lastProcessedRound + 1)
         {
             HandleResolvedRound();
@@ -336,7 +354,7 @@ public class PreGamePanel : MonoBehaviour
         {
             pendingEnterGameplay = false;
             TraceMatch("OnMatchValueChanged TRIGGER EnterGameplayMode");
-            EnterGameplayMode();
+            CheckSubmissionThenEnterGameplay();
         }
     }
 
@@ -533,150 +551,134 @@ public class PreGamePanel : MonoBehaviour
 
             DatabaseReference matchRef = dbRoot.Child("matches").Child(matchId);
 
-            matchRef.RunTransaction(mutableData =>
+            matchRef.GetValueAsync().ContinueWithOnMainThread(matchReadTask =>
             {
-                try
+                if (matchReadTask.IsFaulted || matchReadTask.Result == null || !matchReadTask.Result.Exists)
                 {
-                    var matchDict = mutableData.Value as Dictionary<string, object>;
-                    if (matchDict == null)
-                        return TransactionResult.Abort();
-
-                    int liveRoundNumber = matchDict.ContainsKey("currentRoundNumber") && matchDict["currentRoundNumber"] != null
-                        ? Convert.ToInt32(matchDict["currentRoundNumber"]) : 0;
-
-                    if (liveRoundNumber != roundNumber)
-                        return TransactionResult.Abort(); // already resolved by someone else
-
-                    string resStatus = matchDict.ContainsKey("roundResolutionStatus") && matchDict["roundResolutionStatus"] != null
-                        ? matchDict["roundResolutionStatus"].ToString() : "idle";
-
-                    if (resStatus == "resolving" || resStatus == "done")
-                        return TransactionResult.Abort();
-
-                    RoundSubmissionData winner = null;
-                    foreach (var sub in submissions)
-                    {
-                        if (!sub.isValid) continue;
-                        if (winner == null || IsBetterSubmission(sub, winner))
-                            winner = sub;
-                    }
-
-                    string boardJson = matchDict.ContainsKey("boardStateJson") ? matchDict["boardStateJson"]?.ToString() : "";
-                    string bagJson = matchDict.ContainsKey("bagStateJson") ? matchDict["bagStateJson"]?.ToString() : "";
-                    string rackJson = matchDict.ContainsKey("sharedrackjson") ? matchDict["sharedrackjson"]?.ToString() : "";
-
-                    BoardStateData board = JsonUtility.FromJson<BoardStateData>(boardJson) ?? new BoardStateData();
-                    BagStateData bag = JsonUtility.FromJson<BagStateData>(bagJson) ?? new BagStateData();
-                    RackStateData sharedRack = JsonUtility.FromJson<RackStateData>(rackJson) ?? new RackStateData();
-
-                    RoundResultData result = new RoundResultData
-                    {
-                        roundNumber = roundNumber,
-                        anyValidMove = winner != null
-                    };
-
-                    string player1Uid = matchDict.ContainsKey("player1Uid") ? matchDict["player1Uid"]?.ToString() : "";
-
-                    if (winner != null)
-                    {
-                        SimTileListWrapper wrapper = JsonUtility.FromJson<SimTileListWrapper>(winner.simulatedTilesJson);
-
-                        if (wrapper != null && wrapper.tiles != null)
-                        {
-                            foreach (var tile in wrapper.tiles)
-                            {
-                                int idx = sharedRack.tiles.FindIndex(t => t.letter == tile.letter);
-                                if (idx >= 0)
-                                    sharedRack.tiles.RemoveAt(idx);
-
-                                int x = tile.col - 1;
-                                int y = tile.row - 1;
-                                BoardCellData cell = FindCell(board, x, y);
-                                if (cell != null)
-                                {
-                                    cell.occupied = true;
-                                    cell.tile = new TileData
-                                    {
-                                        letter = tile.letter,
-                                        value = tile.points,
-                                        id = Guid.NewGuid().ToString("N")
-                                    };
-                                }
-                            }
-                        }
-
-                        result.winnerUid = winner.uid;
-                        result.winnerWord = winner.word;
-                        result.winnerScore = winner.score;
-
-                        bool winnerIsPlayer1 = winner.uid == player1Uid;
-                        result.winnerDisplayName = winnerIsPlayer1
-                            ? (matchDict.ContainsKey("player1DisplayName") ? matchDict["player1DisplayName"]?.ToString() : "")
-                            : (matchDict.ContainsKey("player2DisplayName") ? matchDict["player2DisplayName"]?.ToString() : "");
-
-                        if (winnerIsPlayer1)
-                        {
-                            int p1 = matchDict.ContainsKey("player1Score") && matchDict["player1Score"] != null ? Convert.ToInt32(matchDict["player1Score"]) : 0;
-                            matchDict["player1Score"] = p1 + winner.score;
-                        }
-                        else
-                        {
-                            int p2 = matchDict.ContainsKey("player2Score") && matchDict["player2Score"] != null ? Convert.ToInt32(matchDict["player2Score"]) : 0;
-                            matchDict["player2Score"] = p2 + winner.score;
-                        }
-                    }
-
-                    while (sharedRack.tiles.Count < 7 && bag.tiles != null && bag.tiles.Count > 0)
-                    {
-                        sharedRack.tiles.Add(bag.tiles[0]);
-                        bag.tiles.RemoveAt(0);
-                    }
-
-                    matchDict["boardStateJson"] = JsonUtility.ToJson(board);
-                    matchDict["bagStateJson"] = JsonUtility.ToJson(bag);
-                    matchDict["sharedrackjson"] = JsonUtility.ToJson(sharedRack);
-                    matchDict["lastRoundResultJson"] = JsonUtility.ToJson(result);
-                    matchDict["currentRoundNumber"] = liveRoundNumber + 1;
-
-                    int totalRounds = matchDict.ContainsKey("totalRounds") && matchDict["totalRounds"] != null
-                        ? Convert.ToInt32(matchDict["totalRounds"]) : 5;
-
-                    int nextRound = liveRoundNumber + 1;
-                    bool isFinalRoundJustPlayed = nextRound > totalRounds;
-
-                    matchDict["boardStateJson"] = JsonUtility.ToJson(board);
-                    matchDict["bagStateJson"] = JsonUtility.ToJson(bag);
-                    matchDict["sharedrackjson"] = JsonUtility.ToJson(sharedRack);
-                    matchDict["lastRoundResultJson"] = JsonUtility.ToJson(result);
-                    matchDict["currentRoundNumber"] = nextRound;
-                    matchDict["roundResolutionStatus"] = "done";
-                    matchDict["roundResolutionByUid"] = auth.CurrentUser.UserId;
-                    matchDict["status"] = isFinalRoundJustPlayed ? "completed" : "active";
-
-                    matchDict["roundResolutionStatus"] = "done";
-                    matchDict["roundResolutionByUid"] = auth.CurrentUser.UserId;
-
-                    mutableData.Value = matchDict;
-                    return TransactionResult.Success(mutableData);
-                }
-                catch (Exception ex)
-                {
-                    Debug.LogError("[RESOLVE] Exception INSIDE transaction: " + ex);
-                    throw; // rethrow so the transaction still aborts/fails as before
-                }
-            })
-            .ContinueWithOnMainThread(txTask =>
-            {
-                if (txTask.IsFaulted)
-                {
-                    Debug.LogError("[PregamePanel] Failed to resolve round: " + txTask.Exception);
+                    Debug.LogError("[PregamePanel] Failed to read match for resolution: " + matchReadTask.Exception);
                     return;
                 }
 
-                Debug.Log("[PregamePanel] Round " + roundNumber + " resolve attempt finished.");
+                string matchJson = matchReadTask.Result.GetRawJsonValue();
+                MatchData liveMatch = JsonUtility.FromJson<MatchData>(matchJson);
+
+                if (liveMatch == null || liveMatch.currentRoundNumber != roundNumber)
+                    return; // already resolved by someone else, or stale read
+
+                if (liveMatch.roundResolutionStatus == "resolving" || liveMatch.roundResolutionStatus == "done")
+                    return; // someone already claimed/finished this round
+
+                // --- soft lock: claim it before doing any work ---
+                liveMatch.roundResolutionStatus = "resolving";
+                liveMatch.roundResolutionByUid = auth.CurrentUser.UserId;
+
+                matchRef.Child("roundResolutionStatus").SetValueAsync("resolving")
+                    .ContinueWithOnMainThread(claimTask =>
+                    {
+                        if (claimTask.IsFaulted)
+                        {
+                            Debug.LogError("[PregamePanel] Failed to claim round resolution: " + claimTask.Exception);
+                            return;
+                        }
+
+                        ResolveRoundNow(liveMatch, roundNumber, submissions, matchRef);
+                    });
             });
         });
     }
+    private void ResolveRoundNow(MatchData liveMatch, int roundNumber, List<RoundSubmissionData> submissions, DatabaseReference matchRef)
+    {
+        RoundSubmissionData winner = null;
+        foreach (var sub in submissions)
+        {
+            if (!sub.isValid) continue;
+            if (winner == null || IsBetterSubmission(sub, winner))
+                winner = sub;
+        }
+
+        BoardStateData board = JsonUtility.FromJson<BoardStateData>(liveMatch.boardStateJson) ?? new BoardStateData();
+        BagStateData bag = JsonUtility.FromJson<BagStateData>(liveMatch.bagStateJson) ?? new BagStateData();
+        RackStateData sharedRack = JsonUtility.FromJson<RackStateData>(liveMatch.sharedrackjson) ?? new RackStateData();
+
+        RoundResultData result = new RoundResultData
+        {
+            roundNumber = roundNumber,
+            anyValidMove = winner != null
+        };
+
+        if (winner != null)
+        {
+            SimTileListWrapper wrapper = JsonUtility.FromJson<SimTileListWrapper>(winner.simulatedTilesJson);
+
+            if (wrapper != null && wrapper.tiles != null)
+            {
+                foreach (var tile in wrapper.tiles)
+                {
+                    int idx = sharedRack.tiles.FindIndex(t => t.letter == tile.letter);
+                    if (idx >= 0)
+                        sharedRack.tiles.RemoveAt(idx);
+
+                    int x = tile.col - 1;
+                    int y = tile.row - 1;
+                    BoardCellData cell = FindCell(board, x, y);
+                    if (cell != null)
+                    {
+                        cell.occupied = true;
+                        cell.tile = new TileData
+                        {
+                            letter = tile.letter,
+                            value = tile.points,
+                            id = Guid.NewGuid().ToString("N")
+                        };
+                    }
+                }
+            }
+
+            result.winnerUid = winner.uid;
+            result.winnerWord = winner.word;
+            result.winnerScore = winner.score;
+
+            bool winnerIsPlayer1 = winner.uid == liveMatch.player1Uid;
+            result.winnerDisplayName = winnerIsPlayer1 ? liveMatch.player1DisplayName : liveMatch.player2DisplayName;
+
+            if (winnerIsPlayer1)
+                liveMatch.player1Score += winner.score;
+            else
+                liveMatch.player2Score += winner.score;
+        }
+
+        while (sharedRack.tiles.Count < 7 && bag.tiles != null && bag.tiles.Count > 0)
+        {
+            sharedRack.tiles.Add(bag.tiles[0]);
+            bag.tiles.RemoveAt(0);
+        }
+
+        int totalRounds = liveMatch.totalRounds > 0 ? liveMatch.totalRounds : 5;
+        int nextRound = roundNumber + 1;
+        bool isFinalRoundJustPlayed = nextRound > totalRounds;
+
+        liveMatch.boardStateJson = JsonUtility.ToJson(board);
+        liveMatch.bagStateJson = JsonUtility.ToJson(bag);
+        liveMatch.sharedrackjson = JsonUtility.ToJson(sharedRack);
+        liveMatch.lastRoundResultJson = JsonUtility.ToJson(result);
+        liveMatch.currentRoundNumber = nextRound;
+        liveMatch.roundResolutionStatus = "done";
+        liveMatch.status = isFinalRoundJustPlayed ? "completed" : "active";
+
+        string updatedJson = JsonUtility.ToJson(liveMatch);
+
+        matchRef.SetRawJsonValueAsync(updatedJson).ContinueWithOnMainThread(writeTask =>
+        {
+            if (writeTask.IsFaulted)
+            {
+                Debug.LogError("[PregamePanel] Failed to write resolved round: " + writeTask.Exception);
+                return;
+            }
+
+            Debug.Log("[PregamePanel] Round " + roundNumber + " resolved and written.");
+        });
+    }
+    // PUBLIC — used by MatchStatusPanel, which only has a matchId string
     public void ShowGameOverForMatch(string matchId)
     {
         dbRoot.Child("matches").Child(matchId).GetValueAsync().ContinueWithOnMainThread(task =>
@@ -690,14 +692,110 @@ public class PreGamePanel : MonoBehaviour
             MatchData match = JsonUtility.FromJson<MatchData>(task.Result.GetRawJsonValue());
             if (match == null) return;
 
-            if (optionPanel != null) optionPanel.SetActive(false);
-            if (pregamePanel != null) pregamePanel.SetActive(false);
-            if (gameplayPanel != null) gameplayPanel.SetActive(false);
-            if (matchStatusPanel != null) matchStatusPanel.gameObject.SetActive(false);
-            if (gameOverPanel != null) gameOverPanel.SetActive(true);
-
-            // populate gameOverPanel with match stats here
+            ShowGameOverForMatch(match);
         });
+    }
+
+    private void CheckSubmissionThenEnterGameplay()
+    {
+        Debug.Log("[PregamePanel] CheckSubmissionThenEnterGameplay ENTER | auth.CurrentUser=" +
+        (auth != null && auth.CurrentUser != null ? auth.CurrentUser.Email + " (" + auth.CurrentUser.UserId + ")" : "NULL") +
+        " | currentMatch=" + (currentMatch != null ? currentMatch.matchId : "NULL"));
+
+        if (currentMatch == null || auth == null || auth.CurrentUser == null)
+        {
+            Debug.LogWarning("[PregamePanel] CheckSubmissionThenEnterGameplay ABORTED early — null check failed.");
+            return;
+        }
+        
+
+        string uid = auth.CurrentUser.UserId;
+        int roundNumber = currentMatch.currentRoundNumber;
+
+        Debug.Log("[PregamePanel] Checking submission at matches/" + currentMatch.matchId + "/rounds/" + roundNumber + "/submissions/" + uid);
+
+        dbRoot.Child("matches").Child(currentMatch.matchId)
+            .Child("rounds").Child(roundNumber.ToString())
+            .Child("submissions").Child(uid)
+            .GetValueAsync().ContinueWithOnMainThread(task =>
+            {
+                Debug.Log("[PregamePanel] Submission check task completed. Faulted=" + task.IsFaulted);
+
+                if (task.IsFaulted)
+                {
+                    Debug.LogError("[PregamePanel] Failed to check submission status: " + task.Exception);
+                    return;
+                }
+
+                bool alreadySubmitted = task.Result != null && task.Result.Exists;
+
+                if (alreadySubmitted)
+                {
+                    SetStatus("You've already played this round. Waiting for other players...");
+
+                    if (optionPanel != null) optionPanel.SetActive(false);
+                    if (pregamePanel != null) pregamePanel.SetActive(false);
+                    if (gameplayPanel != null) gameplayPanel.SetActive(false);
+                    if (gameOverPanel != null) gameOverPanel.SetActive(false);
+
+                    if (matchStatusPanel != null)
+                    {
+                        matchStatusPanel.gameObject.SetActive(true);
+                        matchStatusPanel.OnRefreshPressed();
+                    }
+                }
+                else
+                {
+                    EnterGameplayMode();
+                }
+            });
+    }
+
+    private void ShowGameOverForMatch(MatchData match)
+    {
+        if (optionPanel != null) optionPanel.SetActive(false);
+        if (pregamePanel != null) pregamePanel.SetActive(false);
+        if (gameplayPanel != null) gameplayPanel.SetActive(false); // UIManager's gameOverPanel lives outside this, so it's fine to hide gameplayPanel
+        if (matchStatusPanel != null) matchStatusPanel.gameObject.SetActive(false);
+
+        string myUid = auth != null && auth.CurrentUser != null ? auth.CurrentUser.UserId : "";
+        bool amPlayer1 = match.player1Uid == myUid;
+
+        int myScore = amPlayer1 ? match.player1Score : match.player2Score;
+        int opponentScore = amPlayer1 ? match.player2Score : match.player1Score;
+        string opponentName = amPlayer1 ? match.player2DisplayName : match.player1DisplayName;
+
+        string finalMessage;
+        if (myScore > opponentScore)
+            finalMessage = "You win!";
+        else if (myScore < opponentScore)
+            finalMessage = "You lose.";
+        else
+            finalMessage = "It's a tie!";
+
+        string roundSummary =
+            "Final score\nYou: " + myScore + "  -  " + opponentName + ": " + opponentScore +
+            "\nRounds played: " + match.totalRounds;
+
+        UIManager uiManager = Singleton.Instance != null ? Singleton.Instance.UIManager : null;
+
+        if (uiManager == null)
+        {
+            // Player may not have entered gameplay this session yet (e.g. tapped a
+            // completed row straight from MatchStatusPanel on a fresh app open),
+            // so Singleton/UIManager might not have run Awake(). Fall back to a find.
+            uiManager = FindAnyObjectByType<UIManager>();
+        }
+
+        if (uiManager != null)
+        {
+            uiManager.ShowGameOverPanel(finalMessage, roundSummary);
+        }
+        else
+        {
+            Debug.LogWarning("[PregamePanel] Could not find UIManager to show game over panel.");
+            SetStatus(finalMessage + " " + roundSummary.Replace("\n", " "));
+        }
     }
     private bool IsBetterSubmission(RoundSubmissionData candidate, RoundSubmissionData currentBest)
     {
@@ -1139,7 +1237,7 @@ public class PreGamePanel : MonoBehaviour
 
     public void OnJoinRoomPressed()
     {
-        
+
         string roomCode = roomCodeInput.text.Trim().ToUpper();
 
         if (string.IsNullOrWhiteSpace(roomCode))
@@ -1148,6 +1246,22 @@ public class PreGamePanel : MonoBehaviour
             return;
         }
 
+        JoinRoomByCode(roomCode);
+    }
+    /*
+    if (!EnsureFirebaseReady())
+    {
+        SetStatus("Firebase not ready yet. Try again in a moment.");
+        return;
+    }
+
+    var uiScheduler = TaskScheduler.FromCurrentSynchronizationContext();
+
+    SetStatus("Joining room...");
+    */
+
+    public void JoinRoomByCode(string roomCode)
+    {
         if (!EnsureFirebaseReady())
         {
             SetStatus("Firebase not ready yet. Try again in a moment.");
@@ -1309,7 +1423,7 @@ public class PreGamePanel : MonoBehaviour
 
         // Match already exists.
         AddMatchToUser(room.matchId);
-        WatchMatch(room.matchId, false);
+        WatchMatch(room.matchId, true);
     }
 
     public void WatchRoom(string roomCode)
@@ -1971,6 +2085,8 @@ public class PreGamePanel : MonoBehaviour
                             Debug.Log("[PregamePanel] Bag tiles remaining: " + bag.tiles.Count);
 
                             AddMatchToUser(matchId); // for the local (host) player
+                            RemoveRoomFromUser(updatedRoom.hostUid, roomCode);
+                            RemoveRoomFromUser(updatedRoom.guestUid, roomCode);
 
                             SetStatus("Game started.");
                             WatchMatch(matchId,true);
@@ -1978,6 +2094,15 @@ public class PreGamePanel : MonoBehaviour
                     });
             });
         });
+    }
+    public void SetRoomCodeInput(string code)
+    {
+        if (roomCodeInput == null)
+            return;
+
+        roomCodeInput.text = code;
+        roomCodeInput.SetTextWithoutNotify(code);
+        roomCodeInput.ForceLabelUpdate();
     }
     private List<LetterInfo> ParseRackJson(string json)
     {
@@ -2042,6 +2167,9 @@ public class PreGamePanel : MonoBehaviour
 
                 Debug.Log("[PregamePanel] Round " + roundNumber + " submission written.");
                 SetStatus("Move submitted. Waiting for other players...");
+
+                pendingResolutionMatchId = currentMatch.matchId; // remember: I'm actively waiting on this match
+
                 gameLogic.StartCoroutine(ShowSubmittedWaitingSequence());
             });
     }
@@ -2049,7 +2177,7 @@ public class PreGamePanel : MonoBehaviour
     private IEnumerator ShowSubmittedWaitingSequence()
     {
         if (gameLogic != null)
-            gameLogic.SetInputLocked(true); // disable tile placement / submit button
+            gameLogic.SetInputLocked(true);
 
         if (Singleton.Instance != null && Singleton.Instance.UIManager != null)
             Singleton.Instance.UIManager.ShowRoundMessage("Move submitted!");
@@ -2059,9 +2187,11 @@ public class PreGamePanel : MonoBehaviour
         if (Singleton.Instance != null && Singleton.Instance.UIManager != null)
             Singleton.Instance.UIManager.ShowRoundMessage("Waiting for other players...");
 
-        yield return new WaitForSeconds(1.5f); // give them a beat to read it
+        yield return new WaitForSeconds(1.5f);
 
-        // --- Switch back to MatchStatusPanel ---
+        if (pendingResolutionMatchId == null)
+            yield break; // already redirected to game-over panel — don't switch to MatchStatusPanel
+
         if (gameplayPanel != null) gameplayPanel.SetActive(false);
         if (pregamePanel != null) pregamePanel.SetActive(false);
         if (gameOverPanel != null) gameOverPanel.SetActive(false);
@@ -2069,7 +2199,7 @@ public class PreGamePanel : MonoBehaviour
         if (matchStatusPanel != null)
         {
             matchStatusPanel.gameObject.SetActive(true);
-            matchStatusPanel.OnRefreshPressed(); // optional: refresh the match list so it shows current state
+            matchStatusPanel.OnRefreshPressed();
         }
     }
 
@@ -2219,6 +2349,8 @@ public class PreGamePanel : MonoBehaviour
 
             RunOnMainThread(() =>
             {
+                Debug.Log("[PregamePanel] RunOnMainThread action START for switch to " + targetEmail);
+
                 string shownName = string.IsNullOrWhiteSpace(signedInUser.DisplayName)
                     ? signedInUser.Email
                     : signedInUser.DisplayName;
@@ -2231,9 +2363,17 @@ public class PreGamePanel : MonoBehaviour
 
                 if (matchStatusPanel != null)
                 {
+                    Debug.Log("[PregamePanel] Calling RefreshMatchStateForUser with uid=" + signedInUser.UserId);
                     matchStatusPanel.gameObject.SetActive(true);
                     matchStatusPanel.UpdateLoginNameDisplay();
+                    matchStatusPanel.RefreshMatchStateForUser(signedInUser.UserId);
                 }
+                else
+                {
+                    Debug.LogWarning("[PregamePanel] matchStatusPanel is NULL in switch-user callback!");
+
+                }
+                Debug.Log("[PregamePanel] RunOnMainThread action END");
             });
         });
     }
@@ -2254,5 +2394,25 @@ public class PreGamePanel : MonoBehaviour
 
         Debug.LogWarning("[PreGamePanel] EnsureFirebaseReady failed: Firebase not ready yet.");
         return false;
+    }
+    private void RemoveRoomFromUser(string uid, string roomCode)
+    {
+        if (string.IsNullOrEmpty(uid) || string.IsNullOrEmpty(roomCode))
+            return;
+
+        dbRoot.Child("users").Child(uid).GetValueAsync().ContinueWithOnMainThread(task =>
+        {
+            if (task.IsFaulted || task.Result == null || !task.Result.Exists)
+                return;
+
+            UserData userData = JsonUtility.FromJson<UserData>(task.Result.GetRawJsonValue());
+            if (userData == null || userData.activeRoomIds == null)
+                return;
+
+            if (userData.activeRoomIds.Remove(roomCode))
+            {
+                dbRoot.Child("users").Child(uid).SetRawJsonValueAsync(JsonUtility.ToJson(userData));
+            }
+        });
     }
 }

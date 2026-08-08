@@ -19,4 +19,6 @@ public class MatchListItemData
     public int opponentScore;
 
     public bool isRoom;
+
+    public bool hasSubmittedThisRound;
 }
