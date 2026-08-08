@@ -662,48 +662,31 @@ public class MatchStatusPanel : MonoBehaviour
         if (!string.IsNullOrEmpty(roomCode))
             preGamePanel.WatchRoom(roomCode);
     }
-    
+
     /*private void OnInviteDeclined(string roomCode)
     {
         preGamePanel.DeclineRoomInvite(roomCode);
     }*/
-    public void AcceptRoomInvite(string roomCode)
-    {
-        // remove the invite record, then join normally
-        if (auth != null && auth.CurrentUser != null)
-        {
-            dbRoot.Child("users").Child(auth.CurrentUser.UserId).Child("invites").Child(roomCode).RemoveValueAsync();
-        }
 
-        JoinRoomByCode(roomCode);
-    }
-
-    public void DeclineRoomInvite(string roomCode)
-    {
-        if (auth != null && auth.CurrentUser != null)
-        {
-            dbRoot.Child("users").Child(auth.CurrentUser.UserId).Child("invites").Child(roomCode).RemoveValueAsync();
-        }
-
-        if (matchStatusPanel != null)
-            matchStatusPanel.OnRefreshPressed();
-    }
-
-    private void BuildMatchList(List<MatchListItemData> activeItems, List<MatchListItemData> completedItems, List<MatchListItemData> inviteItems)
+    private void BuildMatchList(List<MatchListItemData> activeItems, List<MatchListItemData> completedItems)
     {
         ClearRows();
 
-        foreach (var item in inviteItems)
-            CreateRow(item, false, invitesContentParent);
-
         foreach (var item in activeItems)
-            CreateRow(item, false, contentParent);
+            CreateRow(item, false);
 
         foreach (var item in completedItems)
-            CreateRow(item, true, completedContentParent);
+            CreateRow(item, true);
 
-        int total = activeItems.Count + completedItems.Count + inviteItems.Count;
+        int total = activeItems.Count + completedItems.Count;
         ShowStatus(total == 0 ? "No active games." : total + " games found");
+    }
+
+    private void CreateRow(MatchListItemData data, bool isCompleted)
+    {
+        MatchStatusRow row = Instantiate(rowPrefab, isCompleted ? completedContentParent : contentParent);
+        row.Setup(data, OnRowSelected);
+        rows.Add(row);
     }
 
     private void CreateRow(MatchListItemData data, bool isCompleted, Transform parent)

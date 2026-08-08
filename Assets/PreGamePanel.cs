@@ -1348,6 +1348,27 @@ public class PreGamePanel : MonoBehaviour
         dbRoot.Child("users").Child(toUid).Child("invites").Child(roomCode)
             .SetRawJsonValueAsync(JsonUtility.ToJson(invite));
     }
+    public void AcceptRoomInvite(string roomCode)
+    {
+        // remove the invite record, then join normally
+        if (auth != null && auth.CurrentUser != null)
+        {
+            dbRoot.Child("users").Child(auth.CurrentUser.UserId).Child("invites").Child(roomCode).RemoveValueAsync();
+        }
+
+        JoinRoomByCode(roomCode);
+    }
+
+    public void DeclineRoomInvite(string roomCode)
+    {
+        if (auth != null && auth.CurrentUser != null)
+        {
+            dbRoot.Child("users").Child(auth.CurrentUser.UserId).Child("invites").Child(roomCode).RemoveValueAsync();
+        }
+
+        if (matchStatusPanel != null)
+            matchStatusPanel.OnRefreshPressed();
+    }
 
     public void OnRematchPressed()
     {
