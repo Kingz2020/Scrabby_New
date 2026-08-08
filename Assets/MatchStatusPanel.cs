@@ -33,14 +33,15 @@ public class MatchStatusPanel : MonoBehaviour
 
     [SerializeField] private PreGamePanel preGamePanel;
 
-    [SerializeField]
-    private Transform contentParent;
+    [SerializeField] private Transform contentParent;
+    [SerializeField] private Transform invitesContentParent;
 
-    [SerializeField]
-    private MatchStatusRow rowPrefab;
+    [SerializeField] private MatchStatusRow rowPrefab;
+    [SerializeField] private InviteRow inviteRowPrefab;
 
-    private readonly List<MatchStatusRow> rows =
-        new List<MatchStatusRow>();
+    private readonly List<MatchStatusRow> rows = new List<MatchStatusRow>();
+
+    private readonly List<InviteRow> inviteRows = new List<InviteRow>();
 
     private DatabaseReference dbRoot;
     private FirebaseAuth auth;
@@ -363,51 +364,103 @@ public class MatchStatusPanel : MonoBehaviour
         dbRoot = FirebaseInit.Database.RootReference;
         RefreshMatchState();
     }
-    private IEnumerator LoadMatchList(string myUid, List<string> roomIds, List<string> matchIds)
+
+    private IEnumerator LoadMatchList(
+    string myUid,
+    List<string> roomIds,
+    List<string> matchIds)
     {
         List<MatchListItemData> activeItems = new List<MatchListItemData>();
         List<MatchListItemData> completedItems = new List<MatchListItemData>();
+        List<MatchListItemData> inviteItems = new List<MatchListItemData>();
 
+        //
         // ROOMS
+        //
         foreach (string roomCode in roomIds)
         {
-            var roomTask = dbRoot.Child("rooms").Child(roomCode).GetValueAsync();
+            var roomTask =
+                dbRoot.Child("rooms")
+                      .Child(roomCode)
+                      .GetValueAsync();
+
             yield return new WaitUntil(() => roomTask.IsCompleted);
 
-            if (roomTask.IsFaulted || roomTask.Result == null || !roomTask.Result.Exists)
+            if (roomTask.IsFaulted ||
+                roomTask.Result == null ||
+                !roomTask.Result.Exists)
+            {
+                continue;
+            }
+
+            RoomData room =
+                JsonUtility.FromJson<RoomData>(
+                    roomTask.Result.GetRawJsonValue());
+
+            if (room == null)
                 continue;
 
-            RoomData room = JsonUtility.FromJson<RoomData>(roomTask.Result.GetRawJsonValue());
-            if (room == null) continue;
+            string opponentName =
+                room.hostUid == myUid
+                ? room.guestDisplayName
+                : room.hostDisplayName;
 
-            string opponentName = room.hostUid == myUid ? room.guestDisplayName : room.hostDisplayName;
-            if (string.IsNullOrEmpty(opponentName)) opponentName = "(waiting)";
+            if (string.IsNullOrEmpty(opponentName))
+                opponentName = "(waiting)";
 
-            activeItems.Add(new MatchListItemData
-            {
-                isRoom = true,
-                roomCode = room.code,
-                opponentDisplayName = opponentName,
-                status = room.status
-            });
+            activeItems.Add(
+                new MatchListItemData
+                {
+                    isRoom = true,
+                    roomCode = room.code,
+                    opponentDisplayName = opponentName,
+                    status = room.status
+                });
         }
 
+        //
         // MATCHES
+        //
         foreach (string matchId in matchIds)
         {
-            var matchTask = dbRoot.Child("matches").Child(matchId).GetValueAsync();
+            var matchTask =
+                dbRoot.Child("matches")
+                      .Child(matchId)
+                      .GetValueAsync();
+
             yield return new WaitUntil(() => matchTask.IsCompleted);
 
-            if (matchTask.IsFaulted || matchTask.Result == null || !matchTask.Result.Exists)
+            if (matchTask.IsFaulted ||
+                matchTask.Result == null ||
+                !matchTask.Result.Exists)
+            {
+                continue;
+            }
+
+            MatchData match =
+                JsonUtility.FromJson<MatchData>(
+                    matchTask.Result.GetRawJsonValue());
+
+            if (match == null)
                 continue;
 
-            MatchData match = JsonUtility.FromJson<MatchData>(matchTask.Result.GetRawJsonValue());
-            if (match == null) continue;
+            bool amPlayer1 =
+                match.player1Uid == myUid;
 
-            bool amPlayer1 = match.player1Uid == myUid;
-            string opponentName = amPlayer1 ? match.player2DisplayName : match.player1DisplayName;
-            int myScore = amPlayer1 ? match.player1Score : match.player2Score;
-            int opponentScore = amPlayer1 ? match.player2Score : match.player1Score;
+            string opponentName =
+                amPlayer1
+                ? match.player2DisplayName
+                : match.player1DisplayName;
+
+            int myScore =
+                amPlayer1
+                ? match.player1Score
+                : match.player2Score;
+
+            int opponentScore =
+                amPlayer1
+                ? match.player2Score
+                : match.player1Score;
 
             var itemData = new MatchListItemData
             {
@@ -417,6 +470,7 @@ public class MatchStatusPanel : MonoBehaviour
                 opponentDisplayName = opponentName,
                 status = match.status,
                 currentRound = match.currentRoundNumber,
+                totalRounds = match.totalRounds,
                 myScore = myScore,
                 opponentScore = opponentScore
             };
@@ -440,8 +494,57 @@ public class MatchStatusPanel : MonoBehaviour
                 activeItems.Add(itemData);
         }
 
+        //
+        // INVITES
+        //
+        var invitesTask =
+            dbRoot.Child("users")
+                  .Child(myUid)
+                  .Child("invites")
+                  .GetValueAsync();
+
+        yield return new WaitUntil(() => invitesTask.IsCompleted);
+
+        if (!invitesTask.IsFaulted &&
+            invitesTask.Result != null &&
+            invitesTask.Result.Exists)
+        {
+            foreach (var child in invitesTask.Result.Children)
+            {
+                string raw = child.GetRawJsonValue();
+                if (string.IsNullOrEmpty(raw))
+                    continue;
+
+                PreGamePanel.RoomInviteData invite =
+                    JsonUtility.FromJson<PreGamePanel.RoomInviteData>(raw);
+
+                if (invite == null)
+                    continue;
+
+                inviteItems.Add(new MatchListItemData
+                {
+                    roomCode = invite.roomCode,
+                    opponentDisplayName = invite.fromDisplayName
+                });
+            }
+        }
+
         BuildMatchList(activeItems, completedItems);
+        BuildInviteRows(inviteItems);
+
+        int total = activeItems.Count + completedItems.Count + inviteItems.Count;
+
+        if (total == 0)
+        {
+            ShowStatus("No active games.");
+        }
+        else
+        {
+            ShowStatus($"{total} games found");
+        }
     }
+
+
     public void RefreshMatchStateForUser(string uid)
     {
         Debug.Log("[MATCH STATUS] RefreshMatchStateForUser called with uid=" + uid);
@@ -559,10 +662,88 @@ public class MatchStatusPanel : MonoBehaviour
         if (!string.IsNullOrEmpty(roomCode))
             preGamePanel.WatchRoom(roomCode);
     }
+    
+    /*private void OnInviteDeclined(string roomCode)
+    {
+        preGamePanel.DeclineRoomInvite(roomCode);
+    }*/
+    public void AcceptRoomInvite(string roomCode)
+    {
+        // remove the invite record, then join normally
+        if (auth != null && auth.CurrentUser != null)
+        {
+            dbRoot.Child("users").Child(auth.CurrentUser.UserId).Child("invites").Child(roomCode).RemoveValueAsync();
+        }
 
+        JoinRoomByCode(roomCode);
+    }
+
+    public void DeclineRoomInvite(string roomCode)
+    {
+        if (auth != null && auth.CurrentUser != null)
+        {
+            dbRoot.Child("users").Child(auth.CurrentUser.UserId).Child("invites").Child(roomCode).RemoveValueAsync();
+        }
+
+        if (matchStatusPanel != null)
+            matchStatusPanel.OnRefreshPressed();
+    }
+
+    private void BuildMatchList(List<MatchListItemData> activeItems, List<MatchListItemData> completedItems, List<MatchListItemData> inviteItems)
+    {
+        ClearRows();
+
+        foreach (var item in inviteItems)
+            CreateRow(item, false, invitesContentParent);
+
+        foreach (var item in activeItems)
+            CreateRow(item, false, contentParent);
+
+        foreach (var item in completedItems)
+            CreateRow(item, true, completedContentParent);
+
+        int total = activeItems.Count + completedItems.Count + inviteItems.Count;
+        ShowStatus(total == 0 ? "No active games." : total + " games found");
+    }
+
+    private void CreateRow(MatchListItemData data, bool isCompleted, Transform parent)
+    {
+        MatchStatusRow row = Instantiate(rowPrefab, parent);
+        row.Setup(data, OnRowSelected, OnInviteDeclined);
+        rows.Add(row);
+    }
+
+    private void BuildInviteRows(List<MatchListItemData> inviteItems)
+    {
+        foreach (var row in inviteRows)
+            if (row != null) Destroy(row.gameObject);
+        inviteRows.Clear();
+
+        foreach (var item in inviteItems)
+        {
+            InviteRow row = Instantiate(inviteRowPrefab, invitesContentParent);
+            row.Setup(item, OnInviteAccepted, OnInviteDeclined);
+            inviteRows.Add(row);
+        }
+    }
+
+    private void OnInviteAccepted(string roomCode)
+    {
+        preGamePanel.AcceptRoomInvite(roomCode);
+    }
+
+    private void OnInviteDeclined(string roomCode)
+    {
+        preGamePanel.DeclineRoomInvite(roomCode);
+    }
+
+    /*
     private void BuildMatchList(List<MatchListItemData> activeItems, List<MatchListItemData> completedItems)
     {
         ClearRows();
+
+        foreach (var item in inviteItems)
+            CreateRow(item, false, invitesContentParent);
 
         foreach (var item in activeItems)
             CreateRow(item, false);
@@ -579,5 +760,5 @@ public class MatchStatusPanel : MonoBehaviour
         MatchStatusRow row = Instantiate(rowPrefab, isCompleted ? completedContentParent : contentParent);
         row.Setup(data, OnRowSelected);
         rows.Add(row);
-    }
+    }*/
 }

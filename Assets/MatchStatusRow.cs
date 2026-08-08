@@ -12,51 +12,51 @@ public class MatchStatusRow : MonoBehaviour
     [SerializeField] private TMP_Text actionButtonText;
     [SerializeField] private TMP_Text roomCodeText;
 
+    [SerializeField] private Button declineButton;
+
     private string roomCode;
     private string matchId;
     private bool isCompleted;
 
     public void Setup(
     MatchListItemData data,
-    System.Action<string, string, bool> onAction)
+    System.Action<string, string, bool> onAction,
+    System.Action<string> onDecline = null)
     {
         roomCode = data.roomCode;
         matchId = data.matchId;
         isCompleted = !data.isRoom && data.status == "completed";
 
-        opponentText.text = data.opponentDisplayName;
-        statusText.text = data.status;
+        opponentText.text = data.isInvite ? (data.opponentDisplayName + " invited you") : data.opponentDisplayName;
+        statusText.text = data.isInvite ? "Invite" : data.status;
 
-        if (roomCodeText != null)
-            roomCodeText.text = data.roomCode;
-
-        if (data.isRoom)
+        if (data.isRoom || data.isInvite)
         {
             roundText.text = "-";
             scoreText.text = "-";
         }
         else
         {
-            roundText.text =
-                data.currentRound + "/" + data.totalRounds;
-
-            scoreText.text =
-                data.myScore + "-" + data.opponentScore;
+            roundText.text = data.currentRound + "/" + data.totalRounds;
+            scoreText.text = data.myScore + "-" + data.opponentScore;
         }
 
-        bool canResume = !data.isRoom && !isCompleted && !data.hasSubmittedThisRound;
+        if (roomCodeText != null)
+            roomCodeText.text = "Room: " + data.roomCode;
+
+        bool canResume = !data.isRoom && !data.isInvite && !isCompleted && !data.hasSubmittedThisRound;
 
         actionButtonText.text =
+            data.isInvite ? "Accept" :
             data.isRoom ? "Open" :
             isCompleted ? "View Results" :
             data.hasSubmittedThisRound ? "Waiting..." :
             "Resume";
 
-        if (data.isRoom || isCompleted)
+        if (data.isRoom || isCompleted || data.isInvite)
         {
-            // Rooms ("Open") and completed matches ("View Results") are always tappable
             actionButton.interactable = true;
-            actionButton.image.color = Color.white;
+            actionButton.image.color = data.isInvite ? Color.green : Color.white;
         }
         else
         {
@@ -65,10 +65,14 @@ public class MatchStatusRow : MonoBehaviour
         }
 
         actionButton.onClick.RemoveAllListeners();
+        actionButton.onClick.AddListener(() => onAction?.Invoke(roomCode, matchId, isCompleted));
 
-        actionButton.onClick.AddListener(() =>
+        if (declineButton != null)
         {
-            onAction?.Invoke(roomCode, matchId, isCompleted);
-        });
+            declineButton.gameObject.SetActive(data.isInvite);
+            declineButton.onClick.RemoveAllListeners();
+            if (data.isInvite)
+                declineButton.onClick.AddListener(() => onDecline?.Invoke(roomCode));
+        }
     }
 }

@@ -21,4 +21,7 @@ public class MatchListItemData
     public bool isRoom;
 
     public bool hasSubmittedThisRound;
+
+    //public string fromDisplayName; // reuse opponentDisplayName instead if you prefer — see note below
+    public bool isInvite;
 }

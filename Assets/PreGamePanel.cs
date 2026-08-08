@@ -1248,17 +1248,7 @@ public class PreGamePanel : MonoBehaviour
 
         JoinRoomByCode(roomCode);
     }
-    /*
-    if (!EnsureFirebaseReady())
-    {
-        SetStatus("Firebase not ready yet. Try again in a moment.");
-        return;
-    }
 
-    var uiScheduler = TaskScheduler.FromCurrentSynchronizationContext();
-
-    SetStatus("Joining room...");
-    */
 
     public void JoinRoomByCode(string roomCode)
     {
@@ -1340,6 +1330,56 @@ public class PreGamePanel : MonoBehaviour
             }, uiScheduler);
 
         }, uiScheduler);
+    }
+
+    public void SendRoomInvite(string toUid, string roomCode)
+    {
+        if (string.IsNullOrEmpty(toUid) || auth == null || auth.CurrentUser == null)
+            return;
+
+        RoomInviteData invite = new RoomInviteData
+        {
+            roomCode = roomCode,
+            fromUid = auth.CurrentUser.UserId,
+            fromDisplayName = GetBestDisplayName(),
+            createdAtUnix = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
+        };
+
+        dbRoot.Child("users").Child(toUid).Child("invites").Child(roomCode)
+            .SetRawJsonValueAsync(JsonUtility.ToJson(invite));
+    }
+
+    public void OnRematchPressed()
+    {
+        if (currentMatch == null || auth == null || auth.CurrentUser == null)
+            return;
+
+        string myUid = auth.CurrentUser.UserId;
+        string opponentUid = currentMatch.player1Uid == myUid ? currentMatch.player2Uid : currentMatch.player1Uid;
+
+        // reuse your existing room-creation logic, then invite the opponent
+        string roomCode = GenerateRoomCode();
+        RoomData room = new RoomData
+        {
+            code = roomCode,
+            hostUid = myUid,
+            hostDisplayName = GetBestDisplayName(),
+            guestUid = "",
+            guestDisplayName = "",
+            status = "waiting",
+            createdAtUnix = DateTimeOffset.UtcNow.ToUnixTimeSeconds()
+        };
+
+        dbRoot.Child("rooms").Child(roomCode).SetRawJsonValueAsync(JsonUtility.ToJson(room))
+            .ContinueWithOnMainThread(task =>
+            {
+                if (task.IsFaulted) { SetStatus("Rematch failed."); return; }
+
+                AddRoomToUser(roomCode);
+                SendRoomInvite(opponentUid, roomCode);
+                SetStatus("Rematch invite sent!");
+                ShowPregamePanel(); // or wherever makes sense post-gameover
+            });
     }
 
     public void OnLogoutPressed()
