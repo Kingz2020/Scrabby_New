@@ -3019,8 +3019,8 @@ MonoBehaviour:
   m_TargetGraphic: {fileID: 1080990188}
   m_HandleRect: {fileID: 1080990187}
   m_Direction: 0
-  m_Value: 0
-  m_Size: 0.99999994
+  m_Value: 1
+  m_Size: 1
   m_NumberOfSteps: 0
   m_OnValueChanged:
     m_PersistentCalls:
@@ -4792,7 +4792,7 @@ MonoBehaviour:
   m_TargetGraphic: {fileID: 1185748093}
   m_HandleRect: {fileID: 1185748092}
   m_Direction: 0
-  m_Value: 0
+  m_Value: 1
   m_Size: 1
   m_NumberOfSteps: 0
   m_OnValueChanged:
@@ -6584,7 +6584,7 @@ MonoBehaviour:
   m_TargetGraphic: {fileID: 850349771}
   m_HandleRect: {fileID: 850349770}
   m_Direction: 0
-  m_Value: 0
+  m_Value: 1
   m_Size: 1
   m_NumberOfSteps: 0
   m_OnValueChanged:
@@ -15013,7 +15013,9 @@ MonoBehaviour:
   loginnameText: {fileID: 2065300008}
   preGamePanel: {fileID: 234334086}
   contentParent: {fileID: 209921923}
+  invitesContentParent: {fileID: 0}
   rowPrefab: {fileID: 3581404545213219368, guid: d3ae5777021739641929917d061d8d9c, type: 3}
+  inviteRowPrefab: {fileID: 0}
   completedContentParent: {fileID: 1296076632}
 --- !u!1 &1323550256
 GameObject:

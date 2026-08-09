@@ -40,7 +40,7 @@ public class PreGamePanel : MonoBehaviour
 
     private DatabaseReference currentMatchRef;
     private DatabaseReference currentRoomRef;
-    private string watchedRoomCode = "";
+    //private string watchedRoomCode = "";
     private string watchedMatchId = "";
     private bool firebaseInitialized = false;
 
@@ -240,6 +240,8 @@ public class PreGamePanel : MonoBehaviour
 
             if (signedIn)
             {
+                RepairCurrentUserProfileIfMissing();
+
                 string shownName = string.IsNullOrWhiteSpace(user.DisplayName) ? user.Email : user.DisplayName;
                 SetStatus("Signed in.");
                 if (signedInAsText != null)
@@ -1080,6 +1082,8 @@ public class PreGamePanel : MonoBehaviour
                 if (signedInAsText != null)
                     signedInAsText.text = "Signed in as: " + shownName;
 
+                //RepairCurrentUserProfileIfMissing();
+
                 RefreshUI();
 
                 // Return to MatchStatusPanel now that login succeeded.
@@ -1184,21 +1188,37 @@ public class PreGamePanel : MonoBehaviour
 
         });
     }
-    private void AddMatchToUser(string matchId)
-    {
-        if (auth == null || auth.CurrentUser == null)
-            return;
 
-        string uid = auth.CurrentUser.UserId;
+    private void AddMatchToUser(string uid, string matchId, Action onComplete = null)
+    {
+        Debug.Log("[AddMatchToUser] ENTER uid=" + uid + " matchId=" + matchId);
+
+        if (string.IsNullOrEmpty(uid) || string.IsNullOrEmpty(matchId))
+        {
+            Debug.LogWarning("[AddMatchToUser] ABORT early: uid or matchId empty.");
+            onComplete?.Invoke();
+            return;
+        }
+
+        Debug.Log("[PreGamePanel] AddMatchToUser uid=" + uid + " matchId=" + matchId);
 
         dbRoot.Child("users").Child(uid).GetValueAsync().ContinueWithOnMainThread(task =>
         {
             if (task.IsFaulted || task.Result == null || !task.Result.Exists)
+            {
+                Debug.LogWarning("[PreGamePanel] AddMatchToUser read failed or user missing for uid=" + uid);
+                onComplete?.Invoke();
                 return;
+            }
 
-            UserData userData = JsonUtility.FromJson<UserData>(task.Result.GetRawJsonValue());
+            string json = task.Result.GetRawJsonValue();
+            UserData userData = JsonUtility.FromJson<UserData>(json);
             if (userData == null)
+            {
+                Debug.LogWarning("[PreGamePanel] AddMatchToUser could not parse UserData for uid=" + uid);
+                onComplete?.Invoke();
                 return;
+            }
 
             if (userData.activeMatchIds == null)
                 userData.activeMatchIds = new List<string>();
@@ -1206,24 +1226,102 @@ public class PreGamePanel : MonoBehaviour
             if (!userData.activeMatchIds.Contains(matchId))
                 userData.activeMatchIds.Add(matchId);
 
-            dbRoot.Child("users").Child(uid).SetRawJsonValueAsync(JsonUtility.ToJson(userData));
+            var updates = new Dictionary<string, object>
+        {
+            { "activeMatchIds", userData.activeMatchIds }
+        };
+
+            dbRoot.Child("users").Child(uid)
+                  .UpdateChildrenAsync(updates)
+                  .ContinueWithOnMainThread(writeTask =>
+                  {
+                      if (writeTask.IsFaulted)
+                      {
+                          Debug.LogError("[PreGamePanel] AddMatchToUser write failed for uid=" + uid + ": " + writeTask.Exception);
+                      }
+                      else
+                      {
+                          Debug.Log("[PreGamePanel] AddMatchToUser updated activeMatchIds for uid=" + uid +
+                                    " -> [" + string.Join(",", userData.activeMatchIds) + "]");
+                      }
+
+                      onComplete?.Invoke();
+                  });
         });
     }
-    private void AddRoomToUser(string roomCode)
+    public void RepairCurrentUserProfileIfMissing()
     {
-        if (auth == null || auth.CurrentUser == null)
+        if (!EnsureFirebaseReady() || auth == null || auth.CurrentUser == null)
             return;
 
         string uid = auth.CurrentUser.UserId;
 
         dbRoot.Child("users").Child(uid).GetValueAsync().ContinueWithOnMainThread(task =>
         {
-            if (task.IsFaulted || task.Result == null || !task.Result.Exists)
+            if (!task.IsFaulted && task.Result != null && task.Result.Exists)
+            {
+                // Profile already exists — don't overwrite a good one.
                 return;
+            }
 
-            UserData userData = JsonUtility.FromJson<UserData>(task.Result.GetRawJsonValue());
-            if (userData == null)
+            FirebaseUser u = auth.CurrentUser;
+            string displayName = string.IsNullOrWhiteSpace(u.DisplayName) ? u.Email : u.DisplayName;
+
+            UserData userData = new UserData
+            {
+                email = u.Email,
+                displayName = displayName,
+                avatarId = "",
+                createdAt = System.DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
+                lastSeenAt = System.DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
+                presenceState = "online",
+                activeRoomIds = new List<string>(),
+                activeMatchIds = new List<string>()
+            };
+
+            string json = JsonUtility.ToJson(userData);
+
+            dbRoot.Child("users").Child(uid).SetRawJsonValueAsync(json).ContinueWithOnMainThread(dbTask =>
+            {
+                if (dbTask.IsFaulted)
+                {
+                    Debug.LogError("[PreGamePanel] Repair profile write failed: " + dbTask.Exception);
+                    return;
+                }
+
+                Debug.Log("[PreGamePanel] Repaired user profile for uid=" + uid);
+            });
+        });
+    }
+
+    private void AddRoomToUser(string roomCode, Action onComplete = null)
+    {
+        if (auth == null || auth.CurrentUser == null || string.IsNullOrEmpty(roomCode))
+        {
+            onComplete?.Invoke();
+            return;
+        }
+
+        string uid = auth.CurrentUser.UserId;
+        Debug.Log("[PreGamePanel] AddRoomToUser uid=" + uid + " roomCode=" + roomCode);
+
+        dbRoot.Child("users").Child(uid).GetValueAsync().ContinueWithOnMainThread(task =>
+        {
+            if (task.IsFaulted || task.Result == null || !task.Result.Exists)
+            {
+                Debug.LogWarning("[PreGamePanel] AddRoomToUser read failed or user missing for uid=" + uid);
+                onComplete?.Invoke();
                 return;
+            }
+
+            string json = task.Result.GetRawJsonValue();
+            UserData userData = JsonUtility.FromJson<UserData>(json);
+            if (userData == null)
+            {
+                Debug.LogWarning("[PreGamePanel] AddRoomToUser could not parse UserData for uid=" + uid);
+                onComplete?.Invoke();
+                return;
+            }
 
             if (userData.activeRoomIds == null)
                 userData.activeRoomIds = new List<string>();
@@ -1231,7 +1329,27 @@ public class PreGamePanel : MonoBehaviour
             if (!userData.activeRoomIds.Contains(roomCode))
                 userData.activeRoomIds.Add(roomCode);
 
-            dbRoot.Child("users").Child(uid).SetRawJsonValueAsync(JsonUtility.ToJson(userData));
+            var updates = new Dictionary<string, object>
+        {
+            { "activeRoomIds", userData.activeRoomIds }
+        };
+
+            dbRoot.Child("users").Child(uid)
+                  .UpdateChildrenAsync(updates)
+                  .ContinueWithOnMainThread(writeTask =>
+                  {
+                      if (writeTask.IsFaulted)
+                      {
+                          Debug.LogError("[PreGamePanel] AddRoomToUser write failed for uid=" + uid + ": " + writeTask.Exception);
+                      }
+                      else
+                      {
+                          Debug.Log("[PreGamePanel] AddRoomToUser updated activeRoomIds for uid=" + uid +
+                                    " -> [" + string.Join(",", userData.activeRoomIds) + "]");
+                      }
+
+                      onComplete?.Invoke();
+                  });
         });
     }
 
@@ -1483,8 +1601,13 @@ public class PreGamePanel : MonoBehaviour
         }
 
         // Match already exists.
-        AddMatchToUser(room.matchId);
-        WatchMatch(room.matchId, true);
+        AddMatchToUser(auth.CurrentUser.UserId, room.matchId, () =>
+        {
+            if (matchStatusPanel != null)
+                matchStatusPanel.ForceRefresh();
+        });
+
+        WatchMatch(room.matchId, false);
     }
 
     public void WatchRoom(string roomCode)
@@ -1799,7 +1922,7 @@ public class PreGamePanel : MonoBehaviour
                 Debug.Log("[PregamePanel] Loading existing match: " + room.matchId);
 
                 Debug.Log($"[STARTFLOW] Existing match detected matchId={room.matchId}");
-                AddMatchToUser(room.matchId);
+                AddMatchToUser(auth.CurrentUser.UserId, room.matchId);
                 WatchMatch(room.matchId, true);
                 Debug.Log("[STARTFLOW] WatchMatch called for existing match");
 
@@ -2145,12 +2268,26 @@ public class PreGamePanel : MonoBehaviour
                             Debug.Log("[PregamePanel] Player2 rack: " + GetRackDebugString(sharedrackjson));
                             Debug.Log("[PregamePanel] Bag tiles remaining: " + bag.tiles.Count);
 
-                            AddMatchToUser(matchId); // for the local (host) player
-                            RemoveRoomFromUser(updatedRoom.hostUid, roomCode);
-                            RemoveRoomFromUser(updatedRoom.guestUid, roomCode);
+                            //AddMatchToUser(matchId); // for the local (host) player
+                            //AddMatchToUser(updatedRoom.hostUid, matchId);
+                            //AddMatchToUser(updatedRoom.guestUid, matchId);
+                            //RemoveRoomFromUser(updatedRoom.hostUid, roomCode);
+                            //RemoveRoomFromUser(updatedRoom.guestUid, roomCode);
 
-                            SetStatus("Game started.");
-                            WatchMatch(matchId,true);
+                            AddMatchToUser(updatedRoom.hostUid, matchId, () =>
+                            {
+                                RemoveRoomFromUser(updatedRoom.hostUid, roomCode);
+                            });
+
+                            AddMatchToUser(updatedRoom.guestUid, matchId, () =>
+                            {
+                                RemoveRoomFromUser(updatedRoom.guestUid, roomCode);
+                            });
+
+                            
+
+                            SetStatus("Game ready. Tap Resume to play.");
+                            WatchMatch(matchId,false);
                         });
                     });
             });
@@ -2340,10 +2477,6 @@ public class PreGamePanel : MonoBehaviour
 
                     WatchMatch(match.matchId,true);
 
-                    //pendingEnterGameplay = true;
-
-                    //EnterGameplayMode();
-
                     return;
                 }
 
@@ -2456,24 +2589,60 @@ public class PreGamePanel : MonoBehaviour
         Debug.LogWarning("[PreGamePanel] EnsureFirebaseReady failed: Firebase not ready yet.");
         return false;
     }
-    private void RemoveRoomFromUser(string uid, string roomCode)
+    private void RemoveRoomFromUser(string uid, string roomCode, Action onComplete = null)
     {
         if (string.IsNullOrEmpty(uid) || string.IsNullOrEmpty(roomCode))
+        {
+            onComplete?.Invoke();
             return;
+        }
+
+        Debug.Log("[PreGamePanel] RemoveRoomFromUser uid=" + uid + " roomCode=" + roomCode);
 
         dbRoot.Child("users").Child(uid).GetValueAsync().ContinueWithOnMainThread(task =>
         {
             if (task.IsFaulted || task.Result == null || !task.Result.Exists)
-                return;
-
-            UserData userData = JsonUtility.FromJson<UserData>(task.Result.GetRawJsonValue());
-            if (userData == null || userData.activeRoomIds == null)
-                return;
-
-            if (userData.activeRoomIds.Remove(roomCode))
             {
-                dbRoot.Child("users").Child(uid).SetRawJsonValueAsync(JsonUtility.ToJson(userData));
+                Debug.LogWarning("[PreGamePanel] RemoveRoomFromUser read failed or user missing for uid=" + uid);
+                onComplete?.Invoke();
+                return;
             }
+
+            string json = task.Result.GetRawJsonValue();
+            UserData userData = JsonUtility.FromJson<UserData>(json);
+            if (userData == null)
+            {
+                Debug.LogWarning("[PreGamePanel] RemoveRoomFromUser could not parse UserData for uid=" + uid);
+                onComplete?.Invoke();
+                return;
+            }
+
+            if (userData.activeRoomIds != null)
+                userData.activeRoomIds.Remove(roomCode);
+
+            var updates = new Dictionary<string, object>
+        {
+            { "activeRoomIds", userData.activeRoomIds }
+        };
+
+            dbRoot.Child("users").Child(uid)
+                  .UpdateChildrenAsync(updates)
+                  .ContinueWithOnMainThread(writeTask =>
+                  {
+                      if (writeTask.IsFaulted)
+                      {
+                          Debug.LogError("[PreGamePanel] RemoveRoomFromUser write failed for uid=" + uid + ": " + writeTask.Exception);
+                      }
+                      else
+                      {
+                          Debug.Log("[PreGamePanel] RemoveRoomFromUser updated activeRoomIds for uid=" + uid +
+                                    " -> [" + (userData.activeRoomIds == null
+                                                ? ""
+                                                : string.Join(",", userData.activeRoomIds)) + "]");
+                      }
+
+                      onComplete?.Invoke();
+                  });
         });
     }
 }

@@ -50,6 +50,10 @@ public class MatchStatusPanel : MonoBehaviour
     private EventHandler<ValueChangedEventArgs> roomWatcher;
     private string currentlyWatchedMatchId;
     [SerializeField] private Transform completedContentParent;
+    private DatabaseReference watchedUserRef;
+    private EventHandler<ValueChangedEventArgs> userWatcher;
+
+
     private void Awake()
     {
         Debug.Log("[WIRING CHECK] loginButton=" + (loginButton != null ? loginButton.name : "NULL") +
@@ -96,6 +100,8 @@ public class MatchStatusPanel : MonoBehaviour
     {
         if (auth != null)
             auth.StateChanged -= OnAuthStateChanged;
+
+        StopWatchingUser();
     }
 
     private void OnAuthStateChanged(object sender, System.EventArgs e)
@@ -107,7 +113,24 @@ public class MatchStatusPanel : MonoBehaviour
     {
         ShowStatus("Checking for active matches...");
         UpdateLoginNameDisplay();
-        RefreshMatchState();
+
+        var authInstance = FirebaseAuth.DefaultInstance;
+
+        if (authInstance != null && authInstance.CurrentUser != null)
+        {
+            string uid = authInstance.CurrentUser.UserId;
+
+            // Start watching this user's record for changes
+            WatchCurrentUser(uid);
+
+            // Refresh matches for this user once
+            RefreshMatchStateForUser(uid);
+        }
+        else
+        {
+            // No user signed in yet — fall back to legacy refresh
+            RefreshMatchState();
+        }
     }
 
     public void ShowStatus(string text)
@@ -139,6 +162,11 @@ public class MatchStatusPanel : MonoBehaviour
 
         preGamePanel.OnLogoutPressed();
         UpdateLoginNameDisplay();
+    }
+
+    private void OnDisable()
+    {
+        StopWatchingUser();
     }
 
     public void UpdateLoginNameDisplay()
@@ -273,8 +301,7 @@ public class MatchStatusPanel : MonoBehaviour
     private void RefreshMatchState()
     {
         Debug.Log("[MATCH STATUS] RefreshMatchState (legacy) called");
-        // Self-heal: OnEnable can fire before Start()'s Firebase-wait coroutine finishes
-        // (e.g. this panel gets enabled the same frame the scene loads).
+
         if (dbRoot == null)
         {
             if (FirebaseInit.IsReady && FirebaseInit.Database != null)
@@ -304,13 +331,13 @@ public class MatchStatusPanel : MonoBehaviour
         Debug.Log("[MATCH STATUS] uid=" + uid);
         Debug.Log("[MATCH STATUS] path=users/" + uid);
 
+        WatchCurrentUser(uid);
+
         dbRoot.Child("users")
               .Child(uid)
               .GetValueAsync()
               .ContinueWithOnMainThread(task =>
               {
-                  Debug.Log("[MATCH STATUS] Exists = " + (task.Result != null && task.Result.Exists));
-
                   if (task.IsFaulted)
                   {
                       ShowStatus("Failed to load user.");
@@ -318,23 +345,8 @@ public class MatchStatusPanel : MonoBehaviour
                       return;
                   }
 
-                  Debug.Log(
-                    "[MATCH STATUS] Exists = " +
-                        task.Result.Exists);
-
-                  Debug.Log(
-                      "[MATCH STATUS] Key = " +
-                      task.Result.Key);
-
-                  Debug.Log(
-                      "[MATCH STATUS] Raw JSON = " +
-                      task.Result.GetRawJsonValue());
-
-
                   if (!task.Result.Exists)
                   {
-
-
                       ShowStatus("User profile not found.");
                       return;
                   }
@@ -571,6 +583,8 @@ public class MatchStatusPanel : MonoBehaviour
             return;
         }
 
+        WatchCurrentUser(uid);
+
         dbRoot.Child("users")
               .Child(uid)
               .GetValueAsync()
@@ -720,28 +734,45 @@ public class MatchStatusPanel : MonoBehaviour
         preGamePanel.DeclineRoomInvite(roomCode);
     }
 
-    /*
-    private void BuildMatchList(List<MatchListItemData> activeItems, List<MatchListItemData> completedItems)
+    public void ForceRefresh()
     {
-        ClearRows();
-
-        foreach (var item in inviteItems)
-            CreateRow(item, false, invitesContentParent);
-
-        foreach (var item in activeItems)
-            CreateRow(item, false);
-
-        foreach (var item in completedItems)
-            CreateRow(item, true);
-
-        int total = activeItems.Count + completedItems.Count;
-        ShowStatus(total == 0 ? "No active games." : total + " games found");
+        RefreshMatchState();
     }
 
-    private void CreateRow(MatchListItemData data, bool isCompleted)
+    private void WatchCurrentUser(string uid)
     {
-        MatchStatusRow row = Instantiate(rowPrefab, isCompleted ? completedContentParent : contentParent);
-        row.Setup(data, OnRowSelected);
-        rows.Add(row);
-    }*/
+        StopWatchingUser();
+
+        if (string.IsNullOrEmpty(uid) || dbRoot == null)
+            return;
+
+        watchedUserRef = dbRoot.Child("users").Child(uid);
+
+        userWatcher = (sender, args) =>
+        {
+            if (!isActiveAndEnabled)      // or !gameObject.activeInHierarchy
+                return;
+
+            if (args.DatabaseError != null || args.Snapshot == null || !args.Snapshot.Exists)
+                return;
+
+            string json = args.Snapshot.GetRawJsonValue();
+            PreGamePanel.UserData user = JsonUtility.FromJson<PreGamePanel.UserData>(json);
+            if (user == null)
+                return;
+
+            StartCoroutine(LoadMatchList(uid, user.activeRoomIds, user.activeMatchIds));
+        };
+
+        watchedUserRef.ValueChanged += userWatcher;
+    }
+
+    private void StopWatchingUser()
+    {
+        if (watchedUserRef != null && userWatcher != null)
+            watchedUserRef.ValueChanged -= userWatcher;
+
+        watchedUserRef = null;
+        userWatcher = null;
+    }
 }

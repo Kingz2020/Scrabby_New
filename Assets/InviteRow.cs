@@ -20,7 +20,7 @@ public class InviteRow : MonoBehaviour
 
         fromText.text = data.opponentDisplayName + " invited you";
         if (roomCodeText != null)
-            roomCodeText.text = "Room: " + data.roomCode;
+            roomCodeText.text =  data.roomCode;
 
         acceptButton.onClick.RemoveAllListeners();
         acceptButton.onClick.AddListener(() => onAccept?.Invoke(roomCode));

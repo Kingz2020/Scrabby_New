@@ -42,7 +42,7 @@ public class MatchStatusRow : MonoBehaviour
         }
 
         if (roomCodeText != null)
-            roomCodeText.text = "Room: " + data.roomCode;
+            roomCodeText.text = data.roomCode;
 
         bool canResume = !data.isRoom && !data.isInvite && !isCompleted && !data.hasSubmittedThisRound;
 
