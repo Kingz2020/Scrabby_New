@@ -2376,7 +2376,16 @@ public class PreGamePanel : MonoBehaviour
 
                 pendingResolutionMatchId = currentMatch.matchId; // remember: I'm actively waiting on this match
 
-                gameLogic.StartCoroutine(ShowSubmittedWaitingSequence());
+                // Guard: only start the coroutine if GameLogic and its GameObject are still active
+                if (gameLogic != null && gameLogic.gameObject.activeInHierarchy)
+                {
+                    gameLogic.StartCoroutine(ShowSubmittedWaitingSequence());
+                }
+                else
+                {
+                    Debug.LogWarning("[PreGamePanel] GameLogic is inactive; skipping ShowSubmittedWaitingSequence.");
+                    // Optionally: go straight to match list / UI state here if that's your desired flow
+                }
             });
     }
 
