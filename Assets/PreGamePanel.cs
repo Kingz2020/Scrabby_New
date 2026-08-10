@@ -1590,6 +1590,12 @@ public class PreGamePanel : MonoBehaviour
             !string.IsNullOrEmpty(room.hostUid) &&
             !string.IsNullOrEmpty(room.guestUid);
 
+        Debug.Log("[HandleRoomState] roomCode=" + roomCode +
+              " hostUid=" + room.hostUid +
+              " guestUid=" + room.guestUid +
+              " matchId=" + room.matchId +
+              " status=" + room.status);
+
         if (!roomIsFull)
             return;
 
@@ -1599,10 +1605,11 @@ public class PreGamePanel : MonoBehaviour
             TryCreateInitialMatchFromRoom(roomCode, room);
             return;
         }
-
+        Debug.Log("[HandleRoomState] Match exists for current user. Adding to activeMatchIds...");
         // Match already exists.
         AddMatchToUser(auth.CurrentUser.UserId, room.matchId, () =>
         {
+            Debug.Log("[HandleRoomState] AddMatchToUser completed for uid=" + auth.CurrentUser.UserId);
             if (matchStatusPanel != null)
                 matchStatusPanel.ForceRefresh();
         });
@@ -1817,7 +1824,8 @@ public class PreGamePanel : MonoBehaviour
                 localScore,
                 opponentScore,
                 currentMatch.currentRoundNumber,
-                currentMatch.bonusBoardJson
+                currentMatch.bonusBoardJson,
+                currentMatch.boardStateJson
             );
 
             Debug.Log("[PREGAME] BeginOnlineMatchFromRack completed successfully.");

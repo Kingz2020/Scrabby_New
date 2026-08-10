@@ -270,36 +270,49 @@ public class GameLogic : MonoBehaviour
          public LetterPosition letterPosition;
      }
     */
-    public void BeginOnlineMatchFromSnapshot(
+   /* public void BeginOnlineMatchFromRack(
     int maxHandSize,
     int boardSizeX,
     int boardSizeY,
-    List<LetterInfo> localPlayerRack,
-    int localPlayerScore,
+    List<LetterInfo> localRack,
+    int localScore,
     int opponentScore,
-    int turnNumber)
+    int turnNumber,
+    string bonusBoardJson,
+    string boardStateJson)
     {
-        Debug.Log("[ONLINE] BeginOnlineMatchFromSnapshot CALLED");
+        Debug.Log("[ONLINE] BeginOnlineMatchFromRack CALLED");
 
         StopAllCoroutines();
         ClearBoardForNewGame();
         InitGame(maxHandSize, boardSizeX, boardSizeY, GameInitMode.Online);
 
-        if (localPlayerRack == null)
-            localPlayerRack = new List<LetterInfo>();
+        BoardStateData board = null;
+        if (!string.IsNullOrEmpty(boardStateJson))
+            board = JsonUtility.FromJson<BoardStateData>(boardStateJson);
+
+        LoadBoardStateIntoValidatedTiles(board);
+
+        StartCoroutine(ApplyBonusBoardDelayed(bonusBoardJson));
+
+        if (localRack == null)
+            localRack = new List<LetterInfo>();
 
         playerHandTiles = new List<LetterInfo>();
-        for (int i = 0; i < localPlayerRack.Count; i++)
+        foreach (var tile in localRack)
         {
-            if (localPlayerRack[i] != null)
-                playerHandTiles.Add(new LetterInfo(localPlayerRack[i]));
+            if (tile != null)
+                playerHandTiles.Add(new LetterInfo(tile));
         }
 
-        humanTotalScore = localPlayerScore;
+        humanTotalScore = localScore;
         aiTotalScore = opponentScore;
         currentRoundNumber = Mathf.Max(1, turnNumber);
+        roundStarted = true;
+        currentState = TurnState.PlayerTurn;
 
         RebuildHandUIFromLogicalHand();
+        SaveCurrentRoundSnapshot();
 
         if (Singleton.Instance != null && Singleton.Instance.UIManager != null)
         {
@@ -308,10 +321,14 @@ public class GameLogic : MonoBehaviour
             Singleton.Instance.UIManager.ClearRoundMessage();
         }
 
-        SaveCurrentRoundSnapshot();
+        if (timer != null)
+        {
+            timer.ResetTimer();
+            timer.StartTimer();
+        }
 
-        Debug.Log("[ONLINE] Hydrated local rack count = " + playerHandTiles.Count);
-    }
+        Debug.Log("[ONLINE] Local hydrated rack count = " + playerHandTiles.Count);
+    }*/
     private void InitOnlineStateShell()
     {
         currentState = TurnState.PlayerTurn;
@@ -4591,6 +4608,8 @@ public class GameLogic : MonoBehaviour
         if (!string.IsNullOrEmpty(match.boardStateJson))
             board = JsonUtility.FromJson<BoardStateData>(match.boardStateJson);
 
+        LoadBoardStateIntoValidatedTiles(board);
+
         validatedBoardTiles = new LetterInfo[boardSizeX + 2, boardSizeY + 2];
 
         if (board != null && board.cells != null)
@@ -4658,15 +4677,15 @@ public class GameLogic : MonoBehaviour
     }
 
     public void BeginOnlineMatchFromRack(
-    int maxHandSize,
-    int boardSizeX,
-    int boardSizeY,
-    List<LetterInfo> localRack,
-    int localScore,
-    int opponentScore,
-    int turnNumber,
-    string bonusBoardJson)
-
+        int maxHandSize,
+        int boardSizeX,
+        int boardSizeY,
+        List<LetterInfo> localRack,
+        int localScore,
+        int opponentScore,
+        int turnNumber,
+        string bonusBoardJson,
+        string boardStateJson)
     {
         Debug.Log("[ONLINE] BeginOnlineMatchFromRack CALLED");
 
@@ -4674,8 +4693,26 @@ public class GameLogic : MonoBehaviour
         ClearBoardForNewGame();
         InitGame(maxHandSize, boardSizeX, boardSizeY, GameInitMode.Online);
 
+        // NEW: apply persisted board state from match
+        if (!string.IsNullOrEmpty(boardStateJson))
+        {
+            BoardStateData savedBoard = JsonUtility.FromJson<BoardStateData>(boardStateJson);
+            if (savedBoard != null && savedBoard.cells != null)
+            {
+                ApplyBoardStateToScene(savedBoard);
+            }
+            else
+            {
+                Debug.LogWarning("[ONLINE] boardStateJson could not be parsed, starting from empty board.");
+            }
+        }
+        else
+        {
+            Debug.Log("[ONLINE] boardStateJson empty, starting from empty board.");
+        }
+
+        // Existing: bonus board JSON (multipliers etc.)
         StartCoroutine(ApplyBonusBoardDelayed(bonusBoardJson));
-        //ApplyBonusBoardFromMatch(bonusBoardJson);
 
         if (localRack == null)
             localRack = new List<LetterInfo>();
@@ -4711,6 +4748,44 @@ public class GameLogic : MonoBehaviour
 
         Debug.Log("[ONLINE] Local hydrated rack count = " + playerHandTiles.Count);
     }
+
+    private void ApplyBoardStateToScene(BoardStateData board)
+    {
+        if (board == null || board.cells == null)
+            return;
+
+        validatedBoardTiles = new LetterInfo[boardSizeX + 2, boardSizeY + 2];
+
+        if (Singleton.Instance == null || Singleton.Instance.UIManager == null)
+        {
+            Debug.LogWarning("[ONLINE] UIManager not available; board state loaded logically only.");
+            return;
+        }
+
+        Singleton.Instance.UIManager.ClearCommittedBoardTiles();
+
+        foreach (BoardCellData cellData in board.cells)
+        {
+            if (!cellData.occupied || cellData.tile == null)
+                continue;
+
+            int row = cellData.y + 1;
+            int col = cellData.x + 1;
+
+            if (row < 0 || row >= validatedBoardTiles.GetLength(0) ||
+                col < 0 || col >= validatedBoardTiles.GetLength(1))
+                continue;
+
+            LetterInfo info = new LetterInfo(cellData.tile.letter, cellData.tile.value);
+            validatedBoardTiles[row, col] = info;
+
+            Singleton.Instance.UIManager.PlaceAITileOnBoard(
+                info,
+                new LetterPosition(row, col)
+            );
+        }
+    }
+
     public void ApplyOnlineRoundResult(string lastRoundResultJson, string localUid)
     {
         if (string.IsNullOrEmpty(lastRoundResultJson))
@@ -4846,8 +4921,27 @@ public class GameLogic : MonoBehaviour
         if (bonusBoardView != null)
             bonusBoardView.StartRevealBonusTiles(0.3f);
     }
+
     public void SetInputLocked(bool locked)
     {
         currentState = locked ? TurnState.Busy : TurnState.PlayerTurn;
+    }
+
+    private void LoadBoardStateIntoValidatedTiles(BoardStateData board)
+    {
+        validatedBoardTiles = new LetterInfo[boardSizeX + 2, boardSizeY + 2];
+
+        if (board == null || board.cells == null)
+            return;
+
+        foreach (var cell in board.cells)
+        {
+            if (cell == null || !cell.occupied || cell.tile == null)
+                continue;
+
+            int row = cell.y + 1;
+            int col = cell.x + 1;
+            validatedBoardTiles[row, col] = TileDataToLetterInfo(cell.tile);
+        }
     }
 }
