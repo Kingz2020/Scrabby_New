@@ -53,11 +53,15 @@ public class MatchStatusPanel : MonoBehaviour
     private DatabaseReference watchedUserRef;
     private EventHandler<ValueChangedEventArgs> userWatcher;
 
+    [SerializeField] private OnlineMatchController onlineMatchController;
 
     private void Awake()
     {
         Debug.Log("[WIRING CHECK] loginButton=" + (loginButton != null ? loginButton.name : "NULL") +
                " | logoutbutton=" + (logoutbutton != null ? logoutbutton.name : "NULL"));
+
+        if (onlineMatchController == null)
+            onlineMatchController = OnlineMatchController.Instance;
 
         if (createRoomButton != null)
             createRoomButton.onClick.AddListener(OnCreateMatchPressed);
@@ -663,18 +667,23 @@ public class MatchStatusPanel : MonoBehaviour
     {
         if (isCompleted)
         {
-            preGamePanel.ShowGameOverForMatch(matchId);
+            // Completed match: show final result
+            OnlineMatchController.Instance.ShowGameOverForMatch(matchId);
             return;
         }
 
         if (!string.IsNullOrEmpty(matchId))
         {
-            preGamePanel.WatchMatch(matchId, true);
+            // Active match: resume gameplay flow
+            OnlineMatchController.Instance.ResumeMatch(matchId);
             return;
         }
 
+        // No match yet, but room exists: just watch the room as before
         if (!string.IsNullOrEmpty(roomCode))
+        {
             preGamePanel.WatchRoom(roomCode);
+        }
     }
 
     /*private void OnInviteDeclined(string roomCode)

@@ -65,6 +65,8 @@ public class PreGamePanel : MonoBehaviour
 
     private string pendingResolutionMatchId = null;
 
+    [SerializeField] private OnlineMatchController onlineMatchController;
+
     [Serializable]
     public class RoomPlayerData
     {
@@ -106,6 +108,9 @@ public class PreGamePanel : MonoBehaviour
 
     private void Awake()
     {
+        if (onlineMatchController == null)
+            onlineMatchController = OnlineMatchController.Instance;
+
         if (pregamePanel != null) pregamePanel.SetActive(true);
         if (gameplayPanel != null) gameplayPanel.SetActive(false);
         if (gameOverPanel != null) gameOverPanel.SetActive(false);
@@ -267,7 +272,7 @@ public class PreGamePanel : MonoBehaviour
         }
     }
 
-    private void OnMatchValueChanged(object sender, ValueChangedEventArgs args)
+    /*private void OnMatchValueChanged(object sender, ValueChangedEventArgs args)
     {
         if (args == null)
         {
@@ -359,7 +364,7 @@ public class PreGamePanel : MonoBehaviour
             CheckSubmissionThenEnterGameplay();
         }
     }
-
+    */
     private void ShowOnlineRoundResult(RoundResultData result)
     {
         if (Singleton.Instance == null ||
@@ -400,7 +405,7 @@ public class PreGamePanel : MonoBehaviour
         }
     }
 
-    private void HandleResolvedRound()
+    /*private void HandleResolvedRound()
     {
         if (string.IsNullOrEmpty(currentMatch.lastRoundResultJson))
             return;
@@ -420,8 +425,8 @@ public class PreGamePanel : MonoBehaviour
         }
         // else: player wasn't watching live — just let the round-2 rack/board load normally, no popup
     }
-
-    private IEnumerator ShowOnlineRoundResultDelayed(
+    */
+    /*private IEnumerator ShowOnlineRoundResultDelayed(
     RoundResultData result)
     {
         string uid = auth.CurrentUser.UserId;
@@ -496,7 +501,7 @@ public class PreGamePanel : MonoBehaviour
 
         ShowOnlineRoundResult(result);
     }
-
+    */
     private void WatchSubmissionsForRound(int roundNumber)
     {
         if (currentSubmissionsRef != null)
@@ -525,9 +530,10 @@ public class PreGamePanel : MonoBehaviour
 
         if (submittedCount >= expectedCount)
         {
-            TryResolveRound(currentMatch.matchId, watchedRoundNumber);
+            OnlineMatchController.Instance.TryResolveRound(currentMatch.matchId, watchedRoundNumber);
         }
     }
+    /*
     private void TryResolveRound(string matchId, int roundNumber)
     {
         DatabaseReference submissionsRef = dbRoot.Child("matches").Child(matchId)
@@ -587,8 +593,8 @@ public class PreGamePanel : MonoBehaviour
                     });
             });
         });
-    }
-    private void ResolveRoundNow(MatchData liveMatch, int roundNumber, List<RoundSubmissionData> submissions, DatabaseReference matchRef)
+    }*/
+    /*private void ResolveRoundNow(MatchData liveMatch, int roundNumber, List<RoundSubmissionData> submissions, DatabaseReference matchRef)
     {
         RoundSubmissionData winner = null;
         foreach (var sub in submissions)
@@ -679,9 +685,9 @@ public class PreGamePanel : MonoBehaviour
 
             Debug.Log("[PregamePanel] Round " + roundNumber + " resolved and written.");
         });
-    }
+    }*/
     // PUBLIC — used by MatchStatusPanel, which only has a matchId string
-    public void ShowGameOverForMatch(string matchId)
+    /*public void ShowGameOverForMatch(string matchId)
     {
         dbRoot.Child("matches").Child(matchId).GetValueAsync().ContinueWithOnMainThread(task =>
         {
@@ -696,8 +702,8 @@ public class PreGamePanel : MonoBehaviour
 
             ShowGameOverForMatch(match);
         });
-    }
-
+    }*/
+    /*
     private void CheckSubmissionThenEnterGameplay()
     {
         Debug.Log("[PregamePanel] CheckSubmissionThenEnterGameplay ENTER | auth.CurrentUser=" +
@@ -752,8 +758,8 @@ public class PreGamePanel : MonoBehaviour
                 }
             });
     }
-
-    private void ShowGameOverForMatch(MatchData match)
+    */
+    /*private void ShowGameOverForMatch(MatchData match)
     {
         if (optionPanel != null) optionPanel.SetActive(false);
         if (pregamePanel != null) pregamePanel.SetActive(false);
@@ -798,7 +804,7 @@ public class PreGamePanel : MonoBehaviour
             Debug.LogWarning("[PregamePanel] Could not find UIManager to show game over panel.");
             SetStatus(finalMessage + " " + roundSummary.Replace("\n", " "));
         }
-    }
+    }*/
     private bool IsBetterSubmission(RoundSubmissionData candidate, RoundSubmissionData currentBest)
     {
         if (candidate.score != currentBest.score)
@@ -813,7 +819,7 @@ public class PreGamePanel : MonoBehaviour
         return candidate.submittedAtUnix < currentBest.submittedAtUnix; // earlier submission wins ties
     }
 
-    public void WatchMatch(string matchId, bool enterWhenReady = false)
+    /*public void WatchMatch(string matchId, bool enterWhenReady = false)
     {
         if (!EnsureFirebaseReady())
         {
@@ -836,8 +842,8 @@ public class PreGamePanel : MonoBehaviour
         currentMatchRef.ValueChanged += OnMatchValueChanged;
 
         TraceMatch("WatchMatch AFTER subscribe");
-    }
-    public void StopWatchingMatch()
+    }*/
+    /*public void StopWatchingMatch()
     {
         TraceMatch("StopWatchingMatch ENTER");
 
@@ -856,7 +862,7 @@ public class PreGamePanel : MonoBehaviour
 
         TraceMatch("StopWatchingMatch AFTER CLEAR");
     }
-
+    */
     public void OnRegisterPressed()
     {
         string email = emailInput.text.Trim();
@@ -1527,7 +1533,7 @@ public class PreGamePanel : MonoBehaviour
             return;
 
         StopWatchingRoom();
-        StopWatchingMatch();
+        OnlineMatchController.Instance.StopWatchingMatch();
 
         auth.SignOut();
         SetStatus("Logged out.");
@@ -1614,7 +1620,7 @@ public class PreGamePanel : MonoBehaviour
                 matchStatusPanel.ForceRefresh();
         });
 
-        WatchMatch(room.matchId, false);
+        OnlineMatchController.Instance.WatchMatch(room.matchId, false);
     }
 
     public void WatchRoom(string roomCode)
@@ -1761,14 +1767,14 @@ public class PreGamePanel : MonoBehaviour
 
             if (watchedMatchId != room.matchId || currentMatch == null)
             {
-                WatchMatch(room.matchId, false);
+                OnlineMatchController.Instance.WatchMatch(room.matchId, false);
             }
 
             return;
         }
     }
 
-    private void EnterGameplayMode()
+    public void EnterGameplayMode()
     {
         Debug.Log("[ENTER GAMEPLAY] uid=" +auth.CurrentUser.UserId +" pendingEnterGameplay=" + pendingEnterGameplay + " matchId=" + (currentMatch != null ? currentMatch.matchId : "NULL"));
         TraceMatch("EnterGameplayMode ENTER");
@@ -1858,7 +1864,7 @@ public class PreGamePanel : MonoBehaviour
     private void OnDestroy()
     {
         StopWatchingRoom();
-        StopWatchingMatch();
+        OnlineMatchController.Instance.StopWatchingMatch();
 
         if (auth != null)
         {
@@ -1931,7 +1937,7 @@ public class PreGamePanel : MonoBehaviour
 
                 Debug.Log($"[STARTFLOW] Existing match detected matchId={room.matchId}");
                 AddMatchToUser(auth.CurrentUser.UserId, room.matchId);
-                WatchMatch(room.matchId, true);
+                OnlineMatchController.Instance.ResumeMatch(room.matchId);
                 Debug.Log("[STARTFLOW] WatchMatch called for existing match");
 
                 return;
@@ -2073,7 +2079,7 @@ public class PreGamePanel : MonoBehaviour
         if (currentMatch == null || auth == null || auth.CurrentUser == null)
             return;
 
-        SubmitRoundMove(move);
+        OnlineMatchController.Instance.SubmitRoundMove(move);
     }
 
     private BoardCellData FindCell(BoardStateData board, int x, int y)
@@ -2164,7 +2170,7 @@ public class PreGamePanel : MonoBehaviour
                 if (updatedRoom.status == "in_game")
                 {
                     Debug.Log("[PregamePanel] Someone already created the match. matchId=" + updatedRoom.matchId);
-                    WatchMatch(updatedRoom.matchId,false);
+                    OnlineMatchController.Instance.WatchMatch(updatedRoom.matchId,false);
                     //EnterGameplayMode();
                     return;
                 }
@@ -2179,7 +2185,7 @@ public class PreGamePanel : MonoBehaviour
                     Debug.Log("[PregamePanel] Another client claimed start. Waiting for final match...");
                     if (!string.IsNullOrEmpty(updatedRoom.matchId))
                     {
-                        WatchMatch(updatedRoom.matchId,false);
+                        OnlineMatchController.Instance.WatchMatch(updatedRoom.matchId,false);
                         //EnterGameplayMode();
                     }
                     return;
@@ -2295,7 +2301,7 @@ public class PreGamePanel : MonoBehaviour
                             
 
                             SetStatus("Game ready. Tap Resume to play.");
-                            WatchMatch(matchId,false);
+                            OnlineMatchController.Instance.WatchMatch(matchId,false);
                         });
                     });
             });
@@ -2329,7 +2335,7 @@ public class PreGamePanel : MonoBehaviour
 
         return result;
     }
-    private void SubmitRoundMove(RoundMove move)
+    /*private void SubmitRoundMove(RoundMove move)
     {
         if (!EnsureFirebaseReady() || currentMatch == null || auth.CurrentUser == null)
         {
@@ -2376,19 +2382,11 @@ public class PreGamePanel : MonoBehaviour
 
                 pendingResolutionMatchId = currentMatch.matchId; // remember: I'm actively waiting on this match
 
-                // Guard: only start the coroutine if GameLogic and its GameObject are still active
-                if (gameLogic != null && gameLogic.gameObject.activeInHierarchy)
-                {
-                    gameLogic.StartCoroutine(ShowSubmittedWaitingSequence());
-                }
-                else
-                {
-                    Debug.LogWarning("[PreGamePanel] GameLogic is inactive; skipping ShowSubmittedWaitingSequence.");
-                    // Optionally: go straight to match list / UI state here if that's your desired flow
-                }
+                // Start the waiting sequence on THIS PreGamePanel, not on GameLogic
+                StartCoroutine(ShowSubmittedWaitingSequence());
             });
     }
-
+    */
     private IEnumerator ShowSubmittedWaitingSequence()
     {
         if (gameLogic != null)
@@ -2405,12 +2403,14 @@ public class PreGamePanel : MonoBehaviour
         yield return new WaitForSeconds(1.5f);
 
         if (pendingResolutionMatchId == null)
-            yield break; // already redirected to game-over panel — don't switch to MatchStatusPanel
+            yield break; // already redirected to game-over panel; don't switch to MatchStatusPanel
 
-        if (gameplayPanel != null) gameplayPanel.SetActive(false);
-        if (pregamePanel != null) pregamePanel.SetActive(false);
-        if (gameOverPanel != null) gameOverPanel.SetActive(false);
-
+        if (gameplayPanel != null)
+            gameplayPanel.SetActive(false);
+        if (pregamePanel != null)
+            pregamePanel.SetActive(false);
+        if (gameOverPanel != null)
+            gameOverPanel.SetActive(false);
         if (matchStatusPanel != null)
         {
             matchStatusPanel.gameObject.SetActive(true);
@@ -2492,7 +2492,7 @@ public class PreGamePanel : MonoBehaviour
 
                     currentMatch = match;
 
-                    WatchMatch(match.matchId,true);
+                    OnlineMatchController.Instance.ResumeMatch(match.matchId);
 
                     return;
                 }
