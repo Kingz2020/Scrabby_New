@@ -348,7 +348,7 @@ public class OnlineMatchController : MonoBehaviour
         // If a panel requested entry, now is the time
         if (pendingEnterGameplay)
         {
-            pendingEnterGameplay = false;
+            //pendingEnterGameplay = false;
             TraceMatch("OnMatchValueChanged TRIGGER EnterGameplayMode");
             CheckSubmissionThenEnterGameplay();
         }
@@ -457,18 +457,32 @@ public class OnlineMatchController : MonoBehaviour
                                            claimTask.Exception);
                             return;
                         }
+                        // Re-read right before resolving, to catch any race since the initial read
+                        matchRef.GetValueAsync().ContinueWithOnMainThread(reReadTask =>
+                        {
+                            if (reReadTask.IsFaulted || reReadTask.Result == null || !reReadTask.Result.Exists)
+                                return;
 
-                        ResolveRoundNow(liveMatch, roundNumber, submissions, matchRef);
+                            MatchData freshMatch = JsonUtility.FromJson<MatchData>(reReadTask.Result.GetRawJsonValue());
+                            if (freshMatch == null || freshMatch.currentRoundNumber != roundNumber)
+                            {
+                                Debug.LogWarning("[OnlineMatchController] Round " + roundNumber + " resolution aborted — match already advanced.");
+                                return;
+                            }
+
+                            ResolveRoundNow(liveMatch, roundNumber, submissions, matchRef);
+                        });
+                        //ResolveRoundNow(liveMatch, roundNumber, submissions, matchRef);
                     });
             });
         });
     }
 
     private void ResolveRoundNow(
-        MatchData liveMatch,
-        int roundNumber,
-        List<RoundSubmissionData> submissions,
-        DatabaseReference matchRef)
+    MatchData liveMatch,
+    int roundNumber,
+    List<RoundSubmissionData> submissions,
+    DatabaseReference matchRef)
     {
         RoundSubmissionData winner = null;
 
@@ -544,14 +558,6 @@ public class OnlineMatchController : MonoBehaviour
         int nextRound = roundNumber + 1;
         bool isFinalRoundJustPlayed = nextRound > totalRounds;
 
-        /*liveMatch.boardStateJson = JsonUtility.ToJson(board);
-        liveMatch.bagStateJson = JsonUtility.ToJson(bag);
-        liveMatch.sharedrackjson = JsonUtility.ToJson(sharedRack);
-        liveMatch.lastRoundResultJson = JsonUtility.ToJson(result);
-        liveMatch.currentRoundNumber = nextRound;
-        liveMatch.roundResolutionStatus = "done";
-        liveMatch.status = isFinalRoundJustPlayed ? "completed" : "active";
-        */
         // Persist logical state
         liveMatch.boardStateJson = JsonUtility.ToJson(board);
         liveMatch.bagStateJson = JsonUtility.ToJson(bag);
@@ -579,24 +585,43 @@ public class OnlineMatchController : MonoBehaviour
 
         string updatedJson = JsonUtility.ToJson(liveMatch);
 
-        matchRef.SetRawJsonValueAsync(updatedJson).ContinueWithOnMainThread(writeTask =>
+        // Guard: re-check right before writing — abort if someone already advanced this round
+        matchRef.GetValueAsync().ContinueWithOnMainThread(guardTask =>
         {
-            if (writeTask.IsFaulted)
+            if (guardTask.IsFaulted || guardTask.Result == null || !guardTask.Result.Exists)
             {
-                Debug.LogError("[OnlineMatchController] Failed to write resolved round: " +
-                               writeTask.Exception);
+                Debug.LogWarning("[OnlineMatchController] Resolve guard read failed — aborting write.");
                 return;
             }
 
-            Debug.Log("[OnlineMatchController] Round " + roundNumber + " resolved and written.");
+            MatchData freshCheck = JsonUtility.FromJson<MatchData>(guardTask.Result.GetRawJsonValue());
+
+            if (freshCheck == null || freshCheck.currentRoundNumber != roundNumber)
+            {
+                Debug.LogWarning("[OnlineMatchController] Round " + roundNumber +
+                    " resolution aborted at final write — match already advanced to " +
+                    (freshCheck != null ? freshCheck.currentRoundNumber.ToString() : "NULL") + ".");
+                return; // someone else already resolved this round — our stale result is discarded
+            }
+
+            matchRef.SetRawJsonValueAsync(updatedJson).ContinueWithOnMainThread(writeTask =>
+            {
+                if (writeTask.IsFaulted)
+                {
+                    Debug.LogError("[OnlineMatchController] Failed to write resolved round: " +
+                                   writeTask.Exception);
+                    return;
+                }
+
+                Debug.Log("[OnlineMatchController] Round " + roundNumber + " resolved and written.");
+            });
         });
     }
-
     #endregion
 
     #region Helpers and UI flows
 
-    
+
 
     private IEnumerator ShowSubmittedWaitingSequence()
     {
@@ -668,6 +693,7 @@ public class OnlineMatchController : MonoBehaviour
                   }
                   else
                   {
+                      pendingEnterGameplay = false;
                       if (gameplayPanel != null) gameplayPanel.SetActive(true);
                       if (pregamePanel != null) pregamePanel.SetActive(false);
                       if (matchStatusPanel != null) matchStatusPanel.gameObject.SetActive(false);
