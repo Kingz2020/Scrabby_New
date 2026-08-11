@@ -544,6 +544,15 @@ public class OnlineMatchController : MonoBehaviour
         int nextRound = roundNumber + 1;
         bool isFinalRoundJustPlayed = nextRound > totalRounds;
 
+        /*liveMatch.boardStateJson = JsonUtility.ToJson(board);
+        liveMatch.bagStateJson = JsonUtility.ToJson(bag);
+        liveMatch.sharedrackjson = JsonUtility.ToJson(sharedRack);
+        liveMatch.lastRoundResultJson = JsonUtility.ToJson(result);
+        liveMatch.currentRoundNumber = nextRound;
+        liveMatch.roundResolutionStatus = "done";
+        liveMatch.status = isFinalRoundJustPlayed ? "completed" : "active";
+        */
+        // Persist logical state
         liveMatch.boardStateJson = JsonUtility.ToJson(board);
         liveMatch.bagStateJson = JsonUtility.ToJson(bag);
         liveMatch.sharedrackjson = JsonUtility.ToJson(sharedRack);
@@ -551,6 +560,22 @@ public class OnlineMatchController : MonoBehaviour
         liveMatch.currentRoundNumber = nextRound;
         liveMatch.roundResolutionStatus = "done";
         liveMatch.status = isFinalRoundJustPlayed ? "completed" : "active";
+
+        // Regenerate bonus board for NEXT round, if match continues
+        if (!isFinalRoundJustPlayed && Singleton.Instance != null && Singleton.Instance.GameLogic != null)
+        {
+            var gameLogic = Singleton.Instance.GameLogic;
+
+            // Hydrate validatedBoardTiles from the updated BoardStateData
+            gameLogic.LoadBoardStateIntoValidatedTiles(board);
+
+            // Generate new bonus layout JSON based on current letters
+            string newBonusJson = gameLogic.GenerateBonusBoardJsonForOnlineMatch();
+            liveMatch.bonusBoardJson = newBonusJson;
+
+            Debug.Log("[ONLINE] Regenerated bonusBoardJson for next round, length=" +
+                      (string.IsNullOrEmpty(newBonusJson) ? 0 : newBonusJson.Length));
+        }
 
         string updatedJson = JsonUtility.ToJson(liveMatch);
 
