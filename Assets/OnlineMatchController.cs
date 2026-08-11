@@ -5,6 +5,7 @@ using Firebase.Auth;
 using Firebase.Database;
 using Firebase.Extensions;
 using UnityEngine;
+using System.Threading.Tasks;
 
 /// <summary>
 /// Central controller for online match lifecycle:
@@ -444,36 +445,48 @@ public class OnlineMatchController : MonoBehaviour
                     liveMatch.roundResolutionStatus == "done")
                     return; // someone else is/has resolved
 
-                // Claim resolution
-                liveMatch.roundResolutionStatus = "resolving";
-                liveMatch.roundResolutionByUid = GetCurrentUser()?.UserId ?? "";
+                // Claim resolution using a transaction
+                matchRef.Child("roundResolutionStatus").RunTransaction(mutableData =>
+                {
+                    string current = mutableData.Value as string;
 
-                matchRef.Child("roundResolutionStatus").SetValueAsync("resolving")
-                    .ContinueWithOnMainThread(claimTask =>
+                    if (current == "resolving" || current == "done")
+                        return TransactionResult.Abort(); // someone already claimed it
+
+                    mutableData.Value = "resolving";
+                    return TransactionResult.Success(mutableData);
+                })
+                .ContinueWithOnMainThread((Task claimTask) =>
+                {
+                    var transactionTask = (Task<TransactionResult>)claimTask;
+
+                    if (transactionTask.IsFaulted)
                     {
-                        if (claimTask.IsFaulted)
+                        Debug.LogError("[OnlineMatchController] Failed to claim round resolution: " +
+                                       transactionTask.Exception);
+                        return;
+                    }
+
+                    // Transaction completed successfully; proceed to resolve.
+                    // Any race where another client won the claim will be caught by the re-read below.
+
+                    // Re-read right before resolving, to catch any race since the initial read
+                    matchRef.GetValueAsync().ContinueWithOnMainThread(reReadTask =>
+                    {
+                        if (reReadTask.IsFaulted || reReadTask.Result == null || !reReadTask.Result.Exists)
+                            return;
+
+                        MatchData freshMatch = JsonUtility.FromJson<MatchData>(reReadTask.Result.GetRawJsonValue());
+                        if (freshMatch == null || freshMatch.currentRoundNumber != roundNumber)
                         {
-                            Debug.LogError("[OnlineMatchController] Failed to claim round resolution: " +
-                                           claimTask.Exception);
+                            Debug.LogWarning("[OnlineMatchController] Round " + roundNumber +
+                                             " resolution aborted — match already advanced.");
                             return;
                         }
-                        // Re-read right before resolving, to catch any race since the initial read
-                        matchRef.GetValueAsync().ContinueWithOnMainThread(reReadTask =>
-                        {
-                            if (reReadTask.IsFaulted || reReadTask.Result == null || !reReadTask.Result.Exists)
-                                return;
 
-                            MatchData freshMatch = JsonUtility.FromJson<MatchData>(reReadTask.Result.GetRawJsonValue());
-                            if (freshMatch == null || freshMatch.currentRoundNumber != roundNumber)
-                            {
-                                Debug.LogWarning("[OnlineMatchController] Round " + roundNumber + " resolution aborted — match already advanced.");
-                                return;
-                            }
-
-                            ResolveRoundNow(liveMatch, roundNumber, submissions, matchRef);
-                        });
-                        //ResolveRoundNow(liveMatch, roundNumber, submissions, matchRef);
+                        ResolveRoundNow(liveMatch, roundNumber, submissions, matchRef);
                     });
+                });
             });
         });
     }

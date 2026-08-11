@@ -13,7 +13,7 @@ GameObject:
   - component: {fileID: 5637898314334534666}
   - component: {fileID: 7853979163535639461}
   - component: {fileID: 4896795453735830365}
-  - component: {fileID: 3581404545213219368}
+  - component: {fileID: 5972046252062376984}
   m_Layer: 5
   m_Name: InviteRowPrefab
   m_TagString: Untagged
@@ -128,7 +128,7 @@ MonoBehaviour:
   m_ChildScaleWidth: 0
   m_ChildScaleHeight: 0
   m_ReverseArrangement: 0
---- !u!114 &3581404545213219368
+--- !u!114 &5972046252062376984
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -137,16 +137,13 @@ MonoBehaviour:
   m_GameObject: {fileID: 279822248199690807}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 321f8f1a88a637f4fabb5cac7fb84b36, type: 3}
+  m_Script: {fileID: 11500000, guid: d9eee4d8361aa26458c1c6300eca04c0, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::MatchStatusRow
-  opponentText: {fileID: 448134714467015023}
-  statusText: {fileID: 0}
-  roundText: {fileID: 0}
-  scoreText: {fileID: 0}
-  actionButton: {fileID: 890852703675425371}
-  actionButtonText: {fileID: 1914315814119015823}
+  m_EditorClassIdentifier: Assembly-CSharp::InviteRow
+  fromText: {fileID: 448134714467015023}
   roomCodeText: {fileID: 204746514099575919}
+  acceptButton: {fileID: 890852703675425371}
+  declineButton: {fileID: 744814084308846055}
 --- !u!1 &3316405402087527749
 GameObject:
   m_ObjectHideFlags: 0
