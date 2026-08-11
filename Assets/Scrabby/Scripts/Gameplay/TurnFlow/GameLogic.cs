@@ -263,72 +263,7 @@ public class GameLogic : MonoBehaviour
         }
     }
 
-    /* [System.Serializable]
-     public class SimPlacedTile
-     {
-         public LetterInfo letterInfo;
-         public LetterPosition letterPosition;
-     }
-    */
-   /* public void BeginOnlineMatchFromRack(
-    int maxHandSize,
-    int boardSizeX,
-    int boardSizeY,
-    List<LetterInfo> localRack,
-    int localScore,
-    int opponentScore,
-    int turnNumber,
-    string bonusBoardJson,
-    string boardStateJson)
-    {
-        Debug.Log("[ONLINE] BeginOnlineMatchFromRack CALLED");
 
-        StopAllCoroutines();
-        ClearBoardForNewGame();
-        InitGame(maxHandSize, boardSizeX, boardSizeY, GameInitMode.Online);
-
-        BoardStateData board = null;
-        if (!string.IsNullOrEmpty(boardStateJson))
-            board = JsonUtility.FromJson<BoardStateData>(boardStateJson);
-
-        LoadBoardStateIntoValidatedTiles(board);
-
-        StartCoroutine(ApplyBonusBoardDelayed(bonusBoardJson));
-
-        if (localRack == null)
-            localRack = new List<LetterInfo>();
-
-        playerHandTiles = new List<LetterInfo>();
-        foreach (var tile in localRack)
-        {
-            if (tile != null)
-                playerHandTiles.Add(new LetterInfo(tile));
-        }
-
-        humanTotalScore = localScore;
-        aiTotalScore = opponentScore;
-        currentRoundNumber = Mathf.Max(1, turnNumber);
-        roundStarted = true;
-        currentState = TurnState.PlayerTurn;
-
-        RebuildHandUIFromLogicalHand();
-        SaveCurrentRoundSnapshot();
-
-        if (Singleton.Instance != null && Singleton.Instance.UIManager != null)
-        {
-            Singleton.Instance.UIManager.UpdateRoundText(currentRoundNumber, maxRounds);
-            Singleton.Instance.UIManager.UpdateTotalScores(humanTotalScore, aiTotalScore);
-            Singleton.Instance.UIManager.ClearRoundMessage();
-        }
-
-        if (timer != null)
-        {
-            timer.ResetTimer();
-            timer.StartTimer();
-        }
-
-        Debug.Log("[ONLINE] Local hydrated rack count = " + playerHandTiles.Count);
-    }*/
     private void InitOnlineStateShell()
     {
         currentState = TurnState.PlayerTurn;

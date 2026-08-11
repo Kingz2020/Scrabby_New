@@ -24,9 +24,13 @@ public class OnlineMatchController : MonoBehaviour
     [SerializeField] private GameLogic gameLogic;
     [SerializeField] private UIManager uiManager;
 
+    [SerializeField] private GameObject gameplayPanel;
+    [SerializeField] private GameObject pregamePanel;
+    [SerializeField] private MatchStatusPanel matchStatusPanel;
+
     [Header("Firebase")]
-    [SerializeField] private FirebaseDatabase database;
-    [SerializeField] private FirebaseAuth auth;
+    private FirebaseDatabase database;
+    private FirebaseAuth auth;
 
     // Internal state
     private DatabaseReference dbRoot;
@@ -49,7 +53,6 @@ public class OnlineMatchController : MonoBehaviour
 
     private void Awake()
     {
-        // Singleton guard
         if (Instance != null && Instance != this)
         {
             Destroy(gameObject);
@@ -59,34 +62,27 @@ public class OnlineMatchController : MonoBehaviour
         Instance = this;
         DontDestroyOnLoad(gameObject);
 
-        // Setup core references
-        if (database == null)
+        // Try to seed from FirebaseInit, but don't crash if it's not ready yet.
+        if (FirebaseInit.IsReady)
         {
-            database = FirebaseDatabase.DefaultInstance;
+            database = FirebaseInit.Database;
+            auth = FirebaseInit.Auth;
+            if (database != null)
+                dbRoot = database.RootReference;
         }
-
-        if (auth == null)
+        else
         {
-            auth = FirebaseAuth.DefaultInstance;
-        }
-
-        if (database != null)
-        {
-            dbRoot = database.RootReference;
+            Debug.LogWarning("[OnlineMatchController] FirebaseInit not ready in Awake; will self-heal later.");
         }
 
         if (uiManager == null && Singleton.Instance != null)
-        {
             uiManager = Singleton.Instance.UIManager;
-        }
 
         if (gameLogic == null && Singleton.Instance != null)
-        {
-            gameLogic = Singleton.Instance.GameLogic; // adjust if your Singleton exposes it differently
-        }
+            gameLogic = Singleton.Instance.GameLogic; // adjust if different
 
-        if (preGamePanel == null)
-            preGamePanel = FindAnyObjectByType<PreGamePanel>();
+        if (gameLogic != null)
+            gameLogic.onlineSubmissionReady += SubmitRoundMove;
     }
 
     private FirebaseUser GetCurrentUser()
@@ -94,9 +90,40 @@ public class OnlineMatchController : MonoBehaviour
         return auth != null ? auth.CurrentUser : null;
     }
 
+    private void OnDestroy()
+    {
+        if (gameLogic != null)
+            gameLogic.onlineSubmissionReady -= SubmitRoundMove;
+
+        StopWatchingMatch();
+    }
+
     private bool EnsureFirebaseReady()
     {
-        return dbRoot != null && auth != null;
+        // If we already have everything, good.
+        if (dbRoot != null && auth != null)
+            return true;
+
+        // If FirebaseInit is not done yet, we really aren't ready.
+        if (!FirebaseInit.IsReady)
+        {
+            Debug.LogWarning("[OnlineMatchController] EnsureFirebaseReady: FirebaseInit.IsReady is false.");
+            return false;
+        }
+
+        // Grab instances from FirebaseInit
+        if (database == null)
+            database = FirebaseInit.Database;
+
+        if (auth == null)
+            auth = FirebaseInit.Auth;
+
+        if (database != null && dbRoot == null)
+            dbRoot = database.RootReference;
+
+        bool ready = (dbRoot != null && auth != null);
+        Debug.Log("[OnlineMatchController] EnsureFirebaseReady: ready=" + ready);
+        return ready;
     }
 
     #endregion
@@ -124,7 +151,9 @@ public class OnlineMatchController : MonoBehaviour
         }
 
         watchedMatchId = matchId;
-        pendingEnterGameplay = enterWhenReady;
+
+        if (enterWhenReady)
+            pendingEnterGameplay = true;
 
         currentMatchRef = dbRoot.Child("matches").Child(matchId);
         currentMatchRef.ValueChanged += OnMatchValueChanged;
@@ -202,9 +231,10 @@ public class OnlineMatchController : MonoBehaviour
                   if (uiManager != null)
                       uiManager.ShowRoundMessage("Move submitted. Waiting for other players...");
 
-                  pendingResolutionMatchId = currentMatch.matchId; // remember: actively waiting
+                  // Remember: actively waiting on this match
+                  pendingResolutionMatchId = currentMatch.matchId;
 
-                  // Run waiting sequence on this always-active controller
+                  // Run the waiting sequence on this controller
                   StartCoroutine(ShowSubmittedWaitingSequence());
               });
     }
@@ -214,6 +244,7 @@ public class OnlineMatchController : MonoBehaviour
     /// </summary>
     public void ResumeMatch(string matchId)
     {
+        pendingEnterGameplay = true;
         WatchMatch(matchId, true);
     }
 
@@ -540,6 +571,8 @@ public class OnlineMatchController : MonoBehaviour
 
     #region Helpers and UI flows
 
+    
+
     private IEnumerator ShowSubmittedWaitingSequence()
     {
         if (gameLogic != null)
@@ -555,16 +588,23 @@ public class OnlineMatchController : MonoBehaviour
 
         yield return new WaitForSeconds(1.5f);
 
-        // After waiting, do nothing UI-panel-specific here for now.
-        // MatchStatusPanel will update itself when it next refreshes.
+        if (pendingResolutionMatchId == null)
+            yield break; // already redirected to game-over panel
+
+        // Switch back to MatchStatusPanel
+        if (gameplayPanel != null) gameplayPanel.SetActive(false);
+        if (pregamePanel != null) pregamePanel.SetActive(false);
+        if (matchStatusPanel != null)
+        {
+            matchStatusPanel.gameObject.SetActive(true);
+            matchStatusPanel.OnRefreshPressed();
+        }
     }
 
     private void CheckSubmissionThenEnterGameplay()
     {
         Debug.Log("[OnlineMatchController] CheckSubmissionThenEnterGameplay ENTER | auth.CurrentUser=" +
-                  (GetCurrentUser()?.Email ?? "NULL") +
-                  " (" + (GetCurrentUser()?.UserId ?? "NULL") + ")" +
-                  " | currentMatch=" + (currentMatch != null ? currentMatch.matchId : "NULL"));
+                  (GetCurrentUser()?.Email ?? "NULL"));
 
         if (currentMatch == null || auth == null || auth.CurrentUser == null)
         {
@@ -575,16 +615,11 @@ public class OnlineMatchController : MonoBehaviour
         string uid = auth.CurrentUser.UserId;
         int roundNumber = currentMatch.currentRoundNumber;
 
-        Debug.Log("[OnlineMatchController] Checking submission at matches/" +
-                  currentMatch.matchId + "/rounds/" + roundNumber + "/submissions/" + uid);
-
         dbRoot.Child("matches").Child(currentMatch.matchId)
               .Child("rounds").Child(roundNumber.ToString())
               .Child("submissions").Child(uid)
               .GetValueAsync().ContinueWithOnMainThread(task =>
               {
-                  Debug.Log("[OnlineMatchController] Submission check task completed. Faulted=" + task.IsFaulted);
-
                   if (task.IsFaulted)
                   {
                       Debug.LogError("[OnlineMatchController] Failed to check submission status: " + task.Exception);
@@ -593,21 +628,74 @@ public class OnlineMatchController : MonoBehaviour
 
                   bool alreadySubmitted = task.Result != null && task.Result.Exists;
 
-                  if (preGamePanel != null)
+                  if (alreadySubmitted)
                   {
-                      preGamePanel.EnterGameplayMode();
+                      if (uiManager != null)
+                          uiManager.ShowRoundMessage("You've already played this round. Waiting for other players...");
+
+                      if (gameplayPanel != null) gameplayPanel.SetActive(false);
+                      if (pregamePanel != null) pregamePanel.SetActive(false);
+                      if (matchStatusPanel != null)
+                      {
+                          matchStatusPanel.gameObject.SetActive(true);
+                          matchStatusPanel.OnRefreshPressed();
+                      }
                   }
                   else
                   {
-                      Debug.LogWarning("[OnlineMatchController] PreGamePanel not available for EnterGameplayMode.");
-                  }
-                  if (alreadySubmitted && uiManager != null)
-                  {
-                      uiManager.ShowRoundMessage("You've already played this round. Waiting for other players...");
+                      if (gameplayPanel != null) gameplayPanel.SetActive(true);
+                      if (pregamePanel != null) pregamePanel.SetActive(false);
+                      if (matchStatusPanel != null) matchStatusPanel.gameObject.SetActive(false);
+
+                      StartGameplayForCurrentMatch();
                   }
               });
     }
+    public void StartGameplayForCurrentMatch()
+    {
+        Debug.Log("[OnlineMatchController] StartGameplayForCurrentMatch START");
 
+        if (gameLogic == null || currentMatch == null || auth == null || auth.CurrentUser == null)
+        {
+            Debug.LogWarning("[OnlineMatchController] StartGameplayForCurrentMatch aborted: missing references.");
+            return;
+        }
+
+        string uid = auth.CurrentUser.UserId;
+        bool isPlayer1 = currentMatch.player1Uid == uid;
+
+        List<LetterInfo> localRack = ParseRackJson(currentMatch.sharedrackjson);
+        if (localRack == null)
+            localRack = new List<LetterInfo>();
+
+        int localScore = isPlayer1 ? currentMatch.player1Score : currentMatch.player2Score;
+        int opponentScore = isPlayer1 ? currentMatch.player2Score : currentMatch.player1Score;
+
+        Debug.Log("[OnlineMatchController] Starting gameplay for match " + currentMatch.matchId +
+                  " | isPlayer1=" + isPlayer1 +
+                  " | rackCount=" + localRack.Count);
+
+        try
+        {
+            gameLogic.BeginOnlineMatchFromRack(
+                7,
+                15,
+                15,
+                localRack,
+                localScore,
+                opponentScore,
+                currentMatch.currentRoundNumber,
+                currentMatch.bonusBoardJson,
+                currentMatch.boardStateJson
+            );
+
+            Debug.Log("[OnlineMatchController] BeginOnlineMatchFromRack completed successfully.");
+        }
+        catch (Exception ex)
+        {
+            Debug.LogError("[OnlineMatchController] BeginOnlineMatchFromRack threw exception: " + ex);
+        }
+    }
     /*private void EnterGameplayMode()
     {
         if (gameLogic == null || currentMatch == null || auth == null || auth.CurrentUser == null)

@@ -115,8 +115,8 @@ public class PreGamePanel : MonoBehaviour
         if (gameplayPanel != null) gameplayPanel.SetActive(false);
         if (gameOverPanel != null) gameOverPanel.SetActive(false);
 
-        if (gameLogic != null)
-            gameLogic.onlineSubmissionReady += OnOnlineSubmissionReady;
+        //if (gameLogic != null)
+        //    gameLogic.onlineSubmissionReady += OnOnlineSubmissionReady;
     }
 
 
@@ -132,8 +132,8 @@ public class PreGamePanel : MonoBehaviour
             startGameButton.image.color = Color.white;
         }
 
-        if (gameLogic != null)
-            gameLogic.onlineSubmissionReady += OnOnlineSubmissionReady;
+        //if (gameLogic != null)
+        //    gameLogic.onlineSubmissionReady += OnOnlineSubmissionReady;
 
         StartCoroutine(WaitForFirebaseThenInit());
     }
@@ -272,99 +272,6 @@ public class PreGamePanel : MonoBehaviour
         }
     }
 
-    /*private void OnMatchValueChanged(object sender, ValueChangedEventArgs args)
-    {
-        if (args == null)
-        {
-            TraceMatch("OnMatchValueChanged ARGS NULL");
-            return;
-        }
-
-        string raw = null;
-        int rawLen = -1;
-
-        if (args.Snapshot != null)
-        {
-            raw = args.Snapshot.GetRawJsonValue();
-            rawLen = string.IsNullOrEmpty(raw) ? 0 : raw.Length;
-        }
-
-        Debug.Log(
-            $"[MATCHTRACE CALLBACK] OnMatchValueChanged ENTER | " +
-            $"dbError={(args.DatabaseError != null ? args.DatabaseError.Message : "null")} | " +
-            $"snapshotExists={(args.Snapshot != null && args.Snapshot.Exists)} | " +
-            $"rawLen={rawLen} | " +
-            $"watchedMatchId={watchedMatchId} | " +
-            $"frame={Time.frameCount}"
-        );
-
-        if (args.DatabaseError != null)
-        {
-            Debug.LogError("[PregamePanel] Match listener error: " + args.DatabaseError.Message);
-            return;
-        }
-
-        if (args.Snapshot == null || !args.Snapshot.Exists)
-        {
-            TraceMatch("OnMatchValueChanged SNAPSHOT MISSING");
-            return;
-        }
-
-        if (string.IsNullOrEmpty(raw))
-        {
-            TraceMatch("OnMatchValueChanged RAW JSON EMPTY");
-            return;
-        }
-
-        MatchData match = JsonUtility.FromJson<MatchData>(raw);
-
-        Debug.Log("[MATCHTRACE CALLBACK] parsed match id=" + (match == null ? "NULL" : match.matchId));
-
-        if (match == null)
-        {
-            TraceMatch("OnMatchValueChanged PARSE FAILED");
-            return;
-        }
-
-        currentMatch = match;
-
-        if (currentMatch.matchId == pendingResolutionMatchId && currentMatch.status == "completed")
-        {
-            pendingResolutionMatchId = null;
-            ShowGameOverForMatch(currentMatch); // overload that takes the MatchData directly — no need to re-fetch
-            return; // skip the normal round-progression/waiting flow entirely
-        }
-
-        if (currentMatch.currentRoundNumber > lastProcessedRound + 1)
-        {
-            HandleResolvedRound();
-            lastProcessedRound = currentMatch.currentRoundNumber - 1;
-        }
-
-        Debug.Log(
-                "[MATCH LOADED] " +
-                currentMatch.matchId +
-                " Round=" +
-                currentMatch.currentRoundNumber +
-                " RackJson=" +
-                (string.IsNullOrEmpty(currentMatch.sharedrackjson) ? "EMPTY" : "PRESENT")
-            );
-
-        if (currentMatch != null && watchedRoundNumber != currentMatch.currentRoundNumber)
-        {
-            WatchSubmissionsForRound(currentMatch.currentRoundNumber);
-        }
-
-        TraceMatch("OnMatchValueChanged AFTER currentMatch ASSIGN");
-
-        if (pendingEnterGameplay)
-        {
-            pendingEnterGameplay = false;
-            TraceMatch("OnMatchValueChanged TRIGGER EnterGameplayMode");
-            CheckSubmissionThenEnterGameplay();
-        }
-    }
-    */
     private void ShowOnlineRoundResult(RoundResultData result)
     {
         if (Singleton.Instance == null ||
@@ -405,104 +312,7 @@ public class PreGamePanel : MonoBehaviour
         }
     }
 
-    /*private void HandleResolvedRound()
-    {
-        if (string.IsNullOrEmpty(currentMatch.lastRoundResultJson))
-            return;
-
-        RoundResultData result = JsonUtility.FromJson<RoundResultData>(currentMatch.lastRoundResultJson);
-        if (result == null)
-            return;
-
-        bool isViewingThisMatch =
-            gameplayPanel != null &&
-            gameplayPanel.activeInHierarchy &&
-            watchedMatchId == currentMatch.matchId;
-
-        if (isViewingThisMatch && gameLogic != null)
-        {
-            gameLogic.StartCoroutine(ShowOnlineRoundResultDelayed(result));
-        }
-        // else: player wasn't watching live — just let the round-2 rack/board load normally, no popup
-    }
-    */
-    /*private IEnumerator ShowOnlineRoundResultDelayed(
-    RoundResultData result)
-    {
-        string uid = auth.CurrentUser.UserId;
-
-        DatabaseReference submissionRef =
-            dbRoot.Child("matches")
-                  .Child(currentMatch.matchId)
-                  .Child("rounds")
-                  .Child(result.roundNumber.ToString())
-                  .Child("submissions")
-                  .Child(uid);
-
-        var task = submissionRef.GetValueAsync();
-
-        yield return new WaitUntil(() => task.IsCompleted);
-
-        if (!task.IsFaulted &&
-            task.Result != null &&
-            task.Result.Exists)
-        {
-            string json = task.Result.GetRawJsonValue();
-
-            RoundSubmissionData localSubmission =
-                JsonUtility.FromJson<RoundSubmissionData>(json);
-
-            if (localSubmission != null &&
-                localSubmission.isValid &&
-                !string.IsNullOrEmpty(localSubmission.simulatedTilesJson))
-            {
-                SimTileListWrapper wrapper =
-                    JsonUtility.FromJson<SimTileListWrapper>(
-                        localSubmission.simulatedTilesJson);
-
-                if (wrapper != null &&
-                    wrapper.tiles != null &&
-                    wrapper.tiles.Count > 0)
-                {
-                    SimPlacedTileData bestTile = wrapper.tiles[0];
-
-                    foreach (SimPlacedTileData tile in wrapper.tiles)
-                    {
-                        if (tile.row > bestTile.row)
-                        {
-                            bestTile = tile;
-                        }
-                        else if (tile.row == bestTile.row &&
-                                 tile.col > bestTile.col)
-                        {
-                            bestTile = tile;
-                        }
-                    }
-
-                    LetterPosition anchor =
-                        new LetterPosition(
-                            bestTile.row,
-                            bestTile.col);
-
-                    if (Singleton.Instance != null &&
-                        Singleton.Instance.UIManager != null)
-                    {
-                        Singleton.Instance.UIManager.ShowValidatedWordScore(
-                            anchor,
-                            localSubmission.score,
-                            false);
-                    }
-                }
-            }
-        }
-
-        // Give the player time to see THEIR score first
-        yield return new WaitForSeconds(1.5f);
-
-        ShowOnlineRoundResult(result);
-    }
-    */
-    private void WatchSubmissionsForRound(int roundNumber)
+    /*private void WatchSubmissionsForRound(int roundNumber)
     {
         if (currentSubmissionsRef != null)
         {
@@ -517,8 +327,8 @@ public class PreGamePanel : MonoBehaviour
 
         currentSubmissionsRef.ValueChanged += OnSubmissionsValueChanged;
     }
-
-    private void OnSubmissionsValueChanged(object sender, ValueChangedEventArgs args)
+    */
+    /*private void OnSubmissionsValueChanged(object sender, ValueChangedEventArgs args)
     {
         if (args.DatabaseError != null || args.Snapshot == null || currentMatch == null)
             return;
@@ -532,280 +342,9 @@ public class PreGamePanel : MonoBehaviour
         {
             OnlineMatchController.Instance.TryResolveRound(currentMatch.matchId, watchedRoundNumber);
         }
-    }
-    /*
-    private void TryResolveRound(string matchId, int roundNumber)
-    {
-        DatabaseReference submissionsRef = dbRoot.Child("matches").Child(matchId)
-            .Child("rounds").Child(roundNumber.ToString()).Child("submissions");
-
-        submissionsRef.GetValueAsync().ContinueWithOnMainThread(readTask =>
-        {
-            if (readTask.IsFaulted || readTask.Result == null || !readTask.Result.Exists)
-                return;
-
-            List<RoundSubmissionData> submissions = new List<RoundSubmissionData>();
-
-            foreach (var child in readTask.Result.Children)
-            {
-                string raw = child.GetRawJsonValue();
-                if (string.IsNullOrEmpty(raw))
-                    continue;
-
-                RoundSubmissionData sub = JsonUtility.FromJson<RoundSubmissionData>(raw);
-                if (sub != null)
-                    submissions.Add(sub);
-            }
-
-            DatabaseReference matchRef = dbRoot.Child("matches").Child(matchId);
-
-            matchRef.GetValueAsync().ContinueWithOnMainThread(matchReadTask =>
-            {
-                if (matchReadTask.IsFaulted || matchReadTask.Result == null || !matchReadTask.Result.Exists)
-                {
-                    Debug.LogError("[PregamePanel] Failed to read match for resolution: " + matchReadTask.Exception);
-                    return;
-                }
-
-                string matchJson = matchReadTask.Result.GetRawJsonValue();
-                MatchData liveMatch = JsonUtility.FromJson<MatchData>(matchJson);
-
-                if (liveMatch == null || liveMatch.currentRoundNumber != roundNumber)
-                    return; // already resolved by someone else, or stale read
-
-                if (liveMatch.roundResolutionStatus == "resolving" || liveMatch.roundResolutionStatus == "done")
-                    return; // someone already claimed/finished this round
-
-                // --- soft lock: claim it before doing any work ---
-                liveMatch.roundResolutionStatus = "resolving";
-                liveMatch.roundResolutionByUid = auth.CurrentUser.UserId;
-
-                matchRef.Child("roundResolutionStatus").SetValueAsync("resolving")
-                    .ContinueWithOnMainThread(claimTask =>
-                    {
-                        if (claimTask.IsFaulted)
-                        {
-                            Debug.LogError("[PregamePanel] Failed to claim round resolution: " + claimTask.Exception);
-                            return;
-                        }
-
-                        ResolveRoundNow(liveMatch, roundNumber, submissions, matchRef);
-                    });
-            });
-        });
     }*/
-    /*private void ResolveRoundNow(MatchData liveMatch, int roundNumber, List<RoundSubmissionData> submissions, DatabaseReference matchRef)
-    {
-        RoundSubmissionData winner = null;
-        foreach (var sub in submissions)
-        {
-            if (!sub.isValid) continue;
-            if (winner == null || IsBetterSubmission(sub, winner))
-                winner = sub;
-        }
 
-        BoardStateData board = JsonUtility.FromJson<BoardStateData>(liveMatch.boardStateJson) ?? new BoardStateData();
-        BagStateData bag = JsonUtility.FromJson<BagStateData>(liveMatch.bagStateJson) ?? new BagStateData();
-        RackStateData sharedRack = JsonUtility.FromJson<RackStateData>(liveMatch.sharedrackjson) ?? new RackStateData();
-
-        RoundResultData result = new RoundResultData
-        {
-            roundNumber = roundNumber,
-            anyValidMove = winner != null
-        };
-
-        if (winner != null)
-        {
-            SimTileListWrapper wrapper = JsonUtility.FromJson<SimTileListWrapper>(winner.simulatedTilesJson);
-
-            if (wrapper != null && wrapper.tiles != null)
-            {
-                foreach (var tile in wrapper.tiles)
-                {
-                    int idx = sharedRack.tiles.FindIndex(t => t.letter == tile.letter);
-                    if (idx >= 0)
-                        sharedRack.tiles.RemoveAt(idx);
-
-                    int x = tile.col - 1;
-                    int y = tile.row - 1;
-                    BoardCellData cell = FindCell(board, x, y);
-                    if (cell != null)
-                    {
-                        cell.occupied = true;
-                        cell.tile = new TileData
-                        {
-                            letter = tile.letter,
-                            value = tile.points,
-                            id = Guid.NewGuid().ToString("N")
-                        };
-                    }
-                }
-            }
-
-            result.winnerUid = winner.uid;
-            result.winnerWord = winner.word;
-            result.winnerScore = winner.score;
-
-            bool winnerIsPlayer1 = winner.uid == liveMatch.player1Uid;
-            result.winnerDisplayName = winnerIsPlayer1 ? liveMatch.player1DisplayName : liveMatch.player2DisplayName;
-
-            if (winnerIsPlayer1)
-                liveMatch.player1Score += winner.score;
-            else
-                liveMatch.player2Score += winner.score;
-        }
-
-        while (sharedRack.tiles.Count < 7 && bag.tiles != null && bag.tiles.Count > 0)
-        {
-            sharedRack.tiles.Add(bag.tiles[0]);
-            bag.tiles.RemoveAt(0);
-        }
-
-        int totalRounds = liveMatch.totalRounds > 0 ? liveMatch.totalRounds : 5;
-        int nextRound = roundNumber + 1;
-        bool isFinalRoundJustPlayed = nextRound > totalRounds;
-
-        liveMatch.boardStateJson = JsonUtility.ToJson(board);
-        liveMatch.bagStateJson = JsonUtility.ToJson(bag);
-        liveMatch.sharedrackjson = JsonUtility.ToJson(sharedRack);
-        liveMatch.lastRoundResultJson = JsonUtility.ToJson(result);
-        liveMatch.currentRoundNumber = nextRound;
-        liveMatch.roundResolutionStatus = "done";
-        liveMatch.status = isFinalRoundJustPlayed ? "completed" : "active";
-
-        string updatedJson = JsonUtility.ToJson(liveMatch);
-
-        matchRef.SetRawJsonValueAsync(updatedJson).ContinueWithOnMainThread(writeTask =>
-        {
-            if (writeTask.IsFaulted)
-            {
-                Debug.LogError("[PregamePanel] Failed to write resolved round: " + writeTask.Exception);
-                return;
-            }
-
-            Debug.Log("[PregamePanel] Round " + roundNumber + " resolved and written.");
-        });
-    }*/
-    // PUBLIC — used by MatchStatusPanel, which only has a matchId string
-    /*public void ShowGameOverForMatch(string matchId)
-    {
-        dbRoot.Child("matches").Child(matchId).GetValueAsync().ContinueWithOnMainThread(task =>
-        {
-            if (task.IsFaulted || task.Result == null || !task.Result.Exists)
-            {
-                SetStatus("Could not load game.");
-                return;
-            }
-
-            MatchData match = JsonUtility.FromJson<MatchData>(task.Result.GetRawJsonValue());
-            if (match == null) return;
-
-            ShowGameOverForMatch(match);
-        });
-    }*/
-    /*
-    private void CheckSubmissionThenEnterGameplay()
-    {
-        Debug.Log("[PregamePanel] CheckSubmissionThenEnterGameplay ENTER | auth.CurrentUser=" +
-        (auth != null && auth.CurrentUser != null ? auth.CurrentUser.Email + " (" + auth.CurrentUser.UserId + ")" : "NULL") +
-        " | currentMatch=" + (currentMatch != null ? currentMatch.matchId : "NULL"));
-
-        if (currentMatch == null || auth == null || auth.CurrentUser == null)
-        {
-            Debug.LogWarning("[PregamePanel] CheckSubmissionThenEnterGameplay ABORTED early — null check failed.");
-            return;
-        }
-        
-
-        string uid = auth.CurrentUser.UserId;
-        int roundNumber = currentMatch.currentRoundNumber;
-
-        Debug.Log("[PregamePanel] Checking submission at matches/" + currentMatch.matchId + "/rounds/" + roundNumber + "/submissions/" + uid);
-
-        dbRoot.Child("matches").Child(currentMatch.matchId)
-            .Child("rounds").Child(roundNumber.ToString())
-            .Child("submissions").Child(uid)
-            .GetValueAsync().ContinueWithOnMainThread(task =>
-            {
-                Debug.Log("[PregamePanel] Submission check task completed. Faulted=" + task.IsFaulted);
-
-                if (task.IsFaulted)
-                {
-                    Debug.LogError("[PregamePanel] Failed to check submission status: " + task.Exception);
-                    return;
-                }
-
-                bool alreadySubmitted = task.Result != null && task.Result.Exists;
-
-                if (alreadySubmitted)
-                {
-                    SetStatus("You've already played this round. Waiting for other players...");
-
-                    if (optionPanel != null) optionPanel.SetActive(false);
-                    if (pregamePanel != null) pregamePanel.SetActive(false);
-                    if (gameplayPanel != null) gameplayPanel.SetActive(false);
-                    if (gameOverPanel != null) gameOverPanel.SetActive(false);
-
-                    if (matchStatusPanel != null)
-                    {
-                        matchStatusPanel.gameObject.SetActive(true);
-                        matchStatusPanel.OnRefreshPressed();
-                    }
-                }
-                else
-                {
-                    EnterGameplayMode();
-                }
-            });
-    }
-    */
-    /*private void ShowGameOverForMatch(MatchData match)
-    {
-        if (optionPanel != null) optionPanel.SetActive(false);
-        if (pregamePanel != null) pregamePanel.SetActive(false);
-        if (gameplayPanel != null) gameplayPanel.SetActive(false); // UIManager's gameOverPanel lives outside this, so it's fine to hide gameplayPanel
-        if (matchStatusPanel != null) matchStatusPanel.gameObject.SetActive(false);
-
-        string myUid = auth != null && auth.CurrentUser != null ? auth.CurrentUser.UserId : "";
-        bool amPlayer1 = match.player1Uid == myUid;
-
-        int myScore = amPlayer1 ? match.player1Score : match.player2Score;
-        int opponentScore = amPlayer1 ? match.player2Score : match.player1Score;
-        string opponentName = amPlayer1 ? match.player2DisplayName : match.player1DisplayName;
-
-        string finalMessage;
-        if (myScore > opponentScore)
-            finalMessage = "You win!";
-        else if (myScore < opponentScore)
-            finalMessage = "You lose.";
-        else
-            finalMessage = "It's a tie!";
-
-        string roundSummary =
-            "Final score\nYou: " + myScore + "  -  " + opponentName + ": " + opponentScore +
-            "\nRounds played: " + match.totalRounds;
-
-        UIManager uiManager = Singleton.Instance != null ? Singleton.Instance.UIManager : null;
-
-        if (uiManager == null)
-        {
-            // Player may not have entered gameplay this session yet (e.g. tapped a
-            // completed row straight from MatchStatusPanel on a fresh app open),
-            // so Singleton/UIManager might not have run Awake(). Fall back to a find.
-            uiManager = FindAnyObjectByType<UIManager>();
-        }
-
-        if (uiManager != null)
-        {
-            uiManager.ShowGameOverPanel(finalMessage, roundSummary);
-        }
-        else
-        {
-            Debug.LogWarning("[PregamePanel] Could not find UIManager to show game over panel.");
-            SetStatus(finalMessage + " " + roundSummary.Replace("\n", " "));
-        }
-    }*/
-    private bool IsBetterSubmission(RoundSubmissionData candidate, RoundSubmissionData currentBest)
+    /*private bool IsBetterSubmission(RoundSubmissionData candidate, RoundSubmissionData currentBest)
     {
         if (candidate.score != currentBest.score)
             return candidate.score > currentBest.score;
@@ -817,52 +356,8 @@ public class PreGamePanel : MonoBehaviour
             return candLen > bestLen;
 
         return candidate.submittedAtUnix < currentBest.submittedAtUnix; // earlier submission wins ties
-    }
-
-    /*public void WatchMatch(string matchId, bool enterWhenReady = false)
-    {
-        if (!EnsureFirebaseReady())
-        {
-            Debug.LogWarning("[PreGamePanel] WatchMatch aborted: Firebase not ready.");
-            return;
-        }
-
-        TraceMatch("WatchMatch ENTER matchId=" + matchId);
-
-        if (currentMatchRef != null)
-        {
-            currentMatchRef.ValueChanged -= OnMatchValueChanged;
-            currentMatchRef = null;
-        }
-
-        watchedMatchId = matchId;
-        pendingEnterGameplay = enterWhenReady;
-
-        currentMatchRef = dbRoot.Child("matches").Child(matchId);
-        currentMatchRef.ValueChanged += OnMatchValueChanged;
-
-        TraceMatch("WatchMatch AFTER subscribe");
     }*/
-    /*public void StopWatchingMatch()
-    {
-        TraceMatch("StopWatchingMatch ENTER");
 
-        if (currentMatchRef != null)
-        {
-            currentMatchRef.ValueChanged -= OnMatchValueChanged;
-            Debug.Log("[PregamePanel] Stopped watching match: " + watchedMatchId);
-            currentMatchRef = null;
-        }
-
-        TraceMatch("StopWatchingMatch BEFORE CLEAR");
-
-        watchedMatchId = "";
-        currentMatch = null;
-        hasInitializedMatch = false;
-
-        TraceMatch("StopWatchingMatch AFTER CLEAR");
-    }
-    */
     public void OnRegisterPressed()
     {
         string email = emailInput.text.Trim();
@@ -1533,7 +1028,7 @@ public class PreGamePanel : MonoBehaviour
             return;
 
         StopWatchingRoom();
-        OnlineMatchController.Instance.StopWatchingMatch();
+        OnlineMatchController.Instance?.StopWatchingMatch();
 
         auth.SignOut();
         SetStatus("Logged out.");
@@ -1696,7 +1191,7 @@ public class PreGamePanel : MonoBehaviour
         roomWatcher = null;
     }
 
-    private void OnRoomValueChanged(object sender, ValueChangedEventArgs args)
+    /*private void OnRoomValueChanged(object sender, ValueChangedEventArgs args)
     {
         if (args.DatabaseError != null)
         {
@@ -1773,76 +1268,22 @@ public class PreGamePanel : MonoBehaviour
             return;
         }
     }
-
+    */
     public void EnterGameplayMode()
     {
-        Debug.Log("[ENTER GAMEPLAY] uid=" +auth.CurrentUser.UserId +" pendingEnterGameplay=" + pendingEnterGameplay + " matchId=" + (currentMatch != null ? currentMatch.matchId : "NULL"));
-        TraceMatch("EnterGameplayMode ENTER");
-        Debug.Log($"[PREGAME] EnterGameplayMode CALLED | frame={Time.frameCount}");
+        Debug.Log("[ENTER GAMEPLAY] PANEL SWITCH ONLY");
 
-        if (gameLogic == null) { Debug.LogError("[PREGAME] gameLogic is NULL"); TraceMatch("EnterGameplayMode ABORT gameLogic NULL"); return; }
-        if (currentMatch == null) { Debug.LogError("[PREGAME] currentMatch is NULL"); TraceMatch("EnterGameplayMode ABORT currentMatch NULL"); return; }
-        if (auth == null || auth.CurrentUser == null) { Debug.LogError("[PREGAME] auth/current user is NULL"); TraceMatch("EnterGameplayMode ABORT auth/current user NULL"); return; }
-
-        // Switch panels FIRST — Singleton/UIManager may live under gameplayPanel
-        // and won't be ready (Awake hasn't run) until it's actually active.
+        // Switch panels FIRST
         if (optionPanel != null) optionPanel.SetActive(false);
         if (pregamePanel != null) pregamePanel.SetActive(false);
         if (matchStatusPanel != null) matchStatusPanel.gameObject.SetActive(false);
         if (gameplayPanel != null) gameplayPanel.SetActive(true);
         if (gameOverPanel != null) gameOverPanel.SetActive(false);
 
-        string uid = auth.CurrentUser.UserId;
-        bool isPlayer1 = currentMatch.player1Uid == uid;
-
-        Debug.Log(
-            $"[PREGAME] EnterGameplayMode PREP | " +
-            $"matchId={currentMatch.matchId} | " +
-            $"status={currentMatch.status} | " +
-            $"turn={currentMatch.currentRoundNumber} | " +
-            $"uid={uid} | " +
-            $"isPlayer1={isPlayer1} | " +
-            $"sharedRackJsonNull={string.IsNullOrEmpty(currentMatch.sharedrackjson)}"
-        );
-        Debug.Log("[PREGAME] sharedRackJson RAW = " + currentMatch.sharedrackjson);
-        List<LetterInfo> localRack = ParseRackJson(currentMatch.sharedrackjson);
-        Debug.Log("[PREGAME] localRack parsed count = " + (localRack == null ? -1 : localRack.Count));
-        if (localRack == null)
-        {
-            Debug.LogWarning("[PREGAME] ParseRackJson returned null. Replacing with empty rack.");
-            localRack = new List<LetterInfo>();
-        }
-
-        int localScore = isPlayer1 ? currentMatch.player1Score : currentMatch.player2Score;
-        int opponentScore = isPlayer1 ? currentMatch.player2Score : currentMatch.player1Score;
-
-        Debug.Log("[PREGAME] Local player is " + (isPlayer1 ? "P1" : "P2"));
-        Debug.Log("[PREGAME] Local rack count = " + localRack.Count);
-        Debug.Log("[PREGAME] Local score = " + localScore + ", Opponent score = " + opponentScore);
-
-        try
-        {
-            gameLogic.BeginOnlineMatchFromRack(
-                7,
-                15,
-                15,
-                localRack,
-                localScore,
-                opponentScore,
-                currentMatch.currentRoundNumber,
-                currentMatch.bonusBoardJson,
-                currentMatch.boardStateJson
-            );
-
-            Debug.Log("[PREGAME] BeginOnlineMatchFromRack completed successfully.");
-            TraceMatch("EnterGameplayMode SUCCESS");
-        }
-        catch (System.Exception ex)
-        {
-            Debug.LogError("[PREGAME] BeginOnlineMatchFromRack threw exception: " + ex);
-            TraceMatch("EnterGameplayMode EXCEPTION");
-        }
+        // Do NOT touch currentMatch or call BeginOnlineMatchFromRack here anymore.
+        // That is now handled by OnlineMatchController.StartGameplayForCurrentMatch().
     }
+
 
     private List<LetterInfo> CloneLetterList(List<LetterInfo> source)
     {
@@ -1864,7 +1305,7 @@ public class PreGamePanel : MonoBehaviour
     private void OnDestroy()
     {
         StopWatchingRoom();
-        OnlineMatchController.Instance.StopWatchingMatch();
+        OnlineMatchController.Instance?.StopWatchingMatch();
 
         if (auth != null)
         {
@@ -1872,8 +1313,8 @@ public class PreGamePanel : MonoBehaviour
             auth = null;
         }
 
-        if (gameLogic != null)
-            gameLogic.onlineSubmissionReady -= OnOnlineSubmissionReady;
+        //if (gameLogic != null)
+         //   gameLogic.onlineSubmissionReady -= OnOnlineSubmissionReady;
     }
 
     public void OnStartGamePressed()
@@ -2074,13 +1515,13 @@ public class PreGamePanel : MonoBehaviour
         return string.Join(", ", parts);
     }
 
-    private void OnOnlineSubmissionReady(RoundMove move)
+    /*private void OnOnlineSubmissionReady(RoundMove move)
     {
         if (currentMatch == null || auth == null || auth.CurrentUser == null)
             return;
 
         OnlineMatchController.Instance.SubmitRoundMove(move);
-    }
+    }*/
 
     private BoardCellData FindCell(BoardStateData board, int x, int y)
     {

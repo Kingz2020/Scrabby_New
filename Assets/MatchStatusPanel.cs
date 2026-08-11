@@ -686,10 +686,6 @@ public class MatchStatusPanel : MonoBehaviour
         }
     }
 
-    /*private void OnInviteDeclined(string roomCode)
-    {
-        preGamePanel.DeclineRoomInvite(roomCode);
-    }*/
 
     private void BuildMatchList(List<MatchListItemData> activeItems, List<MatchListItemData> completedItems)
     {
