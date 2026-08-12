@@ -65,7 +65,7 @@ public class PreGamePanel : MonoBehaviour
 
     private string pendingResolutionMatchId = null;
 
-    [SerializeField] private OnlineMatchController onlineMatchController;
+    //[SerializeField] private OnlineMatchController onlineMatchController;
 
     [Serializable]
     public class RoomPlayerData
@@ -108,8 +108,8 @@ public class PreGamePanel : MonoBehaviour
 
     private void Awake()
     {
-        if (onlineMatchController == null)
-            onlineMatchController = OnlineMatchController.Instance;
+        //if (onlineMatchController == null)
+        //    onlineMatchController = Singleton.Instance.OnlineMatchController;
 
         if (pregamePanel != null) pregamePanel.SetActive(true);
         if (gameplayPanel != null) gameplayPanel.SetActive(false);
@@ -311,52 +311,6 @@ public class PreGamePanel : MonoBehaviour
                 "No valid move this round.");
         }
     }
-
-    /*private void WatchSubmissionsForRound(int roundNumber)
-    {
-        if (currentSubmissionsRef != null)
-        {
-            currentSubmissionsRef.ValueChanged -= OnSubmissionsValueChanged;
-            currentSubmissionsRef = null;
-        }
-
-        watchedRoundNumber = roundNumber;
-
-        currentSubmissionsRef = dbRoot.Child("matches").Child(currentMatch.matchId)
-            .Child("rounds").Child(roundNumber.ToString()).Child("submissions");
-
-        currentSubmissionsRef.ValueChanged += OnSubmissionsValueChanged;
-    }
-    */
-    /*private void OnSubmissionsValueChanged(object sender, ValueChangedEventArgs args)
-    {
-        if (args.DatabaseError != null || args.Snapshot == null || currentMatch == null)
-            return;
-
-        int submittedCount = (int)args.Snapshot.ChildrenCount;
-        int expectedCount = 2; // host + guest — extend when room supports more players
-
-        Debug.Log("[PregamePanel] Round " + watchedRoundNumber + " submissions: " + submittedCount + "/" + expectedCount);
-
-        if (submittedCount >= expectedCount)
-        {
-            OnlineMatchController.Instance.TryResolveRound(currentMatch.matchId, watchedRoundNumber);
-        }
-    }*/
-
-    /*private bool IsBetterSubmission(RoundSubmissionData candidate, RoundSubmissionData currentBest)
-    {
-        if (candidate.score != currentBest.score)
-            return candidate.score > currentBest.score;
-
-        int candLen = string.IsNullOrEmpty(candidate.word) ? 0 : candidate.word.Length;
-        int bestLen = string.IsNullOrEmpty(currentBest.word) ? 0 : currentBest.word.Length;
-
-        if (candLen != bestLen)
-            return candLen > bestLen;
-
-        return candidate.submittedAtUnix < currentBest.submittedAtUnix; // earlier submission wins ties
-    }*/
 
     public void OnRegisterPressed()
     {
@@ -1028,7 +982,7 @@ public class PreGamePanel : MonoBehaviour
             return;
 
         StopWatchingRoom();
-        OnlineMatchController.Instance?.StopWatchingMatch();
+        Singleton.Instance.OnlineMatchController?.StopWatchingMatch();
 
         auth.SignOut();
         SetStatus("Logged out.");
@@ -1115,7 +1069,7 @@ public class PreGamePanel : MonoBehaviour
                 matchStatusPanel.ForceRefresh();
         });
 
-        OnlineMatchController.Instance.WatchMatch(room.matchId, false);
+        Singleton.Instance.OnlineMatchController.WatchMatch(room.matchId, false);
     }
 
     public void WatchRoom(string roomCode)
@@ -1191,84 +1145,6 @@ public class PreGamePanel : MonoBehaviour
         roomWatcher = null;
     }
 
-    /*private void OnRoomValueChanged(object sender, ValueChangedEventArgs args)
-    {
-        if (args.DatabaseError != null)
-        {
-            Debug.LogError("[PregamePanel] Room listener error: " + args.DatabaseError.Message);
-            return;
-        }
-
-        if (args.Snapshot == null || !args.Snapshot.Exists)
-        {
-            Debug.LogWarning("[PregamePanel] Room snapshot missing or room deleted.");
-            return;
-        }
-
-        string json = args.Snapshot.GetRawJsonValue();
-
-        if (string.IsNullOrEmpty(json))
-        {
-            Debug.LogWarning("[PregamePanel] Room snapshot JSON was empty.");
-            return;
-        }
-
-        RoomData room = JsonUtility.FromJson<RoomData>(json);
-
-        if (room == null)
-        {
-            Debug.LogError("[PregamePanel] Failed to parse RoomData from JSON.");
-            return;
-        }
-
-        Debug.Log("[PregamePanel] Room changed. Code=" + room.code + ", Status=" + room.status);
-
-        bool roomFull = !string.IsNullOrEmpty(room.guestUid) && room.status == "full";
-        bool matchExists = !string.IsNullOrEmpty(room.matchId);
-        bool isHost = IsSignedIn() && auth != null && auth.CurrentUser != null && room.hostUid == auth.CurrentUser.UserId;
-
-        Debug.Log("[PregamePanel] roomFull=" + roomFull +
-                  ", isHost=" + isHost +
-                  ", hostUid=" + room.hostUid +
-                  ", currentUid=" + (auth != null && auth.CurrentUser != null ? auth.CurrentUser.UserId : "null"));
-
-        if (roomFull)
-        {
-            Debug.Log("[PregamePanel] Room is full. A game can begin.");
-        }
-        else
-        {
-            Debug.Log("[PregamePanel] Room is waiting for another player.");
-        }
-
-        if (startGameButton != null)
-        {
-            bool canStart = roomFull || matchExists;
-            Debug.Log("[PregamePanel] Setting startGameButton.interactable = " + canStart);
-            startGameButton.interactable = canStart;
-            startGameButton.image.color = canStart ? Color.green : Color.gray;
-            Debug.Log("[PregamePanel] AFTER SET: interactable=" + startGameButton.interactable);
-        }
-        else
-        {
-            Debug.LogWarning("[PregamePanel] startGameButton is NULL in OnRoomValueChanged!");
-        }
-
-        Debug.Log("[PregamePanel] AFTER RunOnMainThread call queued");
-
-        if (!string.IsNullOrEmpty(room.matchId) && room.status == "in_game")
-        {
-            Debug.Log("[PregamePanel] Match exists. Waiting for player to press Start.");
-
-            if (watchedMatchId != room.matchId || currentMatch == null)
-            {
-                OnlineMatchController.Instance.WatchMatch(room.matchId, false);
-            }
-
-            return;
-        }
-    }
-    */
     public void EnterGameplayMode()
     {
         Debug.Log("[ENTER GAMEPLAY] PANEL SWITCH ONLY");
@@ -1305,7 +1181,7 @@ public class PreGamePanel : MonoBehaviour
     private void OnDestroy()
     {
         StopWatchingRoom();
-        OnlineMatchController.Instance?.StopWatchingMatch();
+        Singleton.Instance.OnlineMatchController?.StopWatchingMatch();
 
         if (auth != null)
         {
@@ -1378,7 +1254,7 @@ public class PreGamePanel : MonoBehaviour
 
                 Debug.Log($"[STARTFLOW] Existing match detected matchId={room.matchId}");
                 AddMatchToUser(auth.CurrentUser.UserId, room.matchId);
-                OnlineMatchController.Instance.ResumeMatch(room.matchId);
+                Singleton.Instance.OnlineMatchController.ResumeMatch(room.matchId);
                 Debug.Log("[STARTFLOW] WatchMatch called for existing match");
 
                 return;
@@ -1515,13 +1391,6 @@ public class PreGamePanel : MonoBehaviour
         return string.Join(", ", parts);
     }
 
-    /*private void OnOnlineSubmissionReady(RoundMove move)
-    {
-        if (currentMatch == null || auth == null || auth.CurrentUser == null)
-            return;
-
-        OnlineMatchController.Instance.SubmitRoundMove(move);
-    }*/
 
     private BoardCellData FindCell(BoardStateData board, int x, int y)
     {
@@ -1611,7 +1480,7 @@ public class PreGamePanel : MonoBehaviour
                 if (updatedRoom.status == "in_game")
                 {
                     Debug.Log("[PregamePanel] Someone already created the match. matchId=" + updatedRoom.matchId);
-                    OnlineMatchController.Instance.WatchMatch(updatedRoom.matchId,false);
+                    Singleton.Instance.OnlineMatchController.WatchMatch(updatedRoom.matchId,false);
                     //EnterGameplayMode();
                     return;
                 }
@@ -1626,7 +1495,7 @@ public class PreGamePanel : MonoBehaviour
                     Debug.Log("[PregamePanel] Another client claimed start. Waiting for final match...");
                     if (!string.IsNullOrEmpty(updatedRoom.matchId))
                     {
-                        OnlineMatchController.Instance.WatchMatch(updatedRoom.matchId,false);
+                        Singleton.Instance.OnlineMatchController.WatchMatch(updatedRoom.matchId,false);
                         //EnterGameplayMode();
                     }
                     return;
@@ -1742,7 +1611,7 @@ public class PreGamePanel : MonoBehaviour
                             
 
                             SetStatus("Game ready. Tap Resume to play.");
-                            OnlineMatchController.Instance.WatchMatch(matchId,false);
+                            Singleton.Instance.OnlineMatchController.WatchMatch(matchId,false);
                         });
                     });
             });
@@ -1933,7 +1802,7 @@ public class PreGamePanel : MonoBehaviour
 
                     currentMatch = match;
 
-                    OnlineMatchController.Instance.ResumeMatch(match.matchId);
+                    Singleton.Instance.OnlineMatchController.ResumeMatch(match.matchId);
 
                     return;
                 }

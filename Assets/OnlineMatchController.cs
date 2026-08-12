@@ -54,15 +54,6 @@ public class OnlineMatchController : MonoBehaviour
 
     private void Awake()
     {
-        if (Instance != null && Instance != this)
-        {
-            Destroy(gameObject);
-            return;
-        }
-
-        Instance = this;
-        DontDestroyOnLoad(gameObject);
-
         // Try to seed from FirebaseInit, but don't crash if it's not ready yet.
         if (FirebaseInit.IsReady)
         {
@@ -80,7 +71,7 @@ public class OnlineMatchController : MonoBehaviour
             uiManager = Singleton.Instance.UIManager;
 
         if (gameLogic == null && Singleton.Instance != null)
-            gameLogic = Singleton.Instance.GameLogic; // adjust if different
+            gameLogic = Singleton.Instance.GameLogic;
 
         if (gameLogic != null)
             gameLogic.onlineSubmissionReady += SubmitRoundMove;

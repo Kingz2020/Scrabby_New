@@ -731,7 +731,7 @@ MonoBehaviour:
   m_OnClick:
     m_PersistentCalls:
       m_Calls:
-      - m_Target: {fileID: 142773865}
+      - m_Target: {fileID: 0}
         m_TargetAssemblyTypeName: FirebaseDebugButtons, Assembly-CSharp
         m_MethodName: TestJoinRoom
         m_Mode: 1
@@ -1863,8 +1863,6 @@ GameObject:
   - component: {fileID: 142773863}
   - component: {fileID: 142773862}
   - component: {fileID: 142773864}
-  - component: {fileID: 142773865}
-  - component: {fileID: 142773866}
   m_Layer: 0
   m_Name: FirebaseManager
   m_TagString: Untagged
@@ -1913,30 +1911,6 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::FireBaseAuthTest
   testEmail: mystakingz@gmail.com
   testPassword: Scrabby123
---- !u!114 &142773865
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 142773861}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 5478c1b04a9e1b345aebf6f356287ad1, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::FirebaseDebugButtons
---- !u!114 &142773866
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 142773861}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 9960a15fbb948dd4382ec33cf3e2d306, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::FirebaseMatchService
 --- !u!1 &156367512
 GameObject:
   m_ObjectHideFlags: 0
@@ -2800,7 +2774,6 @@ MonoBehaviour:
   matchStatusPanel: {fileID: 1320798988}
   startGameButton: {fileID: 1094806212}
   gameLogic: {fileID: 688434552}
-  onlineMatchController: {fileID: 0}
 --- !u!1 &261176513
 GameObject:
   m_ObjectHideFlags: 0
@@ -3021,7 +2994,7 @@ MonoBehaviour:
   m_HandleRect: {fileID: 1080990187}
   m_Direction: 0
   m_Value: 0
-  m_Size: 1
+  m_Size: 0.9999999
   m_NumberOfSteps: 0
   m_OnValueChanged:
     m_PersistentCalls:
@@ -6586,7 +6559,7 @@ MonoBehaviour:
   m_HandleRect: {fileID: 850349770}
   m_Direction: 0
   m_Value: 0
-  m_Size: 1
+  m_Size: 0.99999994
   m_NumberOfSteps: 0
   m_OnValueChanged:
     m_PersistentCalls:
@@ -8700,7 +8673,7 @@ MonoBehaviour:
   m_TargetGraphic: {fileID: 1789655221}
   m_HandleRect: {fileID: 1789655220}
   m_Direction: 2
-  m_Value: 0
+  m_Value: 1
   m_Size: 1
   m_NumberOfSteps: 0
   m_OnValueChanged:
@@ -10208,7 +10181,7 @@ MonoBehaviour:
   m_TargetGraphic: {fileID: 1206947822}
   m_HandleRect: {fileID: 1206947821}
   m_Direction: 2
-  m_Value: 0
+  m_Value: 1
   m_Size: 1
   m_NumberOfSteps: 0
   m_OnValueChanged:
@@ -11415,7 +11388,7 @@ MonoBehaviour:
   m_OnClick:
     m_PersistentCalls:
       m_Calls:
-      - m_Target: {fileID: 142773865}
+      - m_Target: {fileID: 0}
         m_TargetAssemblyTypeName: FirebaseDebugButtons, Assembly-CSharp
         m_MethodName: TestCreateProfile
         m_Mode: 1
@@ -11997,7 +11970,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 0}
   m_AnchorMax: {x: 1, y: 1}
-  m_AnchoredPosition: {x: 24, y: -21.000122}
+  m_AnchoredPosition: {x: 24, y: -21.000244}
   m_SizeDelta: {x: 0, y: 0}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!222 &1085120656
@@ -14631,7 +14604,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 0}
   m_AnchorMax: {x: 1, y: 1}
-  m_AnchoredPosition: {x: 24, y: -21.000122}
+  m_AnchoredPosition: {x: 24, y: -21.000244}
   m_SizeDelta: {x: 0, y: 0}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!222 &1303314664
@@ -15018,7 +14991,6 @@ MonoBehaviour:
   rowPrefab: {fileID: 3581404545213219368, guid: d3ae5777021739641929917d061d8d9c, type: 3}
   inviteRowPrefab: {fileID: 5972046252062376984, guid: 19ddc73995ef2bf4eb95189e633ead6d, type: 3}
   completedContentParent: {fileID: 1296076632}
-  onlineMatchController: {fileID: 1669382407}
 --- !u!1 &1323550256
 GameObject:
   m_ObjectHideFlags: 0
@@ -17575,6 +17547,7 @@ RectTransform:
   - {fileID: 773275230}
   - {fileID: 1636500637}
   - {fileID: 1628692632}
+  - {fileID: 1669382408}
   - {fileID: 688434551}
   - {fileID: 1629872460}
   m_Father: {fileID: 1281643446}
@@ -17609,7 +17582,6 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   timer: {fileID: 685322954}
-  startButton: {fileID: 0}
   resetButton: {fileID: 272770065}
   revealButton: {fileID: 1105196113}
 --- !u!1 &1621576674
@@ -18192,7 +18164,7 @@ MonoBehaviour:
   humanScoreText: {fileID: 1858605108}
   aiScoreText: {fileID: 1746441066}
   roundText: {fileID: 486172163}
-  overlayCanvasRect: {fileID: 0}
+  overlayCanvasRect: {fileID: 1664243241}
   validatedScorePopupPrefab: {fileID: 8877962218795890567, guid: 9d10d1ecca4e6304db03ae729b07bee8, type: 3}
   validatedScorePopupOffset: {x: 40, y: -40}
 --- !u!1 &1641919008
@@ -18652,11 +18624,11 @@ Transform:
   m_GameObject: {fileID: 1669382406}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: -730.7062, y: 620.6886, z: -99.69017}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalPosition: {x: -3672.9795, y: -215.74121, z: -317.89313}
+  m_LocalScale: {x: 3.1888113, y: 3.1888113, z: 3.1888113}
   m_ConstrainProportionsScale: 0
   m_Children: []
-  m_Father: {fileID: 0}
+  m_Father: {fileID: 1602580472}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &1679684768
 GameObject:
@@ -19258,7 +19230,7 @@ MonoBehaviour:
   m_OnClick:
     m_PersistentCalls:
       m_Calls:
-      - m_Target: {fileID: 142773865}
+      - m_Target: {fileID: 0}
         m_TargetAssemblyTypeName: FirebaseDebugButtons, Assembly-CSharp
         m_MethodName: TestCreateRoom
         m_Mode: 1
@@ -25156,7 +25128,6 @@ SceneRoots:
   - {fileID: 519420032}
   - {fileID: 142773863}
   - {fileID: 798381844}
-  - {fileID: 1669382408}
   - {fileID: 1664243241}
   - {fileID: 17221346}
   - {fileID: 40825584}

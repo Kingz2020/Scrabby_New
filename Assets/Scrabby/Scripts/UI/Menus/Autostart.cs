@@ -5,7 +5,7 @@ using UnityEngine;
 public class Autostart : MonoBehaviour
 {
     public Timer timer;
-    public GameObject startButton;
+    //public GameObject startButton;
     public GameObject resetButton;
     public GameObject revealButton;
 
@@ -26,7 +26,7 @@ public class Autostart : MonoBehaviour
     {
         Singleton.Instance.DebugManager.RefillHand();
         Singleton.Instance.DebugManager.ResetDisplayWords();
-        startButton.SetActive(false);
+        //startButton.SetActive(false);
         resetButton.SetActive(true);
         revealButton.SetActive(true);
         timer.StartTimer();
