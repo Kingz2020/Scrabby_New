@@ -20,7 +20,7 @@ using System.Threading.Tasks;
 /// </summary>
 public class OnlineMatchController : MonoBehaviour
 {
-    public static OnlineMatchController Instance { get; private set; }
+    //public static OnlineMatchController Instance { get; private set; }
     [Header("Core References")]
     [SerializeField] private GameLogic gameLogic;
     [SerializeField] private UIManager uiManager;
@@ -49,6 +49,11 @@ public class OnlineMatchController : MonoBehaviour
     private int lastProcessedRound = 0;
 
     private int matchTraceSeq = 0;
+
+    public MatchData CurrentMatch => currentMatch;
+
+    //private string currentMatchId;
+    public event System.Action<MatchData> OnMatchUpdated;
 
     #region Init
 
@@ -87,7 +92,7 @@ public class OnlineMatchController : MonoBehaviour
         if (gameLogic != null)
             gameLogic.onlineSubmissionReady -= SubmitRoundMove;
 
-        StopWatchingMatch();
+        StopWatchingCurrentMatch();
     }
 
     private bool EnsureFirebaseReady()
@@ -153,25 +158,7 @@ public class OnlineMatchController : MonoBehaviour
         TraceMatch("WatchMatch AFTER subscribe");
     }
 
-    public void StopWatchingMatch()
-    {
-        TraceMatch("StopWatchingMatch ENTER");
-
-        if (currentMatchRef != null)
-        {
-            currentMatchRef.ValueChanged -= OnMatchValueChanged;
-            Debug.Log("[OnlineMatchController] Stopped watching match: " + watchedMatchId);
-        }
-
-        currentMatchRef = null;
-        watchedMatchId = null;
-        currentMatch = null;
-        pendingEnterGameplay = false;
-        lastProcessedRound = 0;
-        watchedRoundNumber = -1;
-
-        TraceMatch("StopWatchingMatch AFTER CLEAR");
-    }
+    
 
     /// <summary>
     /// Called by UI when the local player submits a move.
@@ -227,7 +214,8 @@ public class OnlineMatchController : MonoBehaviour
                   pendingResolutionMatchId = currentMatch.matchId;
 
                   // Run the waiting sequence on this controller
-                  StartCoroutine(ShowSubmittedWaitingSequence());
+                  if (this != null && gameObject.activeInHierarchy)
+                      StartCoroutine(ShowSubmittedWaitingSequence());
               });
     }
 
@@ -236,10 +224,16 @@ public class OnlineMatchController : MonoBehaviour
     /// </summary>
     public void ResumeMatch(string matchId)
     {
-        pendingEnterGameplay = true;
-        WatchMatch(matchId, true);
-    }
+        if (string.IsNullOrEmpty(matchId))
+        {
+            Debug.LogWarning("[OnlineMatchController] ResumeMatch called with null/empty matchId");
+            return;
+        }
 
+        Debug.Log("[OnlineMatchController] ResumeMatch called with matchId=" + matchId);
+
+        WatchMatch(matchId, enterWhenReady: true);
+    }
     /// <summary>
     /// Show game-over panel for a given matchId.
     /// </summary>
@@ -271,87 +265,19 @@ public class OnlineMatchController : MonoBehaviour
 
     #region Match listener
 
-    private void OnMatchValueChanged(object sender, ValueChangedEventArgs args)
-    {
-        if (args == null)
-        {
-            TraceMatch("OnMatchValueChanged ARGS NULL");
-            return;
-        }
 
-        string raw = null;
-        int rawLen = -1;
-        if (args.Snapshot != null)
-        {
-            raw = args.Snapshot.GetRawJsonValue();
-            rawLen = string.IsNullOrEmpty(raw) ? 0 : raw.Length;
-        }
-
-        Debug.Log("[MATCHTRACE CALLBACK] OnMatchValueChanged ENTER | dbError=" +
-                  (args.DatabaseError != null ? args.DatabaseError.Message : "null") +
-                  " | snapshotExists=" + (args.Snapshot != null && args.Snapshot.Exists) +
-                  " | rawLen=" + rawLen +
-                  " | watchedMatchId=" + watchedMatchId);
-
-        if (args.DatabaseError != null)
-        {
-            Debug.LogError("[OnlineMatchController] Match listener error: " + args.DatabaseError.Message);
-            return;
-        }
-
-        if (args.Snapshot == null || !args.Snapshot.Exists)
-        {
-            TraceMatch("OnMatchValueChanged SNAPSHOT MISSING");
-            return;
-        }
-
-        if (string.IsNullOrEmpty(raw))
-        {
-            TraceMatch("OnMatchValueChanged RAW JSON EMPTY");
-            return;
-        }
-
-        MatchData match = JsonUtility.FromJson<MatchData>(raw);
-        Debug.Log("[MATCHTRACE CALLBACK] parsed match id = " + (match == null ? "NULL" : match.matchId));
-
-        if (match == null)
-        {
-            TraceMatch("OnMatchValueChanged PARSE FAILED");
-            return;
-        }
-
-        currentMatch = match;
-        TraceMatch("OnMatchValueChanged AFTER currentMatch ASSIGN");
-
-        // Handle resolved rounds we haven't processed yet
-        if (currentMatch.currentRoundNumber > lastProcessedRound + 1)
-        {
-            int resolvedRound = currentMatch.currentRoundNumber - 1;
-            HandleResolvedRound(resolvedRound);
-            lastProcessedRound = resolvedRound;
-        }
-
-        // (Re)watch submissions for the current round
-        if (currentMatch != null && watchedRoundNumber != currentMatch.currentRoundNumber)
-        {
-            WatchSubmissionsForRound(currentMatch.currentRoundNumber);
-        }
-
-        // If a panel requested entry, now is the time
-        if (pendingEnterGameplay)
-        {
-            //pendingEnterGameplay = false;
-            TraceMatch("OnMatchValueChanged TRIGGER EnterGameplayMode");
-            CheckSubmissionThenEnterGameplay();
-        }
-    }
-
-    #endregion
 
     #region Submissions / round resolution
 
     private void WatchSubmissionsForRound(int roundNumber)
     {
+        if (currentMatch == null)
+        {
+            Debug.LogWarning("[OnlineMatchController] WatchSubmissionsForRound called with null currentMatch.");
+            return;
+        }
+
+        // Detach old listener
         if (currentSubmissionsRef != null)
         {
             currentSubmissionsRef.ValueChanged -= OnSubmissionsValueChanged;
@@ -366,6 +292,9 @@ public class OnlineMatchController : MonoBehaviour
                                       .Child("submissions");
 
         currentSubmissionsRef.ValueChanged += OnSubmissionsValueChanged;
+
+        Debug.Log("[OnlineMatchController] Now watching submissions for match " +
+                  currentMatch.matchId + " round " + roundNumber);
     }
 
     private void OnSubmissionsValueChanged(object sender, ValueChangedEventArgs args)
@@ -390,6 +319,9 @@ public class OnlineMatchController : MonoBehaviour
 
     public void TryResolveRound(string matchId, int roundNumber)
     {
+        Debug.Log("[OnlineMatchController] TryResolveRound START | matchId=" +
+                  matchId + " round=" + roundNumber);
+
         DatabaseReference submissionsRef = dbRoot.Child("matches")
                                                  .Child(matchId)
                                                  .Child("rounds").Child(roundNumber.ToString())
@@ -398,7 +330,12 @@ public class OnlineMatchController : MonoBehaviour
         submissionsRef.GetValueAsync().ContinueWithOnMainThread(readTask =>
         {
             if (readTask.IsFaulted || readTask.Result == null || !readTask.Result.Exists)
+            {
+                Debug.LogWarning("[OnlineMatchController] TryResolveRound ABORT: submissions read failed or none exist " +
+                                 "| matchId=" + matchId + " round=" + roundNumber +
+                                 " | faulted=" + readTask.IsFaulted);
                 return;
+            }
 
             List<RoundSubmissionData> submissions = new List<RoundSubmissionData>();
 
@@ -413,6 +350,15 @@ public class OnlineMatchController : MonoBehaviour
                     submissions.Add(sub);
             }
 
+            Debug.Log("[OnlineMatchController] TryResolveRound after submissions read | matchId=" +
+                      matchId + " round=" + roundNumber + " submissionsCount=" + submissions.Count);
+
+            if (submissions.Count == 0)
+            {
+                Debug.LogWarning("[OnlineMatchController] TryResolveRound ABORT: submissions.Count == 0");
+                return;
+            }
+
             DatabaseReference matchRef = dbRoot.Child("matches").Child(matchId);
 
             matchRef.GetValueAsync().ContinueWithOnMainThread(matchReadTask =>
@@ -422,27 +368,54 @@ public class OnlineMatchController : MonoBehaviour
                     !matchReadTask.Result.Exists)
                 {
                     Debug.LogError("[OnlineMatchController] Failed to read match for resolution: " +
-                                   matchReadTask.Exception);
+                                   matchReadTask.Exception + " | matchId=" + matchId);
                     return;
                 }
 
                 string matchJson = matchReadTask.Result.GetRawJsonValue();
                 MatchData liveMatch = JsonUtility.FromJson<MatchData>(matchJson);
 
-                if (liveMatch == null || liveMatch.currentRoundNumber != roundNumber)
+                if (liveMatch == null)
+                {
+                    Debug.LogWarning("[OnlineMatchController] TryResolveRound ABORT: liveMatch null after parse.");
+                    return;
+                }
+
+                Debug.Log("[OnlineMatchController] TryResolveRound MATCH SNAPSHOT | matchId=" +
+                          liveMatch.matchId +
+                          " currentRoundNumber=" + liveMatch.currentRoundNumber +
+                          " roundResolutionStatus=" + liveMatch.roundResolutionStatus +
+                          " status=" + liveMatch.status);
+
+                if (liveMatch.currentRoundNumber != roundNumber)
+                {
+                    Debug.LogWarning("[OnlineMatchController] TryResolveRound ABORT: liveMatch.currentRoundNumber (" +
+                                     liveMatch.currentRoundNumber + ") != requested round (" + roundNumber + ")");
                     return; // already resolved or stale
+                }
 
                 if (liveMatch.roundResolutionStatus == "resolving" ||
                     liveMatch.roundResolutionStatus == "done")
+                {
+                    Debug.LogWarning("[OnlineMatchController] TryResolveRound ABORT: roundResolutionStatus=" +
+                                     liveMatch.roundResolutionStatus + " (someone else is/has resolved)");
                     return; // someone else is/has resolved
+                }
 
                 // Claim resolution using a transaction
+                Debug.Log("[OnlineMatchController] TryResolveRound attempting transaction claim for matchId=" +
+                          matchId + " round=" + roundNumber);
+
                 matchRef.Child("roundResolutionStatus").RunTransaction(mutableData =>
                 {
                     string current = mutableData.Value as string;
 
                     if (current == "resolving" || current == "done")
+                    {
+                        Debug.LogWarning("[OnlineMatchController] TryResolveRound TRANSACTION ABORT: current status=" +
+                                         current + " for matchId=" + matchId + " round=" + roundNumber);
                         return TransactionResult.Abort(); // someone already claimed it
+                    }
 
                     mutableData.Value = "resolving";
                     return TransactionResult.Success(mutableData);
@@ -454,26 +427,47 @@ public class OnlineMatchController : MonoBehaviour
                     if (transactionTask.IsFaulted)
                     {
                         Debug.LogError("[OnlineMatchController] Failed to claim round resolution: " +
-                                       transactionTask.Exception);
+                                       transactionTask.Exception + " | matchId=" + matchId + " round=" + roundNumber);
                         return;
                     }
 
-                    // Transaction completed successfully; proceed to resolve.
-                    // Any race where another client won the claim will be caught by the re-read below.
+                    Debug.Log("[OnlineMatchController] TryResolveRound TRANSACTION SUCCESS | matchId=" +
+                              matchId + " round=" + roundNumber);
 
                     // Re-read right before resolving, to catch any race since the initial read
                     matchRef.GetValueAsync().ContinueWithOnMainThread(reReadTask =>
                     {
                         if (reReadTask.IsFaulted || reReadTask.Result == null || !reReadTask.Result.Exists)
-                            return;
-
-                        MatchData freshMatch = JsonUtility.FromJson<MatchData>(reReadTask.Result.GetRawJsonValue());
-                        if (freshMatch == null || freshMatch.currentRoundNumber != roundNumber)
                         {
-                            Debug.LogWarning("[OnlineMatchController] Round " + roundNumber +
-                                             " resolution aborted — match already advanced.");
+                            Debug.LogWarning("[OnlineMatchController] TryResolveRound re-read FAILED — aborting resolve | matchId=" +
+                                             matchId + " round=" + roundNumber);
                             return;
                         }
+
+                        MatchData freshMatch = JsonUtility.FromJson<MatchData>(reReadTask.Result.GetRawJsonValue());
+                        if (freshMatch == null)
+                        {
+                            Debug.LogWarning("[OnlineMatchController] TryResolveRound ABORT: freshMatch null after re-read.");
+                            return;
+                        }
+
+                        Debug.Log("[OnlineMatchController] TryResolveRound re-read MATCH | matchId=" +
+                                  freshMatch.matchId +
+                                  " currentRoundNumber=" + freshMatch.currentRoundNumber +
+                                  " roundResolutionStatus=" + freshMatch.roundResolutionStatus);
+
+                        if (freshMatch.currentRoundNumber != roundNumber)
+                        {
+                            Debug.LogWarning("[OnlineMatchController] Round " + roundNumber +
+                                             " resolution aborted — match already advanced to " +
+                                             freshMatch.currentRoundNumber + ".");
+                            return;
+                        }
+
+                        // At this point we have the claim and a fresh snapshot:
+                        Debug.Log("[OnlineMatchController] TryResolveRound calling ResolveRoundNow | matchId=" +
+                                  matchId + " round=" + roundNumber +
+                                  " submissionsCount=" + submissions.Count);
 
                         ResolveRoundNow(liveMatch, roundNumber, submissions, matchRef);
                     });
@@ -483,15 +477,30 @@ public class OnlineMatchController : MonoBehaviour
     }
 
     private void ResolveRoundNow(
-    MatchData liveMatch,
-    int roundNumber,
-    List<RoundSubmissionData> submissions,
-    DatabaseReference matchRef)
+     MatchData liveMatch,
+     int roundNumber,
+     List<RoundSubmissionData> submissions,
+     DatabaseReference matchRef)
     {
+        Debug.Log("[OnlineMatchController] ResolveRoundNow START | matchId=" +
+                  liveMatch.matchId + " round=" + roundNumber +
+                  " submissionsCount=" + (submissions != null ? submissions.Count : -1));
+
+        if (submissions == null || submissions.Count == 0)
+        {
+            Debug.LogWarning("[OnlineMatchController] ResolveRoundNow aborted: no submissions.");
+            // IMPORTANT: don't leave status stuck on 'resolving'
+            matchRef.Child("roundResolutionStatus").SetValueAsync("idle");
+            return;
+        }
+
         RoundSubmissionData winner = null;
 
         foreach (var sub in submissions)
         {
+            Debug.Log("[OnlineMatchController] ResolveRoundNow submission uid=" + sub.uid +
+                      " score=" + sub.score + " isValid=" + sub.isValid);
+
             if (!sub.isValid)
                 continue;
 
@@ -499,9 +508,17 @@ public class OnlineMatchController : MonoBehaviour
                 winner = sub;
         }
 
+        Debug.Log("[OnlineMatchController] ResolveRoundNow winner uid=" +
+                  (winner != null ? winner.uid : "NULL"));
+
         BoardStateData board = JsonUtility.FromJson<BoardStateData>(liveMatch.boardStateJson) ?? new BoardStateData();
         BagStateData bag = JsonUtility.FromJson<BagStateData>(liveMatch.bagStateJson) ?? new BagStateData();
         RackStateData sharedRack = JsonUtility.FromJson<RackStateData>(liveMatch.sharedrackjson) ?? new RackStateData();
+
+        Debug.Log("[OnlineMatchController] ResolveRoundNow parsed state | " +
+                  "boardCells=" + (board.cells != null ? board.cells.Count : -1) +
+                  " bagTiles=" + (bag.tiles != null ? bag.tiles.Count : -1) +
+                  " sharedRackTiles=" + (sharedRack.tiles != null ? sharedRack.tiles.Count : -1));
 
         RoundResultData result = new RoundResultData
         {
@@ -511,15 +528,24 @@ public class OnlineMatchController : MonoBehaviour
 
         if (winner != null)
         {
+            Debug.Log("[OnlineMatchController] ResolveRoundNow winner has simulatedTilesJson length=" +
+                      (winner.simulatedTilesJson != null ? winner.simulatedTilesJson.Length : 0));
+
             SimTileListWrapper wrapper = JsonUtility.FromJson<SimTileListWrapper>(winner.simulatedTilesJson);
 
             if (wrapper != null && wrapper.tiles != null)
             {
+                Debug.Log("[OnlineMatchController] ResolveRoundNow placing " +
+                          wrapper.tiles.Count + " tiles on board.");
+
                 foreach (var tile in wrapper.tiles)
                 {
                     int idx = sharedRack.tiles.FindIndex(t => t.letter == tile.letter);
                     if (idx >= 0)
                         sharedRack.tiles.RemoveAt(idx);
+                    else
+                        Debug.LogWarning("[OnlineMatchController] ResolveRoundNow tile " + tile.letter +
+                                         " not found in sharedRack; skipping remove.");
 
                     int x = tile.col - 1;
                     int y = tile.row - 1;
@@ -534,7 +560,16 @@ public class OnlineMatchController : MonoBehaviour
                             id = Guid.NewGuid().ToString("N")
                         };
                     }
+                    else
+                    {
+                        Debug.LogWarning("[OnlineMatchController] ResolveRoundNow could not find board cell at x=" +
+                                         x + " y=" + y + " for tile " + tile.letter);
+                    }
                 }
+            }
+            else
+            {
+                Debug.LogWarning("[OnlineMatchController] ResolveRoundNow wrapper/tiles NULL for winner; no placement.");
             }
 
             result.winnerUid = winner.uid;
@@ -546,11 +581,35 @@ public class OnlineMatchController : MonoBehaviour
                 ? liveMatch.player1DisplayName
                 : liveMatch.player2DisplayName;
 
+            Debug.Log("[OnlineMatchController] ResolveRoundNow winnerDisplayName=" +
+                      result.winnerDisplayName + " winnerScore=" + result.winnerScore);
+
             if (winnerIsPlayer1)
                 liveMatch.player1Score += winner.score;
             else
                 liveMatch.player2Score += winner.score;
+
+            Debug.Log("[OnlineMatchController] ResolveRoundNow updated scores | p1=" +
+                      liveMatch.player1Score + " p2=" + liveMatch.player2Score);
         }
+        else
+        {
+            Debug.Log("[OnlineMatchController] ResolveRoundNow no valid winner; skipping board/rack updates.");
+        }
+
+        if (sharedRack.tiles == null)
+        {
+            Debug.LogWarning("[OnlineMatchController] ResolveRoundNow sharedRack.tiles is NULL; creating list.");
+            sharedRack.tiles = new List<TileData>();
+        }
+
+        if (bag.tiles == null)
+        {
+            Debug.LogWarning("[OnlineMatchController] ResolveRoundNow bag.tiles is NULL; creating list.");
+            bag.tiles = new List<TileData>();
+        }
+
+        int beforeRefill = sharedRack.tiles.Count;
 
         while (sharedRack.tiles.Count < 7 && bag.tiles != null && bag.tiles.Count > 0)
         {
@@ -558,9 +617,18 @@ public class OnlineMatchController : MonoBehaviour
             bag.tiles.RemoveAt(0);
         }
 
+        Debug.Log("[OnlineMatchController] ResolveRoundNow refilled rack from " +
+                  beforeRefill + " to " + sharedRack.tiles.Count +
+                  " (bag now " + (bag.tiles != null ? bag.tiles.Count : -1) + " tiles)");
+
         int totalRounds = liveMatch.totalRounds > 0 ? liveMatch.totalRounds : 5;
         int nextRound = roundNumber + 1;
         bool isFinalRoundJustPlayed = nextRound > totalRounds;
+
+        Debug.Log("[OnlineMatchController] ResolveRoundNow round progression | " +
+                  "current=" + roundNumber + " next=" + nextRound +
+                  " totalRounds=" + totalRounds +
+                  " isFinal=" + isFinalRoundJustPlayed);
 
         // Persist logical state
         liveMatch.boardStateJson = JsonUtility.ToJson(board);
@@ -576,18 +644,30 @@ public class OnlineMatchController : MonoBehaviour
         {
             var gameLogic = Singleton.Instance.GameLogic;
 
-            // Hydrate validatedBoardTiles from the updated BoardStateData
-            gameLogic.LoadBoardStateIntoValidatedTiles(board);
+            try
+            {
+                gameLogic.LoadBoardStateIntoValidatedTiles(board);
+                string newBonusJson = gameLogic.GenerateBonusBoardJsonForOnlineMatch();
+                liveMatch.bonusBoardJson = newBonusJson;
 
-            // Generate new bonus layout JSON based on current letters
-            string newBonusJson = gameLogic.GenerateBonusBoardJsonForOnlineMatch();
-            liveMatch.bonusBoardJson = newBonusJson;
-
-            Debug.Log("[ONLINE] Regenerated bonusBoardJson for next round, length=" +
-                      (string.IsNullOrEmpty(newBonusJson) ? 0 : newBonusJson.Length));
+                Debug.Log("[ONLINE] Regenerated bonusBoardJson for next round, length=" +
+                          (string.IsNullOrEmpty(newBonusJson) ? 0 : newBonusJson.Length));
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError("[OnlineMatchController] ResolveRoundNow bonus regeneration threw: " + ex);
+            }
+        }
+        else
+        {
+            Debug.Log("[OnlineMatchController] ResolveRoundNow skip bonus regen; match final or Singleton/GameLogic missing.");
         }
 
         string updatedJson = JsonUtility.ToJson(liveMatch);
+
+        Debug.Log("[OnlineMatchController] ResolveRoundNow ABOUT TO GUARD READ & WRITE | nextRound=" +
+                  nextRound + " status=" + liveMatch.status +
+                  " roundResolutionStatus=" + liveMatch.roundResolutionStatus);
 
         // Guard: re-check right before writing — abort if someone already advanced this round
         matchRef.GetValueAsync().ContinueWithOnMainThread(guardTask =>
@@ -600,6 +680,9 @@ public class OnlineMatchController : MonoBehaviour
 
             MatchData freshCheck = JsonUtility.FromJson<MatchData>(guardTask.Result.GetRawJsonValue());
 
+            Debug.Log("[OnlineMatchController] Resolve guard freshCheck.currentRoundNumber=" +
+                      (freshCheck != null ? freshCheck.currentRoundNumber.ToString() : "NULL"));
+
             if (freshCheck == null || freshCheck.currentRoundNumber != roundNumber)
             {
                 Debug.LogWarning("[OnlineMatchController] Round " + roundNumber +
@@ -607,6 +690,8 @@ public class OnlineMatchController : MonoBehaviour
                     (freshCheck != null ? freshCheck.currentRoundNumber.ToString() : "NULL") + ".");
                 return; // someone else already resolved this round — our stale result is discarded
             }
+
+            Debug.Log("[OnlineMatchController] ResolveRoundNow guard passed; writing updated match JSON.");
 
             matchRef.SetRawJsonValueAsync(updatedJson).ContinueWithOnMainThread(writeTask =>
             {
@@ -657,19 +742,19 @@ public class OnlineMatchController : MonoBehaviour
 
     private void CheckSubmissionThenEnterGameplay()
     {
-        Debug.Log("[OnlineMatchController] CheckSubmissionThenEnterGameplay ENTER | auth.CurrentUser=" +
-                  (GetCurrentUser()?.Email ?? "NULL"));
-
         if (currentMatch == null || auth == null || auth.CurrentUser == null)
         {
             Debug.LogWarning("[OnlineMatchController] CheckSubmissionThenEnterGameplay aborted: null check failed.");
             return;
         }
 
-        string uid = auth.CurrentUser.UserId;
+        string uid = auth.CurrentUser.UserId; // captured HERE, once
         int roundNumber = currentMatch.currentRoundNumber;
+        string matchId = currentMatch.matchId; // also capture matchId, same reasoning
 
-        dbRoot.Child("matches").Child(currentMatch.matchId)
+        Debug.Log("[OnlineMatchController] CheckSubmissionThenEnterGameplay ENTER | uid=" + uid);
+
+        dbRoot.Child("matches").Child(matchId)
               .Child("rounds").Child(roundNumber.ToString())
               .Child("submissions").Child(uid)
               .GetValueAsync().ContinueWithOnMainThread(task =>
@@ -702,11 +787,46 @@ public class OnlineMatchController : MonoBehaviour
                       if (pregamePanel != null) pregamePanel.SetActive(false);
                       if (matchStatusPanel != null) matchStatusPanel.gameObject.SetActive(false);
 
-                      StartGameplayForCurrentMatch();
+                      StartGameplayForCurrentMatch(uid); // pass the captured uid through
                   }
               });
     }
-    public void StartGameplayForCurrentMatch()
+
+    public void StartGameplayForCurrentMatch(string uid)
+    {
+        Debug.Log("[OnlineMatchController] StartGameplayForCurrentMatch START | uid=" + uid);
+
+        if (gameLogic == null || currentMatch == null || string.IsNullOrEmpty(uid))
+        {
+            Debug.LogWarning("[OnlineMatchController] StartGameplayForCurrentMatch aborted: missing references.");
+            return;
+        }
+
+        bool isPlayer1 = currentMatch.player1Uid == uid;
+
+        List<LetterInfo> localRack = ParseRackJson(currentMatch.sharedrackjson);
+        if (localRack == null)
+            localRack = new List<LetterInfo>();
+
+        int localScore = isPlayer1 ? currentMatch.player1Score : currentMatch.player2Score;
+        int opponentScore = isPlayer1 ? currentMatch.player2Score : currentMatch.player1Score;
+
+        try
+        {
+            gameLogic.BeginOnlineMatchFromRack(
+                7, 15, 15,
+                localRack, localScore, opponentScore,
+                currentMatch.currentRoundNumber,
+                currentMatch.bonusBoardJson,
+                currentMatch.boardStateJson
+            );
+        }
+        catch (Exception ex)
+        {
+            Debug.LogError("[OnlineMatchController] BeginOnlineMatchFromRack threw exception: " + ex);
+        }
+    }
+    /*public void StartGameplayForCurrentMatch()
     {
         Debug.Log("[OnlineMatchController] StartGameplayForCurrentMatch START");
 
@@ -750,7 +870,7 @@ public class OnlineMatchController : MonoBehaviour
         {
             Debug.LogError("[OnlineMatchController] BeginOnlineMatchFromRack threw exception: " + ex);
         }
-    }
+    }*/
     /*private void EnterGameplayMode()
     {
         if (gameLogic == null || currentMatch == null || auth == null || auth.CurrentUser == null)
@@ -904,7 +1024,7 @@ public class OnlineMatchController : MonoBehaviour
 
     #endregion
 
-    #region Small helpers taken from your existing code
+    //#region Small helpers taken from your existing code
 
     private void TraceMatch(string label)
     {
@@ -995,5 +1115,126 @@ public class OnlineMatchController : MonoBehaviour
         return candidate.submittedAtUnix < currentBest.submittedAtUnix;
     }
 
+
+    /*public void StartWatchingMatch(string matchId)
+    {
+        if (string.IsNullOrEmpty(matchId))
+        {
+            Debug.LogWarning("[OnlineMatchController] StartWatchingMatch called with empty matchId");
+            return;
+        }
+
+        // If already watching this match, do nothing
+        if (!string.IsNullOrEmpty(currentMatchId) && currentMatchId == matchId && currentMatchRef != null)
+        {
+            Debug.Log("[OnlineMatchController] Already watching match " + matchId);
+            return;
+        }
+
+        StopWatchingCurrentMatch();
+
+        currentMatchId = matchId;
+        currentMatchRef = dbRoot.Child("matches").Child(matchId);
+
+        Debug.Log("[OnlineMatchController] Now watching match " + matchId);
+        currentMatchRef.ValueChanged += OnMatchValueChanged;
+    }
+    */
+    public void StopWatchingCurrentMatch()
+    {
+        if (currentMatchRef != null)
+        {
+            currentMatchRef.ValueChanged -= OnMatchValueChanged;
+            currentMatchRef = null;
+        }
+
+        if (currentSubmissionsRef != null)
+        {
+            currentSubmissionsRef.ValueChanged -= OnSubmissionsValueChanged;
+            currentSubmissionsRef = null;
+        }
+
+        currentMatch = null;
+        watchedMatchId = null;   // was: currentMatchId
+        watchedRoundNumber = -1;
+        lastProcessedRound = 0;
+        pendingEnterGameplay = false;
+    }
+    private void OnMatchValueChanged(object sender, ValueChangedEventArgs args)
+    {
+        if (args == null)
+        {
+            TraceMatch("OnMatchValueChanged ARGS NULL");
+            return;
+        }
+
+        string raw = null;
+        int rawLen = -1;
+        if (args.Snapshot != null)
+        {
+            raw = args.Snapshot.GetRawJsonValue();
+            rawLen = string.IsNullOrEmpty(raw) ? 0 : raw.Length;
+        }
+
+        Debug.Log("[MATCHTRACE CALLBACK] OnMatchValueChanged ENTER | dbError=" +
+                  (args.DatabaseError != null ? args.DatabaseError.Message : "null") +
+                  " | snapshotExists=" + (args.Snapshot != null && args.Snapshot.Exists) +
+                  " | rawLen=" + rawLen +
+                  " | watchedMatchId=" + watchedMatchId);
+
+        if (args.DatabaseError != null)
+        {
+            Debug.LogError("[OnlineMatchController] Match listener error: " + args.DatabaseError.Message);
+            return;
+        }
+
+        if (args.Snapshot == null || !args.Snapshot.Exists)
+        {
+            TraceMatch("OnMatchValueChanged SNAPSHOT MISSING");
+            return;
+        }
+
+        if (string.IsNullOrEmpty(raw))
+        {
+            TraceMatch("OnMatchValueChanged RAW JSON EMPTY");
+            return;
+        }
+
+        MatchData match = JsonUtility.FromJson<MatchData>(raw);
+        Debug.Log("[MATCHTRACE CALLBACK] parsed match id = " + (match == null ? "NULL" : match.matchId));
+
+        if (match == null)
+        {
+            TraceMatch("OnMatchValueChanged PARSE FAILED");
+            return;
+        }
+
+        currentMatch = match;
+        TraceMatch("OnMatchValueChanged AFTER currentMatch ASSIGN");
+
+        // Notify any UI listeners
+        OnMatchUpdated?.Invoke(currentMatch);
+
+        // Handle resolved rounds we haven't processed yet
+        if (currentMatch.currentRoundNumber > lastProcessedRound + 1)
+        {
+            int resolvedRound = currentMatch.currentRoundNumber - 1;
+            HandleResolvedRound(resolvedRound);
+            lastProcessedRound = resolvedRound;
+        }
+
+        // (Re)watch submissions for the current round (if you still use this pattern)
+        if (currentMatch != null && watchedRoundNumber != currentMatch.currentRoundNumber)
+        {
+            WatchSubmissionsForRound(currentMatch.currentRoundNumber);
+        }
+
+        // If a panel requested entry, now is the time
+        if (pendingEnterGameplay)
+        {
+            TraceMatch("OnMatchValueChanged TRIGGER EnterGameplayMode");
+            CheckSubmissionThenEnterGameplay();
+        }
+    }
     #endregion
 }

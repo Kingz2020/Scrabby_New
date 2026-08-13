@@ -607,7 +607,11 @@ public class MatchStatusPanel : MonoBehaviour
                       ShowStatus("User data invalid.");
                       return;
                   }
+                  Debug.Log("[MATCH STATUS] user.activeRoomIds=" +
+          (user.activeRoomIds == null ? "NULL" : string.Join(",", user.activeRoomIds)));
 
+                  Debug.Log("[MATCH STATUS] user.activeMatchIds=" +
+                            (user.activeMatchIds == null ? "NULL" : string.Join(",", user.activeMatchIds)));
                   StartCoroutine(LoadMatchList(uid, user.activeRoomIds, user.activeMatchIds));
               });
     }

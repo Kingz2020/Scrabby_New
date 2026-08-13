@@ -982,7 +982,8 @@ public class PreGamePanel : MonoBehaviour
             return;
 
         StopWatchingRoom();
-        Singleton.Instance.OnlineMatchController?.StopWatchingMatch();
+        if (Singleton.Instance != null && Singleton.Instance.OnlineMatchController != null)
+            Singleton.Instance.OnlineMatchController.StopWatchingCurrentMatch();
 
         auth.SignOut();
         SetStatus("Logged out.");
@@ -1178,19 +1179,19 @@ public class PreGamePanel : MonoBehaviour
 
         return clone;
     }
+
     private void OnDestroy()
     {
         StopWatchingRoom();
-        Singleton.Instance.OnlineMatchController?.StopWatchingMatch();
+
+        if (Singleton.Instance != null && Singleton.Instance.OnlineMatchController != null)
+            Singleton.Instance.OnlineMatchController.StopWatchingCurrentMatch();
 
         if (auth != null)
         {
             auth.StateChanged -= AuthStateChanged;
             auth = null;
         }
-
-        //if (gameLogic != null)
-         //   gameLogic.onlineSubmissionReady -= OnOnlineSubmissionReady;
     }
 
     public void OnStartGamePressed()
@@ -1592,12 +1593,6 @@ public class PreGamePanel : MonoBehaviour
                             Debug.Log("[PregamePanel] Player2 rack: " + GetRackDebugString(sharedrackjson));
                             Debug.Log("[PregamePanel] Bag tiles remaining: " + bag.tiles.Count);
 
-                            //AddMatchToUser(matchId); // for the local (host) player
-                            //AddMatchToUser(updatedRoom.hostUid, matchId);
-                            //AddMatchToUser(updatedRoom.guestUid, matchId);
-                            //RemoveRoomFromUser(updatedRoom.hostUid, roomCode);
-                            //RemoveRoomFromUser(updatedRoom.guestUid, roomCode);
-
                             AddMatchToUser(updatedRoom.hostUid, matchId, () =>
                             {
                                 RemoveRoomFromUser(updatedRoom.hostUid, roomCode);
@@ -1608,7 +1603,13 @@ public class PreGamePanel : MonoBehaviour
                                 RemoveRoomFromUser(updatedRoom.guestUid, roomCode);
                             });
 
-                            
+                            // After AddMatchToUser host + guest callbacks have run
+                            var authInstance = FirebaseAuth.DefaultInstance;
+                            if (authInstance != null && authInstance.CurrentUser != null && matchStatusPanel != null)
+                            {
+                                Debug.Log("[PreGamePanel] Forcing MatchStatusPanel RefreshMatchStateForUser after match creation.");
+                                matchStatusPanel.RefreshMatchStateForUser(authInstance.CurrentUser.UserId);
+                            }
 
                             SetStatus("Game ready. Tap Resume to play.");
                             Singleton.Instance.OnlineMatchController.WatchMatch(matchId,false);
