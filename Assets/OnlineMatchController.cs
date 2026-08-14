@@ -180,6 +180,15 @@ public class OnlineMatchController : MonoBehaviour
         string uid = GetCurrentUser().UserId;
         int roundNumber = currentMatch.currentRoundNumber;
 
+                Debug.Log(
+            "[SUBMIT DIAGNOSTIC]" +
+            " uid=" + uid +
+            " matchId=" + currentMatch.matchId +
+            " round=" + roundNumber +
+            " move.word=" + (move != null ? move.word : "NULL") +
+            " move.score=" + (move != null ? move.score.ToString() : "NULL") +
+            " simulatedTiles=" + SerializeSimulatedTiles(move)
+        );
         RoundSubmissionData submission = new RoundSubmissionData
         {
             uid = uid,
@@ -681,7 +690,7 @@ public class OnlineMatchController : MonoBehaviour
         liveMatch.sharedrackjson = JsonUtility.ToJson(sharedRack);
         liveMatch.lastRoundResultJson = JsonUtility.ToJson(result);
         liveMatch.currentRoundNumber = nextRound;
-        liveMatch.roundResolutionStatus = "done";
+        //liveMatch.roundResolutionStatus = "done";
         liveMatch.status = isFinalRoundJustPlayed ? "completed" : "active";
 
         // Regenerate bonus board for NEXT round, if match continues
