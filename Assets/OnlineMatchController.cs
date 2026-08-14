@@ -301,7 +301,7 @@ public class OnlineMatchController : MonoBehaviour
     {
         if (args.DatabaseError != null || args.Snapshot == null)
         {
-            currentMatch = null;
+            //currentMatch = null;
             return;
         }
 
@@ -412,7 +412,7 @@ public class OnlineMatchController : MonoBehaviour
 
                     if (current == "resolving" || current == "done")
                     {
-                        Debug.LogWarning("[OnlineMatchController] TryResolveRound TRANSACTION ABORT: current status=" +
+                        Debug.LogWarning("[OnlineMatchController] TryResolveRound TRANSACTION ABORT inside function: current status=" +
                                          current + " for matchId=" + matchId + " round=" + roundNumber);
                         return TransactionResult.Abort(); // someone already claimed it
                     }
@@ -420,59 +420,104 @@ public class OnlineMatchController : MonoBehaviour
                     mutableData.Value = "resolving";
                     return TransactionResult.Success(mutableData);
                 })
-                .ContinueWithOnMainThread((Task claimTask) =>
+                .ContinueWithOnMainThread(claimTask =>
                 {
-                    var transactionTask = (Task<TransactionResult>)claimTask;
+                    Debug.Log("[OnlineMatchController] TRANSACTION ENTER" +
+                              " | matchId=" + matchId +
+                              " round=" + roundNumber +
+                              " taskStatus=" + claimTask.Status +
+                              " taskType=" + claimTask.GetType().FullName);
 
-                    if (transactionTask.IsFaulted)
+                    if (claimTask.IsFaulted)
                     {
-                        Debug.LogError("[OnlineMatchController] Failed to claim round resolution: " +
-                                       transactionTask.Exception + " | matchId=" + matchId + " round=" + roundNumber);
+                        Debug.LogError("[OnlineMatchController] TRANSACTION FAULTED: " +
+                                       claimTask.Exception);
                         return;
                     }
 
-                    Debug.Log("[OnlineMatchController] TryResolveRound TRANSACTION SUCCESS | matchId=" +
-                              matchId + " round=" + roundNumber);
+                    if (claimTask.IsCanceled)
+                    {
+                        Debug.LogWarning("[OnlineMatchController] TRANSACTION CANCELED" +
+                                         " | matchId=" + matchId +
+                                         " round=" + roundNumber);
+                        return;
+                    }
 
-                    // Re-read right before resolving, to catch any race since the initial read
+                    Task<DataSnapshot> transactionTask = claimTask as Task<DataSnapshot>;
+
+                    if (transactionTask == null)
+                    {
+                        Debug.LogError("[OnlineMatchController] TRANSACTION TYPE ERROR: expected Task<DataSnapshot>, received " +
+                                       claimTask.GetType().FullName);
+                        return;
+                    }
+
+                    DataSnapshot transactionSnapshot = transactionTask.Result;
+
+                    Debug.Log("[OnlineMatchController] TRANSACTION RESULT RECEIVED" +
+                              " | snapshotNull=" + (transactionSnapshot == null) +
+                              " | exists=" + (transactionSnapshot != null && transactionSnapshot.Exists) +
+                              " | value=" +
+                              (transactionSnapshot != null && transactionSnapshot.Value != null
+                                  ? transactionSnapshot.Value.ToString()
+                                  : "NULL"));
+
+                    if (transactionSnapshot == null ||
+                        !transactionSnapshot.Exists)
+                    {
+                        Debug.LogError("[OnlineMatchController] TRANSACTION RESULT INVALID — aborting resolution.");
+                        return;
+                    }
+
+                    Debug.Log("[OnlineMatchController] TRANSACTION CLAIM COMPLETED — beginning re-read.");
+
                     matchRef.GetValueAsync().ContinueWithOnMainThread(reReadTask =>
                     {
-                        if (reReadTask.IsFaulted || reReadTask.Result == null || !reReadTask.Result.Exists)
+                        if (reReadTask.IsFaulted ||
+                            reReadTask.Result == null ||
+                            !reReadTask.Result.Exists)
                         {
-                            Debug.LogWarning("[OnlineMatchController] TryResolveRound re-read FAILED — aborting resolve | matchId=" +
-                                             matchId + " round=" + roundNumber);
+                            Debug.LogWarning("[OnlineMatchController] TryResolveRound re-read FAILED — aborting resolve" +
+                                             " | matchId=" + matchId +
+                                             " round=" + roundNumber);
                             return;
                         }
 
-                        MatchData freshMatch = JsonUtility.FromJson<MatchData>(reReadTask.Result.GetRawJsonValue());
+                        MatchData freshMatch =
+                            JsonUtility.FromJson<MatchData>(
+                                reReadTask.Result.GetRawJsonValue());
+
                         if (freshMatch == null)
                         {
-                            Debug.LogWarning("[OnlineMatchController] TryResolveRound ABORT: freshMatch null after re-read.");
+                            Debug.LogWarning("[OnlineMatchController] TryResolveRound STOP: freshMatch null after re-read.");
                             return;
                         }
 
-                        Debug.Log("[OnlineMatchController] TryResolveRound re-read MATCH | matchId=" +
-                                  freshMatch.matchId +
-                                  " currentRoundNumber=" + freshMatch.currentRoundNumber +
-                                  " roundResolutionStatus=" + freshMatch.roundResolutionStatus);
+                        Debug.Log("[OnlineMatchController] TryResolveRound re-read MATCH" +
+                                  " | matchId=" + freshMatch.matchId +
+                                  " | currentRoundNumber=" + freshMatch.currentRoundNumber +
+                                  " | roundResolutionStatus=" + freshMatch.roundResolutionStatus);
 
                         if (freshMatch.currentRoundNumber != roundNumber)
                         {
-                            Debug.LogWarning("[OnlineMatchController] Round " + roundNumber +
-                                             " resolution aborted — match already advanced to " +
-                                             freshMatch.currentRoundNumber + ".");
+                            Debug.LogWarning("[OnlineMatchController] TryResolveRound STOP: round already advanced" +
+                                             " | expected=" + roundNumber +
+                                             " | actual=" + freshMatch.currentRoundNumber);
                             return;
                         }
 
-                        // At this point we have the claim and a fresh snapshot:
-                        Debug.Log("[OnlineMatchController] TryResolveRound calling ResolveRoundNow | matchId=" +
-                                  matchId + " round=" + roundNumber +
-                                  " submissionsCount=" + submissions.Count);
+                        Debug.Log("[OnlineMatchController] TryResolveRound calling ResolveRoundNow" +
+                                  " | matchId=" + matchId +
+                                  " | round=" + roundNumber +
+                                  " | submissionsCount=" + submissions.Count);
 
                         ResolveRoundNow(liveMatch, roundNumber, submissions, matchRef);
                     });
                 });
+
             });
+
+
         });
     }
 

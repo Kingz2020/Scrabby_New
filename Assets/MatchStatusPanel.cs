@@ -500,6 +500,21 @@ public class MatchStatusPanel : MonoBehaviour
 
                 yield return new WaitUntil(() => subTask.IsCompleted);
 
+                bool submissionExists = !subTask.IsFaulted && subTask.Result != null && subTask.Result.Exists;
+
+                Debug.Log(
+                    "[MATCH STATUS] Per-user submission check" +
+                    " | uid=" + myUid +
+                    " | matchId=" + match.matchId +
+                    " | round=" + match.currentRoundNumber +
+                    " | taskFaulted=" + subTask.IsFaulted +
+                    " | resultNull=" + (subTask.Result == null) +
+                    " | exists=" + submissionExists
+                );
+
+                itemData.hasSubmittedThisRound = submissionExists;
+
+
                 itemData.hasSubmittedThisRound =
                     !subTask.IsFaulted && subTask.Result != null && subTask.Result.Exists;
             }
@@ -607,11 +622,13 @@ public class MatchStatusPanel : MonoBehaviour
                       ShowStatus("User data invalid.");
                       return;
                   }
+
                   Debug.Log("[MATCH STATUS] user.activeRoomIds=" +
           (user.activeRoomIds == null ? "NULL" : string.Join(",", user.activeRoomIds)));
 
                   Debug.Log("[MATCH STATUS] user.activeMatchIds=" +
                             (user.activeMatchIds == null ? "NULL" : string.Join(",", user.activeMatchIds)));
+
                   StartCoroutine(LoadMatchList(uid, user.activeRoomIds, user.activeMatchIds));
               });
     }
