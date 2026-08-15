@@ -798,52 +798,70 @@ public class OnlineMatchController : MonoBehaviour
     {
         if (currentMatch == null || auth == null || auth.CurrentUser == null)
         {
-            Debug.LogWarning("[OnlineMatchController] CheckSubmissionThenEnterGameplay aborted: null check failed.");
+            Debug.LogWarning(
+                "[OnlineMatchController] CheckSubmissionThenEnterGameplay aborted.");
             return;
         }
 
-        string uid = auth.CurrentUser.UserId; // captured HERE, once
+        string uid = auth.CurrentUser.UserId;
         int roundNumber = currentMatch.currentRoundNumber;
-        string matchId = currentMatch.matchId; // also capture matchId, same reasoning
 
-        Debug.Log("[OnlineMatchController] CheckSubmissionThenEnterGameplay ENTER | uid=" + uid);
+        dbRoot.Child("matches")
+            .Child(currentMatch.matchId)
+            .Child("rounds")
+            .Child(roundNumber.ToString())
+            .Child("submissions")
+            .Child(uid)
+            .GetValueAsync()
+            .ContinueWithOnMainThread(task =>
+            {
+                if (task.IsFaulted)
+                {
+                    Debug.LogError(
+                        "[OnlineMatchController] Failed to check submission status: " +
+                        task.Exception);
+                    return;
+                }
 
-        dbRoot.Child("matches").Child(matchId)
-              .Child("rounds").Child(roundNumber.ToString())
-              .Child("submissions").Child(uid)
-              .GetValueAsync().ContinueWithOnMainThread(task =>
-              {
-                  if (task.IsFaulted)
-                  {
-                      Debug.LogError("[OnlineMatchController] Failed to check submission status: " + task.Exception);
-                      return;
-                  }
+                bool alreadySubmitted =
+                    task.Result != null && task.Result.Exists;
 
-                  bool alreadySubmitted = task.Result != null && task.Result.Exists;
+                if (alreadySubmitted)
+                {
+                    if (uiManager != null)
+                    {
+                        uiManager.ShowRoundMessage(
+                            "You've already played this round. Waiting for other players...");
+                    }
 
-                  if (alreadySubmitted)
-                  {
-                      if (uiManager != null)
-                          uiManager.ShowRoundMessage("You've already played this round. Waiting for other players...");
+                    if (gameplayPanel != null)
+                        gameplayPanel.SetActive(false);
 
-                      if (gameplayPanel != null) gameplayPanel.SetActive(false);
-                      if (pregamePanel != null) pregamePanel.SetActive(false);
-                      if (matchStatusPanel != null)
-                      {
-                          matchStatusPanel.gameObject.SetActive(true);
-                          matchStatusPanel.OnRefreshPressed();
-                      }
-                  }
-                  else
-                  {
-                      pendingEnterGameplay = false;
-                      if (gameplayPanel != null) gameplayPanel.SetActive(true);
-                      if (pregamePanel != null) pregamePanel.SetActive(false);
-                      if (matchStatusPanel != null) matchStatusPanel.gameObject.SetActive(false);
+                    if (pregamePanel != null)
+                        pregamePanel.SetActive(false);
 
-                      StartGameplayForCurrentMatch(uid); // pass the captured uid through
-                  }
-              });
+                    if (matchStatusPanel != null)
+                    {
+                        matchStatusPanel.gameObject.SetActive(true);
+                        matchStatusPanel.OnRefreshPressed();
+                    }
+
+                    return;
+                }
+
+                pendingEnterGameplay = false;
+
+                if (gameplayPanel != null)
+                    gameplayPanel.SetActive(true);
+
+                if (pregamePanel != null)
+                    pregamePanel.SetActive(false);
+
+                if (matchStatusPanel != null)
+                    matchStatusPanel.gameObject.SetActive(false);
+
+                StartGameplayForCurrentMatch(uid);
+            });
     }
 
     public void StartGameplayForCurrentMatch(string uid)
