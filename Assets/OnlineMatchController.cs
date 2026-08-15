@@ -252,22 +252,43 @@ public class OnlineMatchController : MonoBehaviour
             return;
 
         dbRoot.Child("matches").Child(matchId)
-              .GetValueAsync().ContinueWithOnMainThread(task =>
-              {
-                  if (task.IsFaulted || task.Result == null || !task.Result.Exists)
-                  {
-                      Debug.LogWarning("[OnlineMatchController] Could not load game for game-over.");
-                      if (uiManager != null)
-                          uiManager.ShowRoundMessage("Could not load game.");
-                      return;
-                  }
+            .GetValueAsync()
+            .ContinueWithOnMainThread(task =>
+            {
+                if (task.IsFaulted || task.Result == null || !task.Result.Exists)
+                {
+                    Debug.LogWarning(
+                        "[OnlineMatchController] Could not load game for game-over.");
 
-                  MatchData match = JsonUtility.FromJson<MatchData>(task.Result.GetRawJsonValue());
-                  if (match == null)
-                      return;
+                    if (uiManager != null)
+                        uiManager.ShowRoundMessage("Could not load game.");
 
-                  ShowGameOverForMatch(match);
-              });
+                    return;
+                }
+
+                MatchData match =
+                    JsonUtility.FromJson<MatchData>(
+                        task.Result.GetRawJsonValue());
+
+                if (match == null)
+                {
+                    Debug.LogWarning(
+                        "[OnlineMatchController] Could not parse match for game-over.");
+                    return;
+                }
+
+                // Hide the list screen before displaying the final-result screen.
+                if (matchStatusPanel != null)
+                    matchStatusPanel.gameObject.SetActive(false);
+
+                if (pregamePanel != null)
+                    pregamePanel.gameObject.SetActive(false);
+
+                if (gameplayPanel != null)
+                    gameplayPanel.SetActive(false);
+
+                ShowGameOverForMatch(match);
+            });
     }
 
     #endregion
