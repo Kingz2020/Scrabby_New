@@ -690,7 +690,7 @@ public class OnlineMatchController : MonoBehaviour
         liveMatch.sharedrackjson = JsonUtility.ToJson(sharedRack);
         liveMatch.lastRoundResultJson = JsonUtility.ToJson(result);
         liveMatch.currentRoundNumber = nextRound;
-        //liveMatch.roundResolutionStatus = "done";
+        liveMatch.roundResolutionStatus = isFinalRoundJustPlayed ? "done" : "idle";
         liveMatch.status = isFinalRoundJustPlayed ? "completed" : "active";
 
         // Regenerate bonus board for NEXT round, if match continues
@@ -717,11 +717,9 @@ public class OnlineMatchController : MonoBehaviour
             Debug.Log("[OnlineMatchController] ResolveRoundNow skip bonus regen; match final or Singleton/GameLogic missing.");
         }
 
-        string updatedJson = JsonUtility.ToJson(liveMatch);
-
         Debug.Log("[OnlineMatchController] ResolveRoundNow ABOUT TO GUARD READ & WRITE | nextRound=" +
-                  nextRound + " status=" + liveMatch.status +
-                  " roundResolutionStatus=" + liveMatch.roundResolutionStatus);
+          nextRound + " status=" + liveMatch.status +
+          " roundResolutionStatus=" + liveMatch.roundResolutionStatus);
 
         // Guard: re-check right before writing — abort if someone already advanced this round
         matchRef.GetValueAsync().ContinueWithOnMainThread(guardTask =>
@@ -732,37 +730,63 @@ public class OnlineMatchController : MonoBehaviour
                 return;
             }
 
-            MatchData freshCheck = JsonUtility.FromJson<MatchData>(guardTask.Result.GetRawJsonValue());
+            MatchData freshCheck =
+                JsonUtility.FromJson<MatchData>(guardTask.Result.GetRawJsonValue());
 
             Debug.Log("[OnlineMatchController] Resolve guard freshCheck.currentRoundNumber=" +
-                      (freshCheck != null ? freshCheck.currentRoundNumber.ToString() : "NULL"));
+                      (freshCheck != null
+                          ? freshCheck.currentRoundNumber.ToString()
+                          : "NULL"));
 
             if (freshCheck == null || freshCheck.currentRoundNumber != roundNumber)
             {
                 Debug.LogWarning("[OnlineMatchController] Round " + roundNumber +
                     " resolution aborted at final write — match already advanced to " +
-                    (freshCheck != null ? freshCheck.currentRoundNumber.ToString() : "NULL") + ".");
-                return; // someone else already resolved this round — our stale result is discarded
+                    (freshCheck != null
+                        ? freshCheck.currentRoundNumber.ToString()
+                        : "NULL") + ".");
+                return;
             }
 
-            Debug.Log("[OnlineMatchController] ResolveRoundNow guard passed; writing updated match JSON.");
+            Debug.Log(
+                "[OnlineMatchController] ResolveRoundNow guard passed; " +
+                "updating resolved match fields.");
 
-            matchRef.SetRawJsonValueAsync(updatedJson).ContinueWithOnMainThread(writeTask =>
+            var updates = new Dictionary<string, object>
             {
-                if (writeTask.IsFaulted)
-                {
-                    Debug.LogError("[OnlineMatchController] Failed to write resolved round: " +
-                                   writeTask.Exception);
-                    return;
-                }
+                { "boardStateJson", liveMatch.boardStateJson },
+                { "bagStateJson", liveMatch.bagStateJson },
+                { "sharedrackjson", liveMatch.sharedrackjson },
+                { "bonusBoardJson", liveMatch.bonusBoardJson },
+                { "lastRoundResultJson", liveMatch.lastRoundResultJson },
+                { "currentRoundNumber", liveMatch.currentRoundNumber },
+                { "roundResolutionStatus", liveMatch.roundResolutionStatus },
+                { "status", liveMatch.status },
+                { "player1Score", liveMatch.player1Score },
+                { "player2Score", liveMatch.player2Score }
+            };
 
-                Debug.Log("[OnlineMatchController] Round " + roundNumber + " resolved and written.");
-            });
+            matchRef.UpdateChildrenAsync(updates)
+                .ContinueWithOnMainThread(writeTask =>
+                {
+                    if (writeTask.IsFaulted)
+                    {
+                        Debug.LogError(
+                            "[OnlineMatchController] Failed to update resolved round: " +
+                            writeTask.Exception);
+                        return;
+                    }
+
+                    Debug.Log(
+                        "[OnlineMatchController] Round " + roundNumber +
+                        " resolved; match fields updated and round history preserved.");
+                });
         });
     }
+
     #endregion
 
-    #region Helpers and UI flows
+        #region Helpers and UI flows
 
 
 
