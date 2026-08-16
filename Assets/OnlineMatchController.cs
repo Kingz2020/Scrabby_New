@@ -841,72 +841,42 @@ public class OnlineMatchController : MonoBehaviour
 
     private void CheckSubmissionThenEnterGameplay()
     {
+        TraceMatch(
+            "CheckSubmissionThenEnterGameplay ENTER"
+            + " | pendingEnterGameplay=" + pendingEnterGameplay
+            + " | currentMatchId=" + (currentMatch != null ? currentMatch.matchId : "NULL")
+            + " | currentRound=" + (currentMatch != null
+                ? currentMatch.currentRoundNumber.ToString()
+                : "NULL")
+        );
+
         if (currentMatch == null || auth == null || auth.CurrentUser == null)
         {
             Debug.LogWarning(
-                "[OnlineMatchController] CheckSubmissionThenEnterGameplay aborted.");
+                "[OnlineMatchController] Cannot enter gameplay: match or signed-in user is unavailable."
+            );
             return;
         }
 
         string uid = auth.CurrentUser.UserId;
-        int roundNumber = currentMatch.currentRoundNumber;
 
-        dbRoot.Child("matches")
-            .Child(currentMatch.matchId)
-            .Child("rounds")
-            .Child(roundNumber.ToString())
-            .Child("submissions")
-            .Child(uid)
-            .GetValueAsync()
-            .ContinueWithOnMainThread(task =>
-            {
-                if (task.IsFaulted)
-                {
-                    Debug.LogError(
-                        "[OnlineMatchController] Failed to check submission status: " +
-                        task.Exception);
-                    return;
-                }
+        pendingEnterGameplay = false;
 
-                bool alreadySubmitted =
-                    task.Result != null && task.Result.Exists;
+        if (gameplayPanel != null)
+            gameplayPanel.SetActive(true);
 
-                if (alreadySubmitted)
-                {
-                    if (uiManager != null)
-                    {
-                        uiManager.ShowRoundMessage(
-                            "You've already played this round. Waiting for other players...");
-                    }
+        if (pregamePanel != null)
+            pregamePanel.SetActive(false);
 
-                    if (gameplayPanel != null)
-                        gameplayPanel.SetActive(false);
+        if (matchStatusPanel != null)
+            matchStatusPanel.gameObject.SetActive(false);
 
-                    if (pregamePanel != null)
-                        pregamePanel.SetActive(false);
+        TraceMatch(
+            "CheckSubmissionThenEnterGameplay DIRECT START GAMEPLAY"
+            + " | uid=" + uid
+        );
 
-                    if (matchStatusPanel != null)
-                    {
-                        matchStatusPanel.gameObject.SetActive(true);
-                        matchStatusPanel.OnRefreshPressed();
-                    }
-
-                    return;
-                }
-
-                pendingEnterGameplay = false;
-
-                if (gameplayPanel != null)
-                    gameplayPanel.SetActive(true);
-
-                if (pregamePanel != null)
-                    pregamePanel.SetActive(false);
-
-                if (matchStatusPanel != null)
-                    matchStatusPanel.gameObject.SetActive(false);
-
-                StartGameplayForCurrentMatch(uid);
-            });
+        StartGameplayForCurrentMatch(uid);
     }
 
     public void StartGameplayForCurrentMatch(string uid)
@@ -943,84 +913,7 @@ public class OnlineMatchController : MonoBehaviour
             Debug.LogError("[OnlineMatchController] BeginOnlineMatchFromRack threw exception: " + ex);
         }
     }
-    /*public void StartGameplayForCurrentMatch()
-    {
-        Debug.Log("[OnlineMatchController] StartGameplayForCurrentMatch START");
 
-        if (gameLogic == null || currentMatch == null || auth == null || auth.CurrentUser == null)
-        {
-            Debug.LogWarning("[OnlineMatchController] StartGameplayForCurrentMatch aborted: missing references.");
-            return;
-        }
-
-        string uid = auth.CurrentUser.UserId;
-        bool isPlayer1 = currentMatch.player1Uid == uid;
-
-        List<LetterInfo> localRack = ParseRackJson(currentMatch.sharedrackjson);
-        if (localRack == null)
-            localRack = new List<LetterInfo>();
-
-        int localScore = isPlayer1 ? currentMatch.player1Score : currentMatch.player2Score;
-        int opponentScore = isPlayer1 ? currentMatch.player2Score : currentMatch.player1Score;
-
-        Debug.Log("[OnlineMatchController] Starting gameplay for match " + currentMatch.matchId +
-                  " | isPlayer1=" + isPlayer1 +
-                  " | rackCount=" + localRack.Count);
-
-        try
-        {
-            gameLogic.BeginOnlineMatchFromRack(
-                7,
-                15,
-                15,
-                localRack,
-                localScore,
-                opponentScore,
-                currentMatch.currentRoundNumber,
-                currentMatch.bonusBoardJson,
-                currentMatch.boardStateJson
-            );
-
-            Debug.Log("[OnlineMatchController] BeginOnlineMatchFromRack completed successfully.");
-        }
-        catch (Exception ex)
-        {
-            Debug.LogError("[OnlineMatchController] BeginOnlineMatchFromRack threw exception: " + ex);
-        }
-    }*/
-    /*private void EnterGameplayMode()
-    {
-        if (gameLogic == null || currentMatch == null || auth == null || auth.CurrentUser == null)
-        {
-            Debug.LogWarning("[OnlineMatchController] EnterGameplayMode aborted: missing references.");
-            return;
-        }
-
-        // Here you either:
-        // - call into GameLogic.BeginOnlineMatchFromRack(...) directly
-        // - or let PreGamePanel handle panel switching and then call GameLogic.
-        // For now, we only handle the GameLogic side:
-
-        string uid = auth.CurrentUser.UserId;
-        bool isPlayer1 = currentMatch.player1Uid == uid;
-
-        List<LetterInfo> localRack = ParseRackJson(currentMatch.sharedrackjson);
-        int localScore = isPlayer1 ? currentMatch.player1Score : currentMatch.player2Score;
-        int opponentScore = isPlayer1 ? currentMatch.player2Score : currentMatch.player1Score;
-
-        gameLogic.BeginOnlineMatchFromRack(
-            maxHandSize: 7,
-            boardSizeX: 15,
-            boardSizeY: 15,
-            localRack: localRack,
-            localScore: localScore,
-            opponentScore: opponentScore,
-            turnNumber: currentMatch.currentRoundNumber,
-            bonusBoardJson: currentMatch.bonusBoardJson,
-            boardStateJson: currentMatch.boardStateJson
-        );
-    }
-    */
     private void ShowGameOverForMatch(MatchData match)
     {
         if (uiManager == null)
@@ -1349,8 +1242,12 @@ public class OnlineMatchController : MonoBehaviour
         // If a panel requested entry, now is the time
         if (pendingEnterGameplay)
         {
-            TraceMatch("OnMatchValueChanged TRIGGER EnterGameplayMode");
+            TraceMatch("OnMatchValueChanged TRIGGER CheckSubmissionThenEnterGameplay"
+                + " | pendingEnterGameplay=" + pendingEnterGameplay);
+
             CheckSubmissionThenEnterGameplay();
+
+            TraceMatch("OnMatchValueChanged RETURNED from CheckSubmissionThenEnterGameplay");
         }
     }
     #endregion

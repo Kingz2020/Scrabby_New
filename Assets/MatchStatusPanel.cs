@@ -439,28 +439,101 @@ public class MatchStatusPanel : MonoBehaviour
         //
         foreach (string matchId in matchIds)
         {
-            var matchTask =
-                dbRoot.Child("matches")
-                      .Child(matchId)
-                      .GetValueAsync();
+            Debug.Log(
+                "[MATCH LIST] Loading match"
+                + " | uid=" + myUid
+                + " | matchId=" + matchId
+            );
 
-            yield return new WaitUntil(() => matchTask.IsCompleted);
+            Firebase.Database.DataSnapshot matchSnapshot = null;
+            bool matchFetchFailed = false;
 
-            if (matchTask.IsFaulted ||
-                matchTask.Result == null ||
-                !matchTask.Result.Exists)
+            for (int attempt = 0; attempt < 5; attempt++)
             {
+                var matchTask =
+                    dbRoot.Child("matches")
+                          .Child(matchId)
+                          .GetValueAsync();
+
+                yield return new WaitUntil(() => matchTask.IsCompleted);
+
+                if (matchTask.IsFaulted)
+                {
+                    matchFetchFailed = true;
+
+                    Debug.LogWarning(
+                        "[MATCH LIST] Match fetch faulted"
+                        + " | matchId=" + matchId
+                        + " | attempt=" + (attempt + 1)
+                    );
+
+                    break;
+                }
+
+                if (matchTask.Result != null && matchTask.Result.Exists)
+                {
+                    matchSnapshot = matchTask.Result;
+
+                    Debug.Log(
+                        "[MATCH LIST] Match became available"
+                        + " | matchId=" + matchId
+                        + " | attempt=" + (attempt + 1)
+                    );
+
+                    break;
+                }
+
+                Debug.Log(
+                    "[MATCH LIST] Match not available yet; retrying"
+                    + " | matchId=" + matchId
+                    + " | attempt=" + (attempt + 1)
+                );
+
+                yield return new WaitForSeconds(0.25f);
+            }
+
+            if (matchFetchFailed || matchSnapshot == null)
+            {
+                Debug.LogWarning(
+                    "[MATCH LIST] Skipping match after retries"
+                    + " | matchId=" + matchId
+                );
+
                 continue;
             }
 
+            string rawMatchJson = matchSnapshot.GetRawJsonValue();
+
+            Debug.Log(
+                "[MATCH LIST] Match JSON"
+                + " | matchId=" + matchId
+                + " | length=" + (rawMatchJson == null ? 0 : rawMatchJson.Length)
+            );
+
             MatchData match =
-                JsonUtility.FromJson<MatchData>(
-                    matchTask.Result.GetRawJsonValue());
+                JsonUtility.FromJson<MatchData>(rawMatchJson);
 
             if (match == null)
-                continue;
+            {
+                Debug.LogError(
+                    "[MATCH LIST] Match JSON failed to parse"
+                    + " | matchId=" + matchId
+                );
 
-            bool amPlayer1 =
+                continue;
+            }
+
+            Debug.Log(
+                "[MATCH LIST] Match parsed"
+                + " | matchId=" + match.matchId
+                + " | status=" + match.status
+                + " | round=" + match.currentRoundNumber
+                + " | player1=" + match.player1Uid
+                + " | player2=" + match.player2Uid
+            );
+
+        
+        bool amPlayer1 =
                 match.player1Uid == myUid;
 
             string opponentName =
@@ -515,8 +588,8 @@ public class MatchStatusPanel : MonoBehaviour
                 itemData.hasSubmittedThisRound = submissionExists;
 
 
-                itemData.hasSubmittedThisRound =
-                    !subTask.IsFaulted && subTask.Result != null && subTask.Result.Exists;
+                //itemData.hasSubmittedThisRound =
+                 //   !subTask.IsFaulted && subTask.Result != null && subTask.Result.Exists;
             }
 
             if (match.status == "completed")
@@ -524,7 +597,7 @@ public class MatchStatusPanel : MonoBehaviour
             else
                 activeItems.Add(itemData);
         }
-
+        BuildMatchList(activeItems, completedItems);
         //
         // INVITES
         //
@@ -560,7 +633,7 @@ public class MatchStatusPanel : MonoBehaviour
             }
         }
 
-        BuildMatchList(activeItems, completedItems);
+        //BuildMatchList(activeItems, completedItems);
         BuildInviteRows(inviteItems);
 
         int total = activeItems.Count + completedItems.Count + inviteItems.Count;
@@ -578,6 +651,9 @@ public class MatchStatusPanel : MonoBehaviour
 
     public void RefreshMatchStateForUser(string uid)
     {
+        //ClearRows();
+        //ShowStatus("Loading matches...");
+
         Debug.Log("[MATCH STATUS] RefreshMatchStateForUser called with uid=" + uid);
 
         if (dbRoot == null)
@@ -708,12 +784,33 @@ public class MatchStatusPanel : MonoBehaviour
     }
 
 
-    private void BuildMatchList(List<MatchListItemData> activeItems, List<MatchListItemData> completedItems)
+    private void BuildMatchList(
+    List<MatchListItemData> activeItems,
+    List<MatchListItemData> completedItems)
     {
+        Debug.Log(
+            "[MATCH LIST BUILD]"
+            + " active=" + activeItems.Count
+            + " completed=" + completedItems.Count
+            + " rowsBeforeClear=" + rows.Count
+            + " activeSubmitted="
+            + (activeItems.Count > 0
+                ? activeItems[0].hasSubmittedThisRound.ToString()
+                : "n/a")
+        );
+
         ClearRows();
 
         foreach (var item in activeItems)
+        {
+            Debug.Log(
+                "[MATCH LIST CREATE ACTIVE]"
+                + " matchId=" + item.matchId
+                + " submitted=" + item.hasSubmittedThisRound
+            );
+
             CreateRow(item, false);
+        }
 
         foreach (var item in completedItems)
             CreateRow(item, true);

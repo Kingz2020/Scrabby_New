@@ -23,6 +23,14 @@ public class MatchStatusRow : MonoBehaviour
     System.Action<string, string, bool> onAction,
     System.Action<string> onDecline = null)
     {
+        Debug.Log(
+                "[MATCH ROW SETUP]" +
+                " matchId=" + data.matchId +
+                " room=" + data.roomCode +
+                " submitted=" + data.hasSubmittedThisRound +
+                " status=" + data.status
+                    );
+
         roomCode = data.roomCode;
         matchId = data.matchId;
         isCompleted = !data.isRoom && data.status == "completed";
@@ -52,6 +60,15 @@ public class MatchStatusRow : MonoBehaviour
             isCompleted ? "View Results" :
             data.hasSubmittedThisRound ? "Waiting..." :
             "Resume";
+
+
+        Debug.Log(
+                "[MATCH ROW DISPLAY]" +
+                " matchId=" + data.matchId +
+                " canResume=" + canResume +
+                " label=" + actionButtonText.text +
+                " | submitted=" + data.hasSubmittedThisRound
+            );
 
         if (data.isRoom || isCompleted || data.isInvite)
         {
