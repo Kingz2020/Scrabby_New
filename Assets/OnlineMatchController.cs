@@ -246,50 +246,106 @@ public class OnlineMatchController : MonoBehaviour
     /// <summary>
     /// Show game-over panel for a given matchId.
     /// </summary>
-    public void ShowGameOverForMatch(string matchId)
+
+    public void ShowGameOverForMatchId(string matchId)
     {
-        if (!EnsureFirebaseReady())
+        if (string.IsNullOrEmpty(matchId))
+        {
+            Debug.LogWarning("[OnlineMatchController] Cannot show game-over: matchId is empty.");
             return;
+        }
 
-        dbRoot.Child("matches").Child(matchId)
-            .GetValueAsync()
-            .ContinueWithOnMainThread(task =>
+        /*DatabaseReference matchRef = FirebaseDatabase.DefaultInstance
+            .RootReference
+            .Child("matches")
+            .Child(matchId);*/
+        if (!EnsureFirebaseReady())
+        {
+            Debug.LogWarning(
+                "[OnlineMatchController] Cannot show game-over: Firebase is not ready."
+            );
+            return;
+        }
+
+        DatabaseReference matchRef = dbRoot
+            .Child("matches")
+            .Child(matchId);
+
+        matchRef.GetValueAsync().ContinueWithOnMainThread(task =>
+        {
+            if (task.IsFaulted || task.Result == null || !task.Result.Exists)
             {
-                if (task.IsFaulted || task.Result == null || !task.Result.Exists)
-                {
-                    Debug.LogWarning(
-                        "[OnlineMatchController] Could not load game for game-over.");
+                Debug.LogWarning(
+                    "[OnlineMatchController] Could not load completed match: " + matchId
+                );
+                return;
+            }
 
-                    if (uiManager != null)
-                        uiManager.ShowRoundMessage("Could not load game.");
+            MatchData match = JsonUtility.FromJson<MatchData>(
+                task.Result.GetRawJsonValue()
+            );
 
-                    return;
-                }
+            if (match == null)
+            {
+                Debug.LogWarning(
+                    "[OnlineMatchController] Could not parse completed MatchData: " + matchId
+                );
+                return;
+            }
 
-                MatchData match =
-                    JsonUtility.FromJson<MatchData>(
-                        task.Result.GetRawJsonValue());
-
-                if (match == null)
-                {
-                    Debug.LogWarning(
-                        "[OnlineMatchController] Could not parse match for game-over.");
-                    return;
-                }
-
-                // Hide the list screen before displaying the final-result screen.
-                if (matchStatusPanel != null)
-                    matchStatusPanel.gameObject.SetActive(false);
-
-                if (pregamePanel != null)
-                    pregamePanel.gameObject.SetActive(false);
-
-                if (gameplayPanel != null)
-                    gameplayPanel.SetActive(false);
-
-                ShowGameOverForMatch(match);
-            });
+            ShowGameOverForMatch(match);
+        });
     }
+
+    public void ShowGameOverForMatch(MatchData match)
+    {
+        if (uiManager == null)
+            uiManager = Singleton.Instance != null ? Singleton.Instance.UIManager : null;
+
+        if (uiManager == null)
+        {
+            Debug.LogWarning("[OnlineMatchController] Could not find UIManager to show game-over panel.");
+            return;
+        }
+
+        string myUid = GetCurrentUser() != null ? GetCurrentUser().UserId : null;
+        bool amPlayer1 = match.player1Uid == myUid;
+
+        int myScore = amPlayer1 ? match.player1Score : match.player2Score;
+        int opponentScore = amPlayer1 ? match.player2Score : match.player1Score;
+        string opponentName = amPlayer1 ? match.player2DisplayName : match.player1DisplayName;
+
+        string finalMessage;
+        if (myScore > opponentScore)
+            finalMessage = "You win!";
+        else if (myScore < opponentScore)
+            finalMessage = "You lose.";
+        else
+            finalMessage = "It's a tie!";
+
+        string roundSummary =
+            $"Final score: {myScore} - {opponentName} {opponentScore} " +
+            $"(played {match.totalRounds} rounds)";
+
+        if (match.roundScores != null && match.roundScores.Count > 0)
+        {
+            roundSummary += "\n\nRound scores";
+
+            foreach (RoundScoreLine round in match.roundScores)
+            {
+                int myRoundScore = amPlayer1 ? round.player1Score : round.player2Score;
+                int opponentRoundScore = amPlayer1 ? round.player2Score : round.player1Score;
+
+                roundSummary +=
+                    $"\nRound {round.roundNumber}: " +
+                    $"You {myRoundScore} - {opponentName} {opponentRoundScore}";
+            }
+        }
+
+        uiManager.ShowGameOverPanel(finalMessage, roundSummary);
+    }
+
+    
 
     #endregion
 
@@ -671,6 +727,33 @@ public class OnlineMatchController : MonoBehaviour
         {
             Debug.Log("[OnlineMatchController] ResolveRoundNow no valid winner; skipping board/rack updates.");
         }
+        //here
+        if (liveMatch.roundScores == null)
+            liveMatch.roundScores = new List<RoundScoreLine>();
+
+        bool roundAlreadyRecorded = liveMatch.roundScores.Exists(
+            r => r.roundNumber == roundNumber
+        );
+
+        if (!roundAlreadyRecorded)
+        {
+            bool winnerIsPlayer1 = winner != null && winner.uid == liveMatch.player1Uid;
+
+            liveMatch.roundScores.Add(new RoundScoreLine
+            {
+                roundNumber = roundNumber,
+                player1Score = winnerIsPlayer1 ? winner.score : 0,
+                player2Score = winner != null && !winnerIsPlayer1 ? winner.score : 0
+            });
+
+            Debug.Log(
+                "[OnlineMatchController] Recorded round score | round=" + roundNumber +
+                " p1=" + (winnerIsPlayer1 ? winner.score : 0) +
+                " p2=" + (winner != null && !winnerIsPlayer1 ? winner.score : 0)
+            );
+        }
+
+
 
         if (sharedRack.tiles == null)
         {
@@ -784,7 +867,8 @@ public class OnlineMatchController : MonoBehaviour
                 { "roundResolutionStatus", liveMatch.roundResolutionStatus },
                 { "status", liveMatch.status },
                 { "player1Score", liveMatch.player1Score },
-                { "player2Score", liveMatch.player2Score }
+                { "player2Score", liveMatch.player2Score }//,
+                //{ "roundScores", liveMatch.roundScores }
             };
 
             matchRef.UpdateChildrenAsync(updates)
@@ -914,36 +998,7 @@ public class OnlineMatchController : MonoBehaviour
         }
     }
 
-    private void ShowGameOverForMatch(MatchData match)
-    {
-        if (uiManager == null)
-            uiManager = Singleton.Instance != null ? Singleton.Instance.UIManager : null;
-
-        if (uiManager == null)
-        {
-            Debug.LogWarning("[OnlineMatchController] Could not find UIManager to show game-over panel.");
-            return;
-        }
-
-        string myUid = GetCurrentUser() != null ? GetCurrentUser().UserId : null;
-        bool amPlayer1 = match.player1Uid == myUid;
-
-        int myScore = amPlayer1 ? match.player1Score : match.player2Score;
-        int opponentScore = amPlayer1 ? match.player2Score : match.player1Score;
-        string opponentName = amPlayer1 ? match.player2DisplayName : match.player1DisplayName;
-
-        string finalMessage;
-        if (myScore > opponentScore)
-            finalMessage = "You win!";
-        else if (myScore < opponentScore)
-            finalMessage = "You lose.";
-        else
-            finalMessage = "It's a tie!";
-
-        string roundSummary = $"Final score: {myScore} - {opponentName} {opponentScore} (played {match.totalRounds} rounds)";
-
-        uiManager.ShowGameOverPanel(finalMessage, roundSummary);
-    }
+    
 
     private void HandleResolvedRound(int resolvedRoundNumber)
     {

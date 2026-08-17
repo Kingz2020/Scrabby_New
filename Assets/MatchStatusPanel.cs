@@ -567,29 +567,55 @@ public class MatchStatusPanel : MonoBehaviour
             if (match.status != "completed")
             {
                 var subTask = dbRoot.Child("matches").Child(match.matchId)
-                    .Child("rounds").Child(match.currentRoundNumber.ToString())
-                    .Child("submissions").Child(myUid)
-                    .GetValueAsync();
+    .Child("rounds").Child(match.currentRoundNumber.ToString())
+    .Child("submissions").Child(myUid)
+    .GetValueAsync();
 
-                yield return new WaitUntil(() => subTask.IsCompleted);
+                float timeoutAt = Time.realtimeSinceStartup + 5f;
 
-                bool submissionExists = !subTask.IsFaulted && subTask.Result != null && subTask.Result.Exists;
+                yield return new WaitUntil(() =>
+                    subTask.IsCompleted || Time.realtimeSinceStartup >= timeoutAt
+                );
+
+                bool submissionExists = false;
+
+                if (subTask.IsCompleted &&
+                    !subTask.IsFaulted &&
+                    subTask.Result != null &&
+                    subTask.Result.Exists)
+                {
+                    submissionExists = true;
+                }
+                else if (!subTask.IsCompleted)
+                {
+                    Debug.LogWarning(
+                        "[MATCH STATUS] Submission check timed out" +
+                        " | uid=" + myUid +
+                        " | matchId=" + match.matchId +
+                        " | round=" + match.currentRoundNumber
+                    );
+                }
+                else if (subTask.IsFaulted)
+                {
+                    Debug.LogWarning(
+                        "[MATCH STATUS] Submission check faulted" +
+                        " | uid=" + myUid +
+                        " | matchId=" + match.matchId +
+                        " | round=" + match.currentRoundNumber +
+                        " | error=" + subTask.Exception
+                    );
+                }
 
                 Debug.Log(
                     "[MATCH STATUS] Per-user submission check" +
                     " | uid=" + myUid +
                     " | matchId=" + match.matchId +
                     " | round=" + match.currentRoundNumber +
-                    " | taskFaulted=" + subTask.IsFaulted +
-                    " | resultNull=" + (subTask.Result == null) +
+                    " | completed=" + subTask.IsCompleted +
                     " | exists=" + submissionExists
                 );
 
                 itemData.hasSubmittedThisRound = submissionExists;
-
-
-                //itemData.hasSubmittedThisRound =
-                 //   !subTask.IsFaulted && subTask.Result != null && subTask.Result.Exists;
             }
 
             if (match.status == "completed")
@@ -762,15 +788,23 @@ public class MatchStatusPanel : MonoBehaviour
 
     private void OnRowSelected(string roomCode, string matchId, bool isCompleted)
     {
+        Debug.Log(
+                    "[MATCH STATUS ROW SELECTED] roomCode=" + roomCode +
+                    " | matchId=" + matchId +
+                    " | isCompleted=" + isCompleted
+                );
         if (isCompleted)
         {
             // Completed match: show final result
-            Singleton.Instance.OnlineMatchController.ShowGameOverForMatch(matchId);
+            Singleton.Instance.OnlineMatchController.ShowGameOverForMatchId(matchId);
             return;
         }
 
         if (!string.IsNullOrEmpty(matchId))
         {
+            Debug.Log(
+                        "[MATCH STATUS] Calling ResumeMatch for matchId=" + matchId
+                    );
             // Active match: resume gameplay flow
             Singleton.Instance.OnlineMatchController.ResumeMatch(matchId);
             return;

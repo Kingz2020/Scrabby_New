@@ -23,6 +23,8 @@ public class UIManager : MonoBehaviour
     [SerializeField] private GameObject validatedScorePopupPrefab;
     [SerializeField] private Vector2 validatedScorePopupOffset = new Vector2(40f, -40f);
     //[SerializeField] private float validatedScorePopupLifetime = 1.5f;
+    ///using System;
+   
 
     public void SetTextReferences(TextMeshProUGUI human, TextMeshProUGUI ai, TextMeshProUGUI round)
     {
@@ -479,4 +481,27 @@ public class UIManager : MonoBehaviour
         gameOverPanel.SetActive(true);
         gameOverSummaryText.text = finalMessage + "\n\n" + roundSummary;
     }
+
+    /*public string BuildRoundScoreSummary(
+    string playerName,
+    string opponentName,
+    List<RoundScoreLine> roundScores)
+    {
+        if (roundScores == null || roundScores.Count == 0)
+            return "";
+
+        System.Text.StringBuilder summary = new System.Text.StringBuilder();
+        summary.AppendLine("Round scores");
+
+        foreach (RoundScoreLine round in roundScores)
+        {
+            summary.AppendLine(
+                $"Round {round.roundNumber}: " +
+                $"{playerName} {round.player1Score} - " +
+                $"{opponentName} {round.player2Score}"
+            );
+        }
+
+        return summary.ToString().TrimEnd();
+    }*/
 }

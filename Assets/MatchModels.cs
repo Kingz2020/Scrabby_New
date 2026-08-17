@@ -87,6 +87,8 @@ public class MatchData
 
     public string bonusBoardJson;
 
+    public List<RoundScoreLine> roundScores = new List<RoundScoreLine>();
+
     public int totalRounds;
 }
 

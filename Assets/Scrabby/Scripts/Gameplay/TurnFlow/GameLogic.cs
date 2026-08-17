@@ -2199,11 +2199,22 @@ public class GameLogic : MonoBehaviour
 
         Debug.Log(finalMessage);
 
-        string roundSummary = "";
+        string roundSummary =
+                    $"Final score: {humanTotalScore} - AI {aiTotalScore} " +
+                    $"(played {roundHistory.Count} rounds)";
+
         foreach (var r in roundHistory)
         {
-            roundSummary += $"Round {r.roundNumber}: {r.humanWord}({r.humanScore}) vs {r.aiWord}({r.aiScore})\n";
-            Debug.Log($"Round {r.roundNumber}: {r.humanWord}({r.humanScore}) vs {r.aiWord}({r.aiScore})");
+            roundSummary +=
+                $"\nRound {r.roundNumber}: " +
+                $"{r.humanWord} ({r.humanScore}) vs " +
+                $"{r.aiWord} ({r.aiScore})";
+
+            Debug.Log(
+                $"Round {r.roundNumber}: " +
+                $"{r.humanWord}({r.humanScore}) vs " +
+                $"{r.aiWord}({r.aiScore})"
+            );
         }
 
         Singleton.Instance.UIManager.ShowGameOverPanel(finalMessage, roundSummary);

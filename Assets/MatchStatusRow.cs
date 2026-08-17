@@ -53,6 +53,8 @@ public class MatchStatusRow : MonoBehaviour
             roomCodeText.text = data.roomCode;
 
         bool canResume = !data.isRoom && !data.isInvite && !isCompleted && !data.hasSubmittedThisRound;
+        //bool canResume = !data.isRoom && !data.isInvite && !isCompleted;
+
 
         actionButtonText.text =
             data.isInvite ? "Accept" :
@@ -81,8 +83,21 @@ public class MatchStatusRow : MonoBehaviour
             actionButton.image.color = canResume ? Color.green : Color.gray;
         }
 
+        /*actionButton.onClick.RemoveAllListeners();
+        actionButton.onClick.AddListener(() => onAction?.Invoke(roomCode, matchId, isCompleted));*/
+
         actionButton.onClick.RemoveAllListeners();
-        actionButton.onClick.AddListener(() => onAction?.Invoke(roomCode, matchId, isCompleted));
+
+        actionButton.onClick.AddListener(() =>
+        {
+            Debug.Log(
+                "[MATCH ROW CLICK] roomCode=" + roomCode +
+                " | matchId=" + matchId +
+                " | isCompleted=" + isCompleted
+            );
+
+            onAction?.Invoke(roomCode, matchId, isCompleted);
+        });
 
         if (declineButton != null)
         {
