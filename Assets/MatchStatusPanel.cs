@@ -796,6 +796,9 @@ public class MatchStatusPanel : MonoBehaviour
         if (isCompleted)
         {
             // Completed match: show final result
+            //if (matchStatusPanel.gameobject != null)
+            //    matchStatusPanel.gameobject.SetActive(false);
+
             Singleton.Instance.OnlineMatchController.ShowGameOverForMatchId(matchId);
             return;
         }

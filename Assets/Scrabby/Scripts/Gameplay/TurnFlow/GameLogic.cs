@@ -377,9 +377,42 @@ public class GameLogic : MonoBehaviour
         Debug.Log("[INIT] Dictionary size " + scrabbleWordSet.Count);
     }
 
+    /*public void BeginGameFromButton()
+    {
+        Debug.Log("[TRACE] BeginGameFromButton CALLED");
+
+        if (Singleton.Instance != null &&
+            Singleton.Instance.UIManager != null &&
+            Singleton.Instance.UIManager.gameOverPanel != null)
+        {
+            Singleton.Instance.UIManager.gameOverPanel.SetActive(false);
+        }
+
+        StopAllCoroutines();
+        ClearBoardForNewGame();
+        InitGame(maxHandSize, boardSizeX, boardSizeY, GameInitMode.Solo);
+        StartCoroutine(StartRound());
+    }*/
     public void BeginGameFromButton()
     {
         Debug.Log("[TRACE] BeginGameFromButton CALLED");
+
+        // The same Game Over panel is used by solo and online games.
+        // Route online results to the online rematch flow.
+        if (Singleton.Instance != null &&
+            Singleton.Instance.OnlineMatchController != null &&
+            Singleton.Instance.OnlineMatchController.IsViewingOnlineMatchResult())
+        {
+            Singleton.Instance.OnlineMatchController.PlayAgainFromResults();
+            return;
+        }
+
+        // Solo restart flow.
+        if (Singleton.Instance != null &&
+            Singleton.Instance.OnlineMatchController != null)
+        {
+            Singleton.Instance.OnlineMatchController.ClearViewingOnlineMatchResult();
+        }
 
         if (Singleton.Instance != null &&
             Singleton.Instance.UIManager != null &&

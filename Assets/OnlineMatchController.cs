@@ -55,6 +55,8 @@ public class OnlineMatchController : MonoBehaviour
     //private string currentMatchId;
     public event System.Action<MatchData> OnMatchUpdated;
 
+    private bool viewingOnlineMatchResult;
+
     #region Init
 
     private void Awake()
@@ -249,16 +251,15 @@ public class OnlineMatchController : MonoBehaviour
 
     public void ShowGameOverForMatchId(string matchId)
     {
+        if (matchStatusPanel != null)
+            matchStatusPanel.gameObject.SetActive(false);
+
         if (string.IsNullOrEmpty(matchId))
         {
             Debug.LogWarning("[OnlineMatchController] Cannot show game-over: matchId is empty.");
             return;
         }
 
-        /*DatabaseReference matchRef = FirebaseDatabase.DefaultInstance
-            .RootReference
-            .Child("matches")
-            .Child(matchId);*/
         if (!EnsureFirebaseReady())
         {
             Debug.LogWarning(
@@ -292,9 +293,45 @@ public class OnlineMatchController : MonoBehaviour
                 );
                 return;
             }
-
+            viewingOnlineMatchResult = true;
             ShowGameOverForMatch(match);
         });
+    }
+
+    public void PlayAgainFromResults()
+    {
+        Debug.Log("[ONLINE] PlayAgainFromResults CALLED");
+
+        // We are leaving the old completed match result.
+        viewingOnlineMatchResult = false;
+
+        // Hide the result panel.
+        if (Singleton.Instance != null &&
+            Singleton.Instance.UIManager != null &&
+            Singleton.Instance.UIManager.gameOverPanel != null)
+        {
+            Singleton.Instance.UIManager.gameOverPanel.SetActive(false);
+        }
+
+        // Show the Match Status / online room screen again.
+        if (matchStatusPanel != null)
+            matchStatusPanel.gameObject.SetActive(true);
+
+        // TEMPORARY:
+        // This only returns the player to the online match list.
+        // Replace this part with your existing "create room" method once we
+        // identify its exact name and required parameters.
+        //matchStatusPanel.RefreshMatchList();
+    }
+
+    public void ClearViewingOnlineMatchResult()
+    {
+        viewingOnlineMatchResult = false;
+    }
+
+    public bool IsViewingOnlineMatchResult()
+    {
+        return viewingOnlineMatchResult;
     }
 
     public void ShowGameOverForMatch(MatchData match)
@@ -885,15 +922,58 @@ public class OnlineMatchController : MonoBehaviour
                     Debug.Log(
                         "[OnlineMatchController] Round " + roundNumber +
                         " resolved; match fields updated and round history preserved.");
+
+                    SaveRoundScores(matchRef, liveMatch.roundScores);
                 });
         });
     }
 
     #endregion
 
-        #region Helpers and UI flows
+    #region Helpers and UI flows
 
+    private void SaveRoundScores(
+    DatabaseReference matchRef,
+    List<RoundScoreLine> roundScores)
+    {
+        if (matchRef == null || roundScores == null || roundScores.Count == 0)
+        {
+            Debug.LogWarning(
+                "[OnlineMatchController] SaveRoundScores skipped: no data."
+            );
+            return;
+        }
 
+        Dictionary<string, object> updates =
+            new Dictionary<string, object>();
+
+        foreach (RoundScoreLine round in roundScores)
+        {
+            string prefix = "roundScores/" + round.roundNumber;
+
+            updates[prefix + "/roundNumber"] = round.roundNumber;
+            updates[prefix + "/player1Score"] = round.player1Score;
+            updates[prefix + "/player2Score"] = round.player2Score;
+        }
+
+        matchRef.UpdateChildrenAsync(updates)
+            .ContinueWithOnMainThread(task =>
+            {
+                if (task.IsFaulted)
+                {
+                    Debug.LogError(
+                        "[OnlineMatchController] Failed to save roundScores: " +
+                        task.Exception
+                    );
+                    return;
+                }
+
+                Debug.Log(
+                    "[OnlineMatchController] Saved roundScores: " +
+                    roundScores.Count
+                );
+            });
+    }
 
     private IEnumerator ShowSubmittedWaitingSequence()
     {
