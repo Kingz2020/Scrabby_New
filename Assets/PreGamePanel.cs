@@ -40,7 +40,7 @@ public class PreGamePanel : MonoBehaviour
 
     private DatabaseReference currentMatchRef;
     private DatabaseReference currentRoomRef;
-    //private string watchedRoomCode = "";
+
     private string watchedMatchId = "";
     private bool firebaseInitialized = false;
 
@@ -65,7 +65,6 @@ public class PreGamePanel : MonoBehaviour
 
     private string pendingResolutionMatchId = null;
 
-    //[SerializeField] private OnlineMatchController onlineMatchController;
 
     [Serializable]
     public class RoomPlayerData
@@ -108,15 +107,12 @@ public class PreGamePanel : MonoBehaviour
 
     private void Awake()
     {
-        //if (onlineMatchController == null)
-        //    onlineMatchController = Singleton.Instance.OnlineMatchController;
 
         if (pregamePanel != null) pregamePanel.SetActive(true);
         if (gameplayPanel != null) gameplayPanel.SetActive(false);
         if (gameOverPanel != null) gameOverPanel.SetActive(false);
 
-        //if (gameLogic != null)
-        //    gameLogic.onlineSubmissionReady += OnOnlineSubmissionReady;
+
     }
 
 
@@ -132,8 +128,6 @@ public class PreGamePanel : MonoBehaviour
             startGameButton.image.color = Color.white;
         }
 
-        //if (gameLogic != null)
-        //    gameLogic.onlineSubmissionReady += OnOnlineSubmissionReady;
 
         StartCoroutine(WaitForFirebaseThenInit());
     }
