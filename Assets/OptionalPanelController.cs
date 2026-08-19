@@ -37,7 +37,14 @@ public class OptionPanelController : MonoBehaviour
         if (gameoverPanel != null) gameoverPanel.SetActive(false);
         if (matchstatusPanel != null) matchstatusPanel.SetActive(false);
 
-        Debug.Log("[OptionPanel] Solo selected -> opening gameplay panel");
+        if (Singleton.Instance != null &&
+            Singleton.Instance.DebugManager != null)
+        {
+            Singleton.Instance.DebugManager.LoadFromJson();
+            Singleton.Instance.DebugManager.StartNewGame();
+        }
+
+        Debug.Log("[OptionPanel] Solo selected -> starting new solo game");
     }
 
     public void OnMultiplayerPressed()
@@ -55,7 +62,7 @@ public class OptionPanelController : MonoBehaviour
         if (optionPanel != null) optionPanel.SetActive(true);
         if (pregamePanel != null) pregamePanel.SetActive(false);
         if (gameplayPanel != null) gameplayPanel.SetActive(false);
-        if (gameplayPanel != null) gameoverPanel.SetActive(false);
+        if (gameoverPanel != null) gameoverPanel.SetActive(false);
         if (matchstatusPanel != null) matchstatusPanel.SetActive(false);
 
         Debug.Log("[OptionPanel] Showing option panel");

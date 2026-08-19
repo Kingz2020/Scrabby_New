@@ -18,8 +18,8 @@ public class PreGamePanel : MonoBehaviour
     [SerializeField] private TMP_InputField roomCodeInput;
 
     [Header("UI")]
-    [SerializeField] private GameObject authSection;
-    [SerializeField] private GameObject lobbySection;
+    //[SerializeField] private GameObject authSection;
+    //[SerializeField] private GameObject lobbySection;
     [SerializeField] private TextMeshProUGUI statusText;
     [SerializeField] private TextMeshProUGUI signedInAsText;
     [SerializeField] private GameObject pregamePanelRoot;
@@ -37,6 +37,9 @@ public class PreGamePanel : MonoBehaviour
     private FirebaseAuth auth;
     private FirebaseUser user;
     public Button startGameButton;
+
+    [SerializeField] private Color startReadyColor = Color.green;
+    [SerializeField] private Color startNotReadyColor = Color.white;
 
     private DatabaseReference currentMatchRef;
     private DatabaseReference currentRoomRef;
@@ -209,60 +212,42 @@ public class PreGamePanel : MonoBehaviour
     // on PreGamePanel
     public void EnterMultiplayerFlow()
     {
-        if (optionPanel != null) optionPanel.SetActive(false);
+        if (optionPanel != null)
+            optionPanel.SetActive(false);
 
-        if (IsSignedIn())
-        {
-            // Already authenticated — skip the login screen entirely.
-            gameObject.SetActive(false);
-            if (matchStatusPanel != null) matchStatusPanel.gameObject.SetActive(true);
-        }
-        else
-        {
-            // Show the login/register screen; OnLoginPressed's success path
-            // already hands off to MatchStatusPanel once auth completes.
-            if (pregamePanel != null) pregamePanel.SetActive(true);
-        }
+        if (pregamePanel != null)
+            pregamePanel.SetActive(true);
+
+        RefreshUI();
+        RefreshStartButton();
     }
     private void AuthStateChanged(object sender, EventArgs eventArgs)
     {
+        if (auth == null)
+            return;
+
         if (auth.CurrentUser != user)
         {
-            bool signedIn = user != auth.CurrentUser && auth.CurrentUser != null;
-
-            if (!signedIn && user != null)
-            {
-                SetStatus("Signed out.");
-            }
-
+            bool signedIn = auth.CurrentUser != null;
             user = auth.CurrentUser;
 
             if (signedIn)
             {
                 RepairCurrentUserProfileIfMissing();
 
-                string shownName = string.IsNullOrWhiteSpace(user.DisplayName) ? user.Email : user.DisplayName;
+                string shownName = string.IsNullOrWhiteSpace(user.DisplayName)
+                    ? user.Email
+                    : user.DisplayName;
+
+                displayNameInput.SetTextWithoutNotify(shownName);
+                displayNameInput.ForceLabelUpdate();
+
                 SetStatus("Signed in.");
-                if (signedInAsText != null)
-                    signedInAsText.text = "Signed in as: " + shownName;
+                signedInAsText.text = "Signed in as: " + shownName;
 
-                // Auto-login (persisted session) reached this point too — hand off
-                // to MatchStatusPanel the same way OnLoginPressed's success path does,
-                // but only if PreGamePanel is the one currently visible (avoid stealing
-                // focus if the user is mid-gameplay or elsewhere when a session refreshes).
-                if (matchStatusPanel != null && pregamePanel != null && pregamePanel.activeInHierarchy)
-                {
-                    matchStatusPanel.gameObject.SetActive(true);
-                    gameObject.SetActive(false);
-                }
+                RefreshUI();
+                RefreshStartButton();
             }
-            else
-            {
-                if (signedInAsText != null)
-                    signedInAsText.text = "Not signed in";
-            }
-
-            RefreshUI();
         }
     }
 
@@ -429,6 +414,7 @@ public class PreGamePanel : MonoBehaviour
                     {
                         SetStatus("Registered successfully.");
                         RefreshUI();
+                        RefreshStartButton();
                     });
                 });
             });
@@ -527,6 +513,9 @@ public class PreGamePanel : MonoBehaviour
                     ? signedInUser.Email
                     : signedInUser.DisplayName;
 
+                displayNameInput.SetTextWithoutNotify(shownName);
+                displayNameInput.ForceLabelUpdate();
+
                 SetStatus("Login successful.");
                 if (signedInAsText != null)
                     signedInAsText.text = "Signed in as: " + shownName;
@@ -536,11 +525,12 @@ public class PreGamePanel : MonoBehaviour
                 RefreshUI();
 
                 // Return to MatchStatusPanel now that login succeeded.
-                if (matchStatusPanel != null)
-                {
-                    matchStatusPanel.gameObject.SetActive(true);
-                    gameObject.SetActive(false);
-                }
+                /* if (matchStatusPanel != null)
+                 {
+                     matchStatusPanel.gameObject.SetActive(true);
+                     gameObject.SetActive(false);
+                 }*/
+                RefreshStartButton();
             });
         });
     }
@@ -982,6 +972,31 @@ public class PreGamePanel : MonoBehaviour
         auth.SignOut();
         SetStatus("Logged out.");
         RefreshUI();
+        RefreshStartButton();
+    }
+
+    public void OnStartPressed()
+    {
+        FirebaseUser currentUser = auth != null ? auth.CurrentUser : null;
+
+        bool readyToStart =
+            currentUser != null &&
+            !currentUser.IsAnonymous &&
+            !string.IsNullOrWhiteSpace(currentUser.Email) &&
+            !string.IsNullOrWhiteSpace(currentUser.DisplayName);
+
+        if (!readyToStart)
+        {
+            SetStatus("Please log in or register first.");
+            RefreshStartButton();
+            return;
+        }
+
+        if (pregamePanel != null)
+            pregamePanel.SetActive(false);
+
+        if (matchStatusPanel != null)
+            matchStatusPanel.gameObject.SetActive(true);
     }
 
     private bool IsSignedIn()
@@ -998,23 +1013,43 @@ public class PreGamePanel : MonoBehaviour
             return auth.CurrentUser.DisplayName;
 
         if (!string.IsNullOrWhiteSpace(displayNameInput.text))
-            return displayNameInput.text.Trim();
-
+            return displayNameInput.text.Trim(); 
         return auth.CurrentUser.Email;
     }
 
     private void RefreshUI()
     {
-        bool signedIn = IsSignedIn();
+        if (emailInput != null)
+            emailInput.gameObject.SetActive(true);
 
-        if (authSection != null)
-            authSection.SetActive(!signedIn);
+        if (passwordInput != null)
+            passwordInput.gameObject.SetActive(true);
 
-        if (lobbySection != null)
-            lobbySection.SetActive(signedIn);
+        if (displayNameInput != null)
+            displayNameInput.gameObject.SetActive(true);
+
+        if (startGameButton != null)
+            startGameButton.gameObject.SetActive(true);
     }
 
+    private void RefreshStartButton()
+    {
+        FirebaseUser currentUser = auth != null ? auth.CurrentUser : null;
 
+        bool readyToStart =
+            currentUser != null &&
+            !currentUser.IsAnonymous &&
+            !string.IsNullOrWhiteSpace(currentUser.Email) &&
+            !string.IsNullOrWhiteSpace(currentUser.DisplayName);
+
+        if (startGameButton == null)
+            return;
+
+        startGameButton.interactable = readyToStart;
+        startGameButton.image.color = readyToStart
+            ? startReadyColor
+            : startNotReadyColor;
+    }
 
     private void RunOnMainThread(Action action)
     {

@@ -11,15 +11,15 @@ public class Autostart : MonoBehaviour
 
     void Start()
     {
-        if (Singleton.Instance != null &&
+       /* if (Singleton.Instance != null &&
             Singleton.Instance.GameLogic != null &&
             Singleton.Instance.GameLogic.IsOnlineMatch)
         {
             return; // online match already hydrated by PreGamePanel — don't overwrite it
         }
-
-        Singleton.Instance.DebugManager.LoadFromJson();
-        Singleton.Instance.DebugManager.StartNewGame();
+       */
+        //Singleton.Instance.DebugManager.LoadFromJson();
+        //Singleton.Instance.DebugManager.StartNewGame();
     }
 
     public void StartClick()
