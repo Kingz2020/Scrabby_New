@@ -15,5 +15,9 @@ public class RoomData
 
     public string matchId;
 
+    public int playerCount;
+    public int totalRounds;
+    public int turnTimeMinutes;
+
     public long createdAtUnix;
 }

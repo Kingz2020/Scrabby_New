@@ -53,6 +53,9 @@ public class MatchStatusPanel : MonoBehaviour
     private DatabaseReference watchedUserRef;
     private EventHandler<ValueChangedEventArgs> userWatcher;
 
+    [SerializeField] private TMP_InputField inviteInput;
+    [SerializeField] private Button inviteButton;
+
     //[SerializeField] private OnlineMatchController onlineMatchController;
 
     private void Awake()
@@ -83,6 +86,9 @@ public class MatchStatusPanel : MonoBehaviour
 
         if (switchUserButton != null)
             switchUserButton.onClick.AddListener(() => preGamePanel.OnSwitchTestUserPressed());
+
+        if (inviteButton != null)
+            inviteButton.onClick.AddListener(OnInviteButtonPressed);
     }
 
     private void Start()
@@ -190,6 +196,11 @@ public class MatchStatusPanel : MonoBehaviour
             ? user.Email
             : user.DisplayName;
 
+        //emailInput.SetTextWithoutNotify(signedInUser.Email ?? "");
+        //emailInput.ForceLabelUpdate();
+
+
+
         loginnameText.text = "Signed in as: " + shownName;
     }
 
@@ -199,11 +210,11 @@ public class MatchStatusPanel : MonoBehaviour
             matchInfoText.text = text;
     }
 
-    public void SetRoomCode(string roomCode)
+    /*public void SetRoomCode(string roomCode)
     {
         if (roomCodeText != null)
             roomCodeText.text = roomCode;
-    }
+    }*/
 
     public int GetPlayerCount()
     {
@@ -222,15 +233,14 @@ public class MatchStatusPanel : MonoBehaviour
     public int GetRoundCount()
     {
         if (roundCountDropdown == null)
-            return 5;
+            return 4;
 
         switch (roundCountDropdown.value)
         {
             case 0: return 4;
             case 1: return 5;
             case 2: return 6;
-            case 3: return 7;
-            default: return 5;
+            default: return 4;
         }
     }
 
@@ -639,8 +649,14 @@ public class MatchStatusPanel : MonoBehaviour
             invitesTask.Result != null &&
             invitesTask.Result.Exists)
         {
+            Debug.Log("[MATCH STATUS] Invites node exists, children count = " +
+              invitesTask.Result.ChildrenCount);
+
             foreach (var child in invitesTask.Result.Children)
             {
+                Debug.Log("[MATCH STATUS] Invite child key = " + child.Key);
+                Debug.Log("[MATCH STATUS] Invite raw JSON = " + child.GetRawJsonValue());
+
                 string raw = child.GetRawJsonValue();
                 if (string.IsNullOrEmpty(raw))
                     continue;
@@ -657,6 +673,11 @@ public class MatchStatusPanel : MonoBehaviour
                     opponentDisplayName = invite.fromDisplayName
                 });
             }
+        }
+        else
+        {
+            Debug.Log("[MATCH STATUS] No invites found or error: " +
+                      (invitesTask.IsFaulted ? invitesTask.Exception?.ToString() : "none"));
         }
 
         //BuildMatchList(activeItems, completedItems);
@@ -934,5 +955,334 @@ public class MatchStatusPanel : MonoBehaviour
 
         watchedUserRef = null;
         userWatcher = null;
+    }
+    private void OnInviteButtonPressed()
+    {
+        if (inviteButton != null)
+            inviteButton.interactable = false;
+
+        ShowStatus("Sending invitation...");
+
+        if (inviteInput == null)
+        {
+            Debug.LogError("[INVITE] inviteInput is not assigned in Inspector.");
+            ShowStatus("Invite input is not assigned.");
+            if (inviteButton != null)
+                inviteButton.interactable = true;
+            return;
+        }
+
+        string invitedEmail = inviteInput.text.Trim().ToLowerInvariant();
+
+        Debug.Log("[INVITE] Inviter UID = " + auth.CurrentUser.UserId);
+        Debug.Log("[INVITE] Target email = " + invitedEmail);
+        // targetUid and roomCode are not known yet; log them later in EnsureRoomThenSendInvite / SendInviteToUser
+
+        if (string.IsNullOrWhiteSpace(invitedEmail))
+        {
+            ShowStatus("Enter the player's email address.");
+            if (inviteButton != null)
+                inviteButton.interactable = true;
+            return;
+        }
+
+        if (!IsValidEmail(invitedEmail))
+        {
+            ShowStatus("Enter a valid email address.");
+            if (inviteButton != null)
+                inviteButton.interactable = true;
+            return;
+        }
+
+        if (auth == null || auth.CurrentUser == null)
+        {
+            ShowStatus("You must be signed in to send an invitation.");
+            if (inviteButton != null)
+                inviteButton.interactable = true;
+            return;
+        }
+
+        if (dbRoot == null)
+        {
+            ShowStatus("Firebase is not ready yet.");
+            if (inviteButton != null)
+                inviteButton.interactable = true;
+            return;
+        }
+
+        ShowStatus("Finding player...");
+
+        dbRoot.Child("users")
+              .OrderByChild("email")
+              .EqualTo(invitedEmail)
+              .GetValueAsync()
+              .ContinueWithOnMainThread(task =>
+              {
+                  if (task.IsCanceled || task.IsFaulted)
+                  {
+                      Debug.LogError("[MATCH STATUS] User lookup failed: " + task.Exception);
+                      ShowStatus("Could not find that player.");
+                      if (inviteButton != null)
+                          inviteButton.interactable = true;
+                      return;
+                  }
+
+                  DataSnapshot snapshot = task.Result;
+
+                  if (snapshot == null || !snapshot.Exists || !snapshot.Children.GetEnumerator().MoveNext())
+                  {
+                      ShowStatus("No registered player found with that email.");
+                      if (inviteButton != null)
+                          inviteButton.interactable = true;
+                      return;
+                  }
+
+                  string targetUid = null;
+
+                  foreach (DataSnapshot userSnapshot in snapshot.Children)
+                  {
+                      targetUid = userSnapshot.Key;
+                      break;
+                  }
+
+                  if (string.IsNullOrEmpty(targetUid))
+                  {
+                      ShowStatus("No registered player found with that email.");
+                      if (inviteButton != null)
+                          inviteButton.interactable = true;
+                      return;
+                  }
+
+                  if (targetUid == auth.CurrentUser.UserId)
+                  {
+                      ShowStatus("You cannot invite yourself.");
+                      if (inviteButton != null)
+                          inviteButton.interactable = true;
+                      return;
+                  }
+
+                  Debug.Log("[INVITE] Target UID = " + targetUid);
+                  EnsureRoomThenSendInvite(targetUid);
+              });
+    }
+
+    private void EnsureRoomThenSendInvite(string targetUid)
+    {
+        if (auth == null || auth.CurrentUser == null || dbRoot == null)
+        {
+            ShowStatus("Firebase is not ready.");
+
+            if (inviteButton != null)
+                inviteButton.interactable = true;
+
+            return;
+        }
+
+        string roomCode = GenerateRoomCode();
+        string myUid = auth.CurrentUser.UserId;
+
+        string displayName = string.IsNullOrWhiteSpace(auth.CurrentUser.DisplayName)
+            ? auth.CurrentUser.Email
+            : auth.CurrentUser.DisplayName;
+
+        RoomData room = new RoomData
+        {
+            code = roomCode,
+            hostUid = myUid,
+            hostDisplayName = displayName,
+            guestUid = "",
+            guestDisplayName = "",
+            status = "waiting",
+            createdAtUnix = DateTimeOffset.UtcNow.ToUnixTimeSeconds(),
+
+            playerCount = GetPlayerCount(),
+            totalRounds = GetRoundCount(),
+            turnTimeMinutes = GetTurnTimeMinutes()
+        };
+
+        PreGamePanel.RoomInviteData invite =
+            new PreGamePanel.RoomInviteData
+            {
+                roomCode = roomCode,
+                fromUid = myUid,
+                fromDisplayName = displayName,
+                createdAtUnix = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
+            };
+
+        Debug.Log("[INVITE] Generated new invitation room code: " + roomCode);
+        Debug.Log("[INVITE] Creating room: rooms/" + roomCode);
+
+        dbRoot.Child("rooms")
+              .Child(roomCode)
+              .SetRawJsonValueAsync(JsonUtility.ToJson(room))
+              .ContinueWithOnMainThread(roomTask =>
+              {
+                  if (roomTask.IsCanceled || roomTask.IsFaulted)
+                  {
+                      Debug.LogError("[INVITE] Room write failed: " + roomTask.Exception);
+                      ShowStatus("Could not create invitation room.");
+
+                      if (inviteButton != null)
+                          inviteButton.interactable = true;
+
+                      return;
+                  }
+
+                  Debug.Log("[INVITE] Room created. Now writing invite to: users/" +
+                            targetUid + "/invites/" + roomCode);
+
+                  dbRoot.Child("users")
+                        .Child(targetUid)
+                        .Child("invites")
+                        .Child(roomCode)
+                        .SetRawJsonValueAsync(JsonUtility.ToJson(invite))
+                        .ContinueWithOnMainThread(inviteTask =>
+                        {
+                            if (inviteTask.IsCanceled || inviteTask.IsFaulted)
+                            {
+                                Debug.LogError("[INVITE] Invite write failed: " +
+                                               inviteTask.Exception);
+
+                                ShowStatus("Room created, but invitation could not be sent.");
+
+                                if (inviteButton != null)
+                                    inviteButton.interactable = true;
+
+                                return;
+                            }
+
+                            Debug.Log("[INVITE] Invite written successfully.");
+
+                            ShowStatus("Invitation sent to " + inviteInput.text.Trim() + ".");
+
+                            if (inviteInput != null)
+                                inviteInput.SetTextWithoutNotify("");
+
+                            if (inviteButton != null)
+                                inviteButton.interactable = true;
+                        });
+              });
+    }
+
+    private void SendInviteToUser(string targetUid, string roomCode)
+    {
+        string displayName = string.IsNullOrWhiteSpace(auth.CurrentUser.DisplayName)
+            ? auth.CurrentUser.Email
+            : auth.CurrentUser.DisplayName;
+
+        PreGamePanel.RoomInviteData invite = new PreGamePanel.RoomInviteData
+        {
+            roomCode = roomCode,
+            fromUid = auth.CurrentUser.UserId,
+            fromDisplayName = displayName,
+            createdAtUnix = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
+        };
+
+        Debug.Log("[INVITE] Writing invite to: users/" + targetUid + "/invites/" + roomCode);
+
+        dbRoot.Child("users")
+              .Child(targetUid)
+              .Child("invites")
+              .Child(roomCode)
+              .SetRawJsonValueAsync(JsonUtility.ToJson(invite))
+              .ContinueWithOnMainThread(task =>
+              {
+                  if (task.IsCanceled || task.IsFaulted)
+                  {
+                      Debug.LogError("[INVITE] Write failed: " + task.Exception);
+                      ShowStatus("Could not send invitation.");
+                      if (inviteButton != null)
+                          inviteButton.interactable = true;
+                      return;
+                  }
+
+                  Debug.Log("[INVITE] Room code = " + roomCode);
+                  Debug.Log("[INVITE] Invite written successfully.");
+
+                  ShowStatus("Invitation sent to " + inviteInput.text.Trim() + ".");
+                  inviteInput.SetTextWithoutNotify("");
+                  if (inviteButton != null)
+                      inviteButton.interactable = true;
+              });
+    }
+
+    private void AddRoomToCurrentUser(string roomCode, Action completed)
+    {
+        string uid = auth.CurrentUser.UserId;
+
+        dbRoot.Child("users").Child(uid).Child("activeRoomIds").GetValueAsync()
+            .ContinueWithOnMainThread(task =>
+            {
+                if (task.IsCanceled || task.IsFaulted)
+                {
+                    ShowStatus("Room created, but your profile could not be updated.");
+                    return;
+                }
+
+                List<string> roomIds = new List<string>();
+
+                if (task.Result != null && task.Result.Exists)
+                {
+                    foreach (DataSnapshot child in task.Result.Children)
+                        roomIds.Add(child.Value.ToString());
+                }
+
+                if (!roomIds.Contains(roomCode))
+                    roomIds.Add(roomCode);
+
+                dbRoot.Child("users").Child(uid).Child("activeRoomIds")
+                    .SetValueAsync(roomIds)
+                    .ContinueWithOnMainThread(writeTask =>
+                    {
+                        if (writeTask.IsCanceled || writeTask.IsFaulted)
+                        {
+                            ShowStatus("Room created, but your profile could not be updated.");
+                            return;
+                        }
+
+                        completed?.Invoke();
+                    });
+            });
+    }
+
+    /*private string FindMyWaitingRoomCode()
+    {
+        if (auth == null || auth.CurrentUser == null)
+            return null;
+
+        string uid = auth.CurrentUser.UserId;
+
+        // This simple version uses the room code currently displayed in the UI,
+        // if it belongs to the signed-in user. Otherwise it creates a new room.
+        string currentCode = roomCodeText != null ? roomCodeText.text.Trim().ToUpperInvariant() : "";
+
+        if (!string.IsNullOrEmpty(currentCode) && currentCode != "ROOM CODE")
+            return currentCode;
+
+        return null;
+    }*/
+
+    private bool IsValidEmail(string email)
+    {
+        try
+        {
+            var address = new System.Net.Mail.MailAddress(email);
+            return address.Address == email;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private string GenerateRoomCode()
+    {
+        const string chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+        char[] code = new char[6];
+
+        for (int i = 0; i < code.Length; i++)
+            code[i] = chars[UnityEngine.Random.Range(0, chars.Length)];
+
+        return new string(code);
     }
 }

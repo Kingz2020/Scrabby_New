@@ -54,8 +54,8 @@ public class PreGamePanel : MonoBehaviour
     private int matchTraceSeq = 0;
 
     private DatabaseReference currentSubmissionsRef;
-    private int watchedRoundNumber = -1;
-    private int lastProcessedRound = 0;
+    //private int watchedRoundNumber = -1;
+    //private int lastProcessedRound = 0;
 
     private const string TestUserA_Email = "sexy@bikini.com";
     private const string TestUserB_Email = "zia@far.com";
@@ -64,7 +64,7 @@ public class PreGamePanel : MonoBehaviour
 
     private EventHandler<ValueChangedEventArgs> roomWatcher;
 
-    private bool pendingEnterGameplay = false;
+    //private bool pendingEnterGameplay = false;
 
     private string pendingResolutionMatchId = null;
 
@@ -241,6 +241,12 @@ public class PreGamePanel : MonoBehaviour
 
                 displayNameInput.SetTextWithoutNotify(shownName);
                 displayNameInput.ForceLabelUpdate();
+
+                emailInput.SetTextWithoutNotify(user.Email ?? "");
+                emailInput.ForceLabelUpdate();
+
+                passwordInput.SetTextWithoutNotify("*****");
+                passwordInput.ForceLabelUpdate();
 
                 SetStatus("Signed in.");
                 signedInAsText.text = "Signed in as: " + shownName;
@@ -585,7 +591,7 @@ public class PreGamePanel : MonoBehaviour
 
         Debug.Log("user = " + user);
         Debug.Log("dbRoot = " + dbRoot);
-        Debug.Log("roomCodeInput = " + roomCodeInput);
+        //Debug.Log("roomCodeInput = " + roomCodeInput);
 
         SetStatus("Creating room...");
 
@@ -894,7 +900,7 @@ public class PreGamePanel : MonoBehaviour
         if (string.IsNullOrEmpty(toUid) || auth == null || auth.CurrentUser == null)
             return;
 
-        RoomInviteData invite = new RoomInviteData
+        PreGamePanel.RoomInviteData invite = new PreGamePanel.RoomInviteData
         {
             roomCode = roomCode,
             fromUid = auth.CurrentUser.UserId,
@@ -1582,7 +1588,8 @@ public class PreGamePanel : MonoBehaviour
                     roundResolutionStatus = "idle",
                     roundResolutionByUid = "",
 
-                    totalRounds = matchStatusPanel != null ? matchStatusPanel.GetRoundCount() : 5,
+                    //totalRounds = matchStatusPanel != null ? matchStatusPanel.GetRoundCount() : 5,
+                    totalRounds = roomSnapshot.totalRounds > 0 ? roomSnapshot.totalRounds: 4,
 
                     createdAtUnix = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
 
