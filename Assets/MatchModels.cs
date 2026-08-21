@@ -114,6 +114,7 @@ public class RoundSubmissionData
     public bool isValid;
     public string simulatedTilesJson;
     public long submittedAtUnix;
+    public int secondsRemaining;
 }
 
 [Serializable]

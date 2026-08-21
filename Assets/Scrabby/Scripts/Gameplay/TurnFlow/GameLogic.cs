@@ -4906,23 +4906,11 @@ public class GameLogic : MonoBehaviour
         currentState = locked ? TurnState.Busy : TurnState.PlayerTurn;
     }
 
-    /*private void LoadBoardStateIntoValidatedTiles(BoardStateData board)
+    public float GetRemainingRoundTime()
     {
-        validatedBoardTiles = new LetterInfo[boardSizeX + 2, boardSizeY + 2];
-
-        if (board == null || board.cells == null)
-            return;
-
-        foreach (var cell in board.cells)
-        {
-            if (cell == null || !cell.occupied || cell.tile == null)
-                continue;
-
-            int row = cell.y + 1;
-            int col = cell.x + 1;
-            validatedBoardTiles[row, col] = TileDataToLetterInfo(cell.tile);
-        }
-    }*/
+        if (timer == null) return 0f;
+        return timer.GetRemainingTime();
+    }
 
     public void LoadBoardStateIntoValidatedTiles(BoardStateData board)
     {

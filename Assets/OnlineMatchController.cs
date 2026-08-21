@@ -191,6 +191,14 @@ public class OnlineMatchController : MonoBehaviour
             " move.score=" + (move != null ? move.score.ToString() : "NULL") +
             " simulatedTiles=" + SerializeSimulatedTiles(move)
         );
+
+        float secondsRemaining = 0f;
+
+        if (Singleton.Instance?.GameLogic != null)
+        {
+            secondsRemaining = Mathf.Max(0f, Singleton.Instance.GameLogic.GetRemainingRoundTime());
+        }
+
         RoundSubmissionData submission = new RoundSubmissionData
         {
             uid = uid,
@@ -198,6 +206,9 @@ public class OnlineMatchController : MonoBehaviour
             score = move != null ? move.score : 0,
             isValid = move != null && move.isValid,
             simulatedTilesJson = SerializeSimulatedTiles(move),
+
+            secondsRemaining = Mathf.Max(0, Mathf.CeilToInt(secondsRemaining)),
+
             submittedAtUnix = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
         };
 
