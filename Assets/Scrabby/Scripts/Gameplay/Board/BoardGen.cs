@@ -10,7 +10,7 @@ public class BoardGen: MonoBehaviour {
         for (int y = 1; y <= RowY; y++) {
             for (int x = 1; x <= RowX; x++) {
                 GameObject goTemp = Instantiate(GhostGO, transform);
-                goTemp.GetComponent<GhostTile>().SetLocation(y, x);
+                goTemp.GetComponent<GhostTile>().SetLocation(x, y);
             }
         }
     }

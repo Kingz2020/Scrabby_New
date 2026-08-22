@@ -377,22 +377,6 @@ public class GameLogic : MonoBehaviour
         Debug.Log("[INIT] Dictionary size " + scrabbleWordSet.Count);
     }
 
-    /*public void BeginGameFromButton()
-    {
-        Debug.Log("[TRACE] BeginGameFromButton CALLED");
-
-        if (Singleton.Instance != null &&
-            Singleton.Instance.UIManager != null &&
-            Singleton.Instance.UIManager.gameOverPanel != null)
-        {
-            Singleton.Instance.UIManager.gameOverPanel.SetActive(false);
-        }
-
-        StopAllCoroutines();
-        ClearBoardForNewGame();
-        InitGame(maxHandSize, boardSizeX, boardSizeY, GameInitMode.Solo);
-        StartCoroutine(StartRound());
-    }*/
     public void BeginGameFromButton()
     {
         Debug.Log("[TRACE] BeginGameFromButton CALLED");
@@ -1888,26 +1872,13 @@ public class GameLogic : MonoBehaviour
                     continue;
 
                 validCandidates++;
-                /*Debug.Log(
-                    "FindBestFirstTurnPlacement: VALID V candidate for '" + word +
-                    "' at [startRow=" + startRow + ", col=" + col +
-                    "], score " + candidate.score
-                );*/
 
                 if (bestPlacement == null || IsBetterAIMove(candidate, bestPlacement))
                 {
                     bestPlacement = candidate;
-                    /*Debug.Log(
-                        "FindBestFirstTurnPlacement: NEW BEST V placement for '" + word +
-                        "' => score " + bestPlacement.score +
-                        " at [startRow=" + startRow + ", col=" + col + "]"
-                    );*/
                 }
             }
         }
-
-        /*Debug.Log("FindBestFirstTurnPlacement: candidateAttempts = " + candidateAttempts +
-                  ", validCandidates = " + validCandidates);*/
 
         if (bestPlacement == null)
             Debug.LogWarning("FindBestFirstTurnPlacement: No valid placement found for word '" + word + "'.");
@@ -2175,8 +2146,6 @@ public class GameLogic : MonoBehaviour
 
         if (Singleton.Instance.UIManager != null)
             Singleton.Instance.UIManager.UpdateTotalScores(humanTotalScore, aiTotalScore);
-
-        //Debug.Log("Total scores => Human: " + humanTotalScore + ", AI: " + aiTotalScore);
     }
 
     private void RecordRoundResult()
@@ -2629,8 +2598,6 @@ public class GameLogic : MonoBehaviour
 
         return anchors;
     }
-
-
 
     private bool PassCrossCheck(int row, int col, char c, TilePlacement mainPlacement)
     {
