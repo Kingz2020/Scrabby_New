@@ -194,6 +194,146 @@ public class UIManager : MonoBehaviour
             letterPosition.RowX + ", col " + letterPosition.ColY
         );
     }
+
+    public TileScript CreateReplayPreviewTile(
+    LetterInfo tileInfo,
+    LetterPosition letterPosition)
+    {
+        if (tileInfo == null || letterPosition == null)
+            return null;
+
+        GhostTile[] allGhostTiles =
+            gameBoard.GetComponentsInChildren<GhostTile>(true);
+
+        foreach (GhostTile ghostTile in allGhostTiles)
+        {
+            if (ghostTile == null || ghostTile.letterPosition == null)
+                continue;
+
+            bool matches =
+                ghostTile.letterPosition.RowX == letterPosition.RowX &&
+                ghostTile.letterPosition.ColY == letterPosition.ColY;
+
+            if (!matches)
+                continue;
+
+            GameObject tempTile = Instantiate(basicTile);
+            tempTile.transform.SetParent(ghostTile.transform, false);
+
+            TileScript tileScript =
+                tempTile.GetComponent<TileScript>();
+
+            if (tileScript == null)
+            {
+                Destroy(tempTile);
+                return null;
+            }
+
+            tileScript.InitTile(new LetterInfo(tileInfo));
+            tileScript.SetLockedOnBoard(true);
+
+            if (tileScript.PlacedTileData != null)
+            {
+                tileScript.PlacedTileData.letterPosition =
+                    new LetterPosition(
+                        letterPosition.RowX,
+                        letterPosition.ColY
+                    );
+            }
+
+            return tileScript;
+        }
+
+        Debug.LogWarning(
+            "CreateReplayPreviewTile could not find GhostTile at row " +
+            letterPosition.RowX + ", col " + letterPosition.ColY
+        );
+
+        return null;
+    }
+
+    public IEnumerator PlayMovePreview(
+    List<SimPlacedTileData> moveTiles,
+    Color highlightColor,
+    float totalDuration)
+    {
+        if (moveTiles == null || moveTiles.Count == 0)
+            yield break;
+
+        moveTiles.Sort((a, b) =>
+        {
+            if (a == null && b == null) return 0;
+            if (a == null) return 1;
+            if (b == null) return -1;
+
+            if (a.row == b.row)
+                return a.col.CompareTo(b.col);
+
+            if (a.col == b.col)
+                return a.row.CompareTo(b.row);
+
+            int rowCompare = a.row.CompareTo(b.row);
+            return rowCompare != 0
+                ? rowCompare
+                : a.col.CompareTo(b.col);
+        });
+
+        List<TileScript> previewTiles =
+            new List<TileScript>();
+
+        foreach (SimPlacedTileData simTile in moveTiles)
+        {
+            if (simTile == null)
+                continue;
+
+            TileScript previewTile = CreateReplayPreviewTile(
+                new LetterInfo(simTile.letter, simTile.points),
+                new LetterPosition(simTile.row, simTile.col)
+            );
+
+            if (previewTile != null)
+                previewTiles.Add(previewTile);
+        }
+
+        if (previewTiles.Count == 0)
+            yield break;
+
+        float durationPerTile =
+            totalDuration / previewTiles.Count;
+
+        foreach (TileScript tile in previewTiles)
+        {
+            if (tile == null)
+                continue;
+
+            yield return StartCoroutine(
+                tile.PlayWinningReplayDrop(
+                    durationPerTile,
+                    highlightColor
+                )
+            );
+        }
+
+        yield return new WaitForSecondsRealtime(0.5f);
+
+        RemoveReplayPreviewTiles(previewTiles);
+    }
+
+    public void RemoveReplayPreviewTiles(
+    List<TileScript> previewTiles)
+    {
+        if (previewTiles == null)
+            return;
+
+        foreach (TileScript tile in previewTiles)
+        {
+            if (tile != null)
+                Destroy(tile.gameObject);
+        }
+
+        previewTiles.Clear();
+    }
+
     private GhostTile FindGhostTileByLetterPosition(LetterPosition letterPosition)
     {
         if (letterPosition == null || gameBoard == null)

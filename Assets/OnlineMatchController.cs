@@ -816,7 +816,69 @@ public class OnlineMatchController : MonoBehaviour
             );
         }
 
+        if (liveMatch.roundHistory == null)
+            liveMatch.roundHistory = new List<OnlineRoundHistoryEntry>();
 
+        bool roundHistoryAlreadyRecorded = liveMatch.roundHistory.Exists(
+            entry => entry != null && entry.roundNumber == roundNumber
+        );
+
+        if (!roundHistoryAlreadyRecorded)
+        {
+            liveMatch.roundHistory.Add(new OnlineRoundHistoryEntry
+            {
+                roundNumber = roundNumber,
+
+                preRoundBoardStateJson = preRoundBoardStateJson,
+                roundBonusBoardJson = roundBonusBoardJson,
+
+                player1Word = player1Submission != null
+                    ? player1Submission.word
+                    : "",
+
+                player1Score = player1Submission != null
+                    ? player1Submission.score
+                    : 0,
+
+                player1Valid = player1Submission != null &&
+                               player1Submission.isValid,
+
+                player1SimulatedTilesJson = player1Submission != null
+                    ? player1Submission.simulatedTilesJson
+                    : "",
+
+                player2Word = player2Submission != null
+                    ? player2Submission.word
+                    : "",
+
+                player2Score = player2Submission != null
+                    ? player2Submission.score
+                    : 0,
+
+                player2Valid = player2Submission != null &&
+                               player2Submission.isValid,
+
+                player2SimulatedTilesJson = player2Submission != null
+                    ? player2Submission.simulatedTilesJson
+                    : "",
+
+                winnerUid = result.winnerUid,
+                winnerWord = result.winnerWord,
+                winnerScore = result.winnerScore,
+                anyValidMove = result.anyValidMove,
+                winnerIsPlayer1 = winner != null &&
+                   winner.uid == liveMatch.player1Uid
+
+            });
+
+            Debug.Log(
+                "[OnlineMatchController] Saved round replay history | round=" +
+                roundNumber +
+                " p1='" + (player1Submission != null ? player1Submission.word : "") +
+                "' p2='" + (player2Submission != null ? player2Submission.word : "") +
+                "' winner='" + result.winnerWord + "'"
+            );
+        }
 
         if (sharedRack.tiles == null)
         {
@@ -930,9 +992,11 @@ public class OnlineMatchController : MonoBehaviour
                 { "roundResolutionStatus", liveMatch.roundResolutionStatus },
                 { "status", liveMatch.status },
                 { "player1Score", liveMatch.player1Score },
-                { "player2Score", liveMatch.player2Score }//,
-                //{ "roundScores", liveMatch.roundScores }
+                { "player2Score", liveMatch.player2Score }
             };
+
+           
+
 
             matchRef.UpdateChildrenAsync(updates)
                 .ContinueWithOnMainThread(writeTask =>
@@ -950,6 +1014,7 @@ public class OnlineMatchController : MonoBehaviour
                         " resolved; match fields updated and round history preserved.");
 
                     SaveRoundScores(matchRef, liveMatch.roundScores);
+                    SaveRoundHistory(matchRef, liveMatch.roundHistory);
                 });
         });
     }
@@ -997,6 +1062,102 @@ public class OnlineMatchController : MonoBehaviour
                 Debug.Log(
                     "[OnlineMatchController] Saved roundScores: " +
                     roundScores.Count
+                );
+            });
+    }
+
+    private void SaveRoundHistory(
+    DatabaseReference matchRef,
+    List<OnlineRoundHistoryEntry> roundHistory)
+    {
+        if (matchRef == null || roundHistory == null || roundHistory.Count == 0)
+        {
+            Debug.LogWarning(
+                "[OnlineMatchController] SaveRoundHistory skipped: no data."
+            );
+            return;
+        }
+
+        Dictionary<string, object> updates =
+            new Dictionary<string, object>();
+
+        foreach (OnlineRoundHistoryEntry entry in roundHistory)
+        {
+            if (entry == null || entry.roundNumber <= 0)
+                continue;
+
+            string prefix = "roundHistory/" + entry.roundNumber + "/";
+
+            updates[prefix + "roundNumber"] = entry.roundNumber;
+
+            updates[prefix + "preRoundBoardStateJson"] =
+                entry.preRoundBoardStateJson ?? "";
+
+            updates[prefix + "roundBonusBoardJson"] =
+                entry.roundBonusBoardJson ?? "";
+
+            updates[prefix + "player1Word"] =
+                entry.player1Word ?? "";
+
+            updates[prefix + "player1Score"] =
+                entry.player1Score;
+
+            updates[prefix + "player1Valid"] =
+                entry.player1Valid;
+
+            updates[prefix + "player1SimulatedTilesJson"] =
+                entry.player1SimulatedTilesJson ?? "";
+
+            updates[prefix + "player2Word"] =
+                entry.player2Word ?? "";
+
+            updates[prefix + "player2Score"] =
+                entry.player2Score;
+
+            updates[prefix + "player2Valid"] =
+                entry.player2Valid;
+
+            updates[prefix + "player2SimulatedTilesJson"] =
+                entry.player2SimulatedTilesJson ?? "";
+
+            updates[prefix + "winnerUid"] =
+                entry.winnerUid ?? "";
+
+            updates[prefix + "winnerWord"] =
+                entry.winnerWord ?? "";
+
+            updates[prefix + "winnerScore"] =
+                entry.winnerScore;
+
+            updates[prefix + "anyValidMove"] =
+                entry.anyValidMove;
+            updates[prefix + "winnerIsPlayer1"] =
+    entry.winnerIsPlayer1;
+        }
+
+        if (updates.Count == 0)
+        {
+            Debug.LogWarning(
+                "[OnlineMatchController] SaveRoundHistory skipped: no valid entries."
+            );
+            return;
+        }
+
+        matchRef.UpdateChildrenAsync(updates)
+            .ContinueWithOnMainThread(task =>
+            {
+                if (task.IsFaulted)
+                {
+                    Debug.LogError(
+                        "[OnlineMatchController] Failed to save roundHistory: " +
+                        task.Exception
+                    );
+                    return;
+                }
+
+                Debug.Log(
+                    "[OnlineMatchController] Saved roundHistory entries: " +
+                    roundHistory.Count
                 );
             });
     }

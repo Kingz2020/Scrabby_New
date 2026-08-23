@@ -187,4 +187,7 @@ public class OnlineRoundHistoryEntry
     public string winnerWord;
     public int winnerScore;
     public bool anyValidMove;
+
+    public bool winnerIsPlayer1;
+
 }

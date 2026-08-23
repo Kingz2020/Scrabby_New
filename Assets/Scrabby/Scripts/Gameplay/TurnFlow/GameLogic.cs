@@ -4968,4 +4968,114 @@ public class GameLogic : MonoBehaviour
             validatedBoardTiles[row, col] = TileDataToLetterInfo(cell.tile);
         }
     }
+
+    public IEnumerator ReplayOnlineRound(
+    OnlineRoundHistoryEntry round)
+    {
+        if (round == null)
+        {
+            Debug.LogWarning("[REPLAY] Cannot replay null round.");
+            yield break;
+        }
+
+        if (Singleton.Instance == null ||
+            Singleton.Instance.UIManager == null)
+        {
+            Debug.LogWarning("[REPLAY] UIManager unavailable.");
+            yield break;
+        }
+
+        SetInputLocked(true);
+
+        UIManager ui = Singleton.Instance.UIManager;
+
+        ui.ClearCommittedBoardTiles();
+
+        BoardStateData preRoundBoard =
+            JsonUtility.FromJson<BoardStateData>(
+                round.preRoundBoardStateJson
+            );
+
+        ApplyBoardStateToScene(preRoundBoard);
+
+        ApplyBonusBoardFromMatch(round.roundBonusBoardJson);
+
+        yield return new WaitForSecondsRealtime(0.5f);
+
+        SimTileListWrapper player1Move =
+            JsonUtility.FromJson<SimTileListWrapper>(
+                round.player1SimulatedTilesJson
+            );
+
+        SimTileListWrapper player2Move =
+            JsonUtility.FromJson<SimTileListWrapper>(
+                round.player2SimulatedTilesJson
+            );
+
+        Color player1Color =
+            new Color(0.25f, 0.65f, 1f, 1f);
+
+        Color player2Color =
+            new Color(1f, 0.70f, 0.20f, 1f);
+
+        Color winnerColor =
+            new Color(0.20f, 1f, 0.34f, 1f);
+
+        if (round.player1Valid &&
+            player1Move != null &&
+            player1Move.tiles != null &&
+            player1Move.tiles.Count > 0)
+        {
+            yield return StartCoroutine(
+                ui.PlayMovePreview(
+                    player1Move.tiles,
+                    player1Color,
+                    1.5f
+                )
+            );
+        }
+
+        if (round.player2Valid &&
+            player2Move != null &&
+            player2Move.tiles != null &&
+            player2Move.tiles.Count > 0)
+        {
+            yield return StartCoroutine(
+                ui.PlayMovePreview(
+                    player2Move.tiles,
+                    player2Color,
+                    1.5f
+                )
+            );
+        }
+
+        if (round.anyValidMove &&
+            !string.IsNullOrEmpty(round.winnerUid))
+        {
+            string winnerTilesJson =
+            round.winnerIsPlayer1
+                ? round.player1SimulatedTilesJson
+                : round.player2SimulatedTilesJson;
+
+            SimTileListWrapper winnerMove =
+                JsonUtility.FromJson<SimTileListWrapper>(
+                    winnerTilesJson
+                );
+
+            if (winnerMove != null &&
+                winnerMove.tiles != null &&
+                winnerMove.tiles.Count > 0)
+            {
+                yield return StartCoroutine(
+                    ui.PlayMovePreview(
+                        winnerMove.tiles,
+                        winnerColor,
+                        2f
+                    )
+                );
+            }
+        }
+
+        SetInputLocked(false);
+    }
 }
