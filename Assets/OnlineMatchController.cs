@@ -687,12 +687,23 @@ public class OnlineMatchController : MonoBehaviour
                 winner = sub;
         }
 
+        RoundSubmissionData player1Submission = submissions.Find(
+        sub => sub != null && sub.uid == liveMatch.player1Uid
+        );
+
+        RoundSubmissionData player2Submission = submissions.Find(
+            sub => sub != null && sub.uid == liveMatch.player2Uid
+        );
+
         Debug.Log("[OnlineMatchController] ResolveRoundNow winner uid=" +
                   (winner != null ? winner.uid : "NULL"));
 
         BoardStateData board = JsonUtility.FromJson<BoardStateData>(liveMatch.boardStateJson) ?? new BoardStateData();
         BagStateData bag = JsonUtility.FromJson<BagStateData>(liveMatch.bagStateJson) ?? new BagStateData();
         RackStateData sharedRack = JsonUtility.FromJson<RackStateData>(liveMatch.sharedrackjson) ?? new RackStateData();
+
+        string preRoundBoardStateJson = liveMatch.boardStateJson;
+        string roundBonusBoardJson = liveMatch.bonusBoardJson;
 
         Debug.Log("[OnlineMatchController] ResolveRoundNow parsed state | " +
                   "boardCells=" + (board.cells != null ? board.cells.Count : -1) +
