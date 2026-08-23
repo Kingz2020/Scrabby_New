@@ -237,8 +237,8 @@ public class MatchStatusPanel : MonoBehaviour
 
         switch (roundCountDropdown.value)
         {
-            case 0: return 4;
-            case 1: return 5;
+            case 0: return 2;
+            case 1: return 4;
             case 2: return 6;
             default: return 4;
         }

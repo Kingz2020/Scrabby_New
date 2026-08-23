@@ -1,3 +1,5 @@
+
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using TMPro;
@@ -482,26 +484,96 @@ public class UIManager : MonoBehaviour
         gameOverSummaryText.text = finalMessage + "\n\n" + roundSummary;
     }
 
-    /*public string BuildRoundScoreSummary(
-    string playerName,
-    string opponentName,
-    List<RoundScoreLine> roundScores)
+    public IEnumerator PlayWinningWordReplay(
+        List<SimPlacedTileData> winningTiles,
+        float totalDuration)
     {
-        if (roundScores == null || roundScores.Count == 0)
-            return "";
+        if (winningTiles == null || winningTiles.Count == 0)
+            yield break;
 
-        System.Text.StringBuilder summary = new System.Text.StringBuilder();
-        summary.AppendLine("Round scores");
-
-        foreach (RoundScoreLine round in roundScores)
+        if (gameBoard == null)
         {
-            summary.AppendLine(
-                $"Round {round.roundNumber}: " +
-                $"{playerName} {round.player1Score} - " +
-                $"{opponentName} {round.player2Score}"
+            Debug.LogWarning(
+                "PlayWinningWordReplay: gameBoard is null."
             );
+            yield break;
         }
 
-        return summary.ToString().TrimEnd();
-    }*/
+        GhostTile[] ghosts =
+            gameBoard.GetComponentsInChildren<GhostTile>(true);
+
+        List<TileScript> tilesToAnimate = new List<TileScript>();
+
+        winningTiles.Sort((a, b) =>
+        {
+            if (a == null && b == null) return 0;
+            if (a == null) return 1;
+            if (b == null) return -1;
+
+            // Same row: horizontal word, animate from left to right.
+            if (a.row == b.row)
+                return a.col.CompareTo(b.col);
+
+            // Same column: vertical word, animate from top to bottom.
+            if (a.col == b.col)
+                return a.row.CompareTo(b.row);
+
+            // Fallback for malformed/non-linear data:
+            // process upper rows first, then left-to-right within each row.
+            int rowCompare = a.row.CompareTo(b.row);
+            return rowCompare != 0
+                ? rowCompare
+                : a.col.CompareTo(b.col);
+        });
+
+
+
+        foreach (SimPlacedTileData replayTile in winningTiles)
+        {
+            foreach (GhostTile ghost in ghosts)
+            {
+                if (ghost == null || ghost.letterPosition == null)
+                    continue;
+
+                bool matchesPosition =
+                    ghost.letterPosition.RowX == replayTile.row &&
+                    ghost.letterPosition.ColY == replayTile.col;
+
+                if (!matchesPosition)
+                    continue;
+
+                TileScript committedTile =
+                    ghost.GetComponentInChildren<TileScript>(true);
+
+                if (committedTile != null)
+                    tilesToAnimate.Add(committedTile);
+
+                break;
+            }
+        }
+
+        if (tilesToAnimate.Count == 0)
+        {
+            Debug.LogWarning(
+                "PlayWinningWordReplay: no committed tiles found."
+            );
+            yield break;
+        }
+
+        Color winningGreen =
+            new Color(0.20f, 1f, 0.34f, 1f);
+
+        float perTileDuration =
+            totalDuration / tilesToAnimate.Count;
+
+        foreach (TileScript tile in tilesToAnimate)
+        {
+            yield return StartCoroutine(
+                tile.PlayWinningReplayDrop(
+                    perTileDuration,
+                    winningGreen
+                )
+            );
+        }
+    }
 }

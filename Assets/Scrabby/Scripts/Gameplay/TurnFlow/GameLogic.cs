@@ -263,6 +263,11 @@ public class GameLogic : MonoBehaviour
         }
     }
 
+    public void SetMaxRounds(int rounds)
+    {
+        if (rounds > 0)
+            maxRounds = rounds;
+    }
 
     private void InitOnlineStateShell()
     {
@@ -4631,9 +4636,13 @@ public class GameLogic : MonoBehaviour
         int opponentScore,
         int turnNumber,
         string bonusBoardJson,
-        string boardStateJson)
+        string boardStateJson,
+        string lastRoundResultJson,
+        int totalRounds)
     {
         Debug.Log("[ONLINE] BeginOnlineMatchFromRack CALLED");
+
+        SetMaxRounds(totalRounds);
 
         StopAllCoroutines();
         ClearBoardForNewGame();
@@ -4658,7 +4667,9 @@ public class GameLogic : MonoBehaviour
         }
 
         // Existing: bonus board JSON (multipliers etc.)
-        StartCoroutine(ApplyBonusBoardDelayed(bonusBoardJson));
+        //StartCoroutine(ApplyBonusBoardDelayed(bonusBoardJson));
+
+        StartCoroutine(BeginOnlineRoundIntro(bonusBoardJson,lastRoundResultJson));
 
         if (localRack == null)
             localRack = new List<LetterInfo>();
@@ -4686,14 +4697,69 @@ public class GameLogic : MonoBehaviour
             Singleton.Instance.UIManager.ClearRoundMessage();
         }
 
+        /*if (timer != null)
+        {
+            timer.ResetTimer();
+            timer.StartTimer();
+        }*/
+
+        Debug.Log("[ONLINE] Local hydrated rack count = " + playerHandTiles.Count);
+    }
+
+    private IEnumerator BeginOnlineRoundIntro(
+    string bonusBoardJson,
+    string lastRoundResultJson)
+    {
+        SetInputLocked(true);
+
+        if (Singleton.Instance != null && Singleton.Instance.UIManager != null)
+            Singleton.Instance.UIManager.ClearRoundMessage();
+
+        RoundResultData previousResult = null;
+
+        if (!string.IsNullOrEmpty(lastRoundResultJson))
+            previousResult = JsonUtility.FromJson<RoundResultData>(lastRoundResultJson);
+
+        bool hasReplay =
+            previousResult != null &&
+            previousResult.anyValidMove &&
+            !string.IsNullOrEmpty(previousResult.winningTilesJson);
+
+        if (hasReplay)
+        {
+            SimTileListWrapper winningTiles =
+                JsonUtility.FromJson<SimTileListWrapper>(
+                    previousResult.winningTilesJson
+                );
+
+            if (winningTiles != null &&
+                winningTiles.tiles != null &&
+                winningTiles.tiles.Count > 0 &&
+                Singleton.Instance != null &&
+                Singleton.Instance.UIManager != null)
+            {
+                yield return StartCoroutine(
+                    Singleton.Instance.UIManager.PlayWinningWordReplay(
+                        winningTiles.tiles,
+                        2f
+                    )
+                );
+            }
+        }
+
+        yield return StartCoroutine(ApplyBonusBoardDelayed(bonusBoardJson));
+
+        SaveCurrentRoundSnapshot();
+
         if (timer != null)
         {
             timer.ResetTimer();
             timer.StartTimer();
         }
 
-        Debug.Log("[ONLINE] Local hydrated rack count = " + playerHandTiles.Count);
+        SetInputLocked(false);
     }
+
 
     private void ApplyBoardStateToScene(BoardStateData board)
     {

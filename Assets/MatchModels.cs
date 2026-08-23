@@ -126,6 +126,8 @@ public class RoundResultData
     public string winnerWord;
     public int winnerScore;
     public bool anyValidMove;
+
+    public string winningTilesJson;
 }
 
 [Serializable]

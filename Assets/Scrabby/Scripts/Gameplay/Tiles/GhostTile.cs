@@ -65,6 +65,7 @@ public class GhostTile : MonoBehaviour, IPointerEnterHandler, IPointerExitHandle
     {
         letterPosition.RowX = x;
         letterPosition.ColY = y;
+        Debug.Log($"[GHOST] {name} SetLocation => RowX={x}, ColY={y}");
     }
 
     public void ResetVisuals()

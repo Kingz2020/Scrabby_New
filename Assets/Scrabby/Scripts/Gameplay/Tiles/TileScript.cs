@@ -2,6 +2,7 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
+using System.Collections;
 
 public class TileScript : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDragHandler
 {
@@ -139,5 +140,77 @@ public class TileScript : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDr
         Singleton.Instance.DropManager.SetTempGrabbedTile(placedTile);
         Singleton.Instance.DropManager.AddLocation();
         Singleton.Instance.DropManager.ClearCurrentLocation(targetLocation);
+    }
+    public IEnumerator PlayWinningReplayDrop(
+    float duration,
+    Color highlightColor,
+    float dropHeightMultiplier = 0.5f)
+    {
+        if (this == null || gameObject == null)
+            yield break;
+
+        if (canvasGroup == null)
+            canvasGroup = GetComponent<CanvasGroup>();
+
+        RectTransform rt = transform as RectTransform;
+        float tileHeight = rt != null ? rt.rect.height : 90f;
+        float dropHeight = tileHeight * dropHeightMultiplier;
+
+        Vector3 finalPosition = transform.localPosition;
+        Vector3 startPosition = finalPosition + Vector3.up * dropHeight;
+
+        Color originalLetterColor = textLetter != null
+            ? textLetter.color
+            : Color.white;
+
+        FontStyles originalFontStyle = textLetter != null
+            ? textLetter.fontStyle
+            : FontStyles.Normal;
+
+        if (textLetter != null)
+        {
+            textLetter.color = highlightColor;
+            textLetter.fontStyle = FontStyles.Bold;
+        }
+
+        canvasGroup.alpha = 0f;
+        transform.localPosition = startPosition;
+
+        float elapsed = 0f;
+
+        while (elapsed < duration)
+        {
+            if (this == null || gameObject == null)
+                yield break;
+
+            elapsed += Time.unscaledDeltaTime;
+
+            float t = Mathf.Clamp01(elapsed / duration);
+            float eased = 1f - Mathf.Pow(1f - t, 3f);
+
+            transform.localPosition =
+                Vector3.Lerp(startPosition, finalPosition, eased);
+
+            canvasGroup.alpha = t;
+
+            yield return null;
+        }
+
+        if (this == null || gameObject == null)
+            yield break;
+
+        transform.localPosition = finalPosition;
+        canvasGroup.alpha = 1f;
+
+        yield return new WaitForSecondsRealtime(0.25f);
+
+        if (this == null || gameObject == null)
+            yield break;
+
+        if (textLetter != null)
+        {
+            textLetter.color = originalLetterColor;
+            textLetter.fontStyle = originalFontStyle;
+        }
     }
 }

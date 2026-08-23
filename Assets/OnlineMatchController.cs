@@ -712,6 +712,10 @@ public class OnlineMatchController : MonoBehaviour
 
             SimTileListWrapper wrapper = JsonUtility.FromJson<SimTileListWrapper>(winner.simulatedTilesJson);
 
+            result.winningTilesJson = winner.simulatedTilesJson;
+
+            liveMatch.lastRoundResultJson = JsonUtility.ToJson(result);
+
             if (wrapper != null && wrapper.tiles != null)
             {
                 Debug.Log("[OnlineMatchController] ResolveRoundNow placing " +
@@ -1080,7 +1084,9 @@ public class OnlineMatchController : MonoBehaviour
                 localRack, localScore, opponentScore,
                 currentMatch.currentRoundNumber,
                 currentMatch.bonusBoardJson,
-                currentMatch.boardStateJson
+                currentMatch.boardStateJson,
+                currentMatch.lastRoundResultJson,
+                currentMatch.totalRounds
             );
         }
         catch (Exception ex)
