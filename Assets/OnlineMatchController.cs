@@ -391,7 +391,236 @@ public class OnlineMatchController : MonoBehaviour
         }
 
         uiManager.ShowGameOverPanel(finalMessage, roundSummary);
+
+        /* StartCoroutine(
+             LoadOnlineRoundHistoryForGameOver(
+                 match,
+                 finalMessage,
+                 opponentName,
+                 amPlayer1
+             )*/
+        //StartCoroutine(LoadOnlineRoundReplayRows(match,amPlayer1,opponentName));
+
+        ShowOnlineRoundReplayRows(match,amPlayer1,opponentName);
+        //);
     }
+
+    /*private IEnumerator LoadOnlineRoundReplayRows(
+    MatchData match,
+    bool amPlayer1,
+    string opponentName)
+    {
+        if (match == null ||
+            string.IsNullOrEmpty(match.matchId))
+        {
+            Debug.LogWarning(
+                "[OnlineMatchController] Cannot load round replay: missing match."
+            );
+            yield break;
+        }
+
+        if (!EnsureFirebaseReady())
+        {
+            Debug.LogWarning(
+                "[OnlineMatchController] Cannot load round replay: Firebase is not ready."
+            );
+            yield break;
+        }
+
+        DatabaseReference roundsRef = dbRoot
+            .Child("matches")
+            .Child(match.matchId)
+            .Child("rounds");
+
+        var task = roundsRef.GetValueAsync();
+
+        yield return new WaitUntil(() => task.IsCompleted);
+
+        if (task.IsFaulted ||
+            task.IsCanceled ||
+            task.Result == null ||
+            !task.Result.Exists)
+        {
+            Debug.LogWarning(
+                "[OnlineMatchController] No round replay data found for match " +
+                match.matchId
+            );
+            yield break;
+        }
+
+        List<OnlineRoundHistoryEntry> history =
+            new List<OnlineRoundHistoryEntry>();
+
+        foreach (DataSnapshot roundSnapshot in task.Result.Children)
+        {
+            OnlineRoundHistoryEntry entry =
+                ParseOnlineRoundHistoryEntry(roundSnapshot);
+
+            if (entry != null)
+                history.Add(entry);
+        }
+
+        history.Sort((a, b) =>
+            a.roundNumber.CompareTo(b.roundNumber)
+        );
+
+        if (uiManager == null)
+        {
+            Debug.LogWarning(
+                "[OnlineMatchController] Cannot display round replay: UIManager is null."
+            );
+            yield break;
+        }
+
+        uiManager.ShowOnlineRoundReplayRows(
+            history,
+            amPlayer1,
+            opponentName,
+            ReplayRoundFromGameOver
+        );
+    }
+    */
+    private IEnumerator LoadOnlineRoundHistoryForGameOver(
+    MatchData match,
+    string finalMessage,
+    string opponentName,
+    bool amPlayer1)
+    {
+        if (match == null || string.IsNullOrEmpty(match.matchId))
+            yield break;
+
+        if (!EnsureFirebaseReady())
+            yield break;
+
+        var historyRef = dbRoot
+            .Child("matches")
+            .Child(match.matchId)
+            .Child("roundHistory");
+
+        var task = historyRef.GetValueAsync();
+
+        yield return new WaitUntil(() => task.IsCompleted);
+
+        if (task.IsFaulted ||
+            task.IsCanceled ||
+            task.Result == null ||
+            !task.Result.Exists)
+        {
+            Debug.LogWarning(
+                "[OnlineMatchController] Could not load game-over roundHistory."
+            );
+            yield break;
+        }
+
+        List<OnlineRoundHistoryEntry> history =
+            new List<OnlineRoundHistoryEntry>();
+
+        foreach (DataSnapshot child in task.Result.Children)
+        {
+            string rawJson = child.GetRawJsonValue();
+
+            if (string.IsNullOrEmpty(rawJson))
+                continue;
+
+            OnlineRoundHistoryEntry entry =
+                JsonUtility.FromJson<OnlineRoundHistoryEntry>(rawJson);
+
+            if (entry != null)
+                history.Add(entry);
+        }
+
+        history.Sort((a, b) =>
+        {
+            if (a == null && b == null) return 0;
+            if (a == null) return 1;
+            if (b == null) return -1;
+
+            return a.roundNumber.CompareTo(b.roundNumber);
+        });
+
+        if (history.Count == 0)
+        {
+            Debug.LogWarning(
+                "[OnlineMatchController] game-over roundHistory was empty."
+            );
+            yield break;
+        }
+
+        int myFinalScore = amPlayer1
+            ? match.player1Score
+            : match.player2Score;
+
+        int opponentFinalScore = amPlayer1
+            ? match.player2Score
+            : match.player1Score;
+
+        string summary =
+            $"Final score: {myFinalScore} - {opponentName} {opponentFinalScore} " +
+            $"(played {history.Count} rounds)";
+
+        summary += "\n\nRounds";
+
+        foreach (OnlineRoundHistoryEntry round in history)
+        {
+            if (round == null)
+                continue;
+
+            string myWord = amPlayer1
+                ? round.player1Word
+                : round.player2Word;
+
+            string opponentWord = amPlayer1
+                ? round.player2Word
+                : round.player1Word;
+
+            int myScore = amPlayer1
+                ? round.player1Score
+                : round.player2Score;
+
+            int opponentScore = amPlayer1
+                ? round.player2Score
+                : round.player1Score;
+
+            bool iWonRound =
+                !string.IsNullOrEmpty(round.winnerUid) &&
+                round.winnerUid == GetCurrentUser()?.UserId;
+
+            string winnerLabel;
+
+            if (!round.anyValidMove)
+            {
+                winnerLabel = "No valid move";
+            }
+            else if (iWonRound)
+            {
+                winnerLabel = "You won";
+            }
+            else
+            {
+                winnerLabel = opponentName + " won";
+            }
+
+            summary +=
+                $"\nRound {round.roundNumber}: " +
+                $"{myWord} ({myScore}) vs " +
+                $"{opponentWord} ({opponentScore}) — " +
+                winnerLabel;
+        }
+
+        if (uiManager != null)
+        {
+            uiManager.UpdateGameOverSummary(
+                finalMessage,
+                summary
+            );
+        }
+
+        Debug.Log(
+            "[OnlineMatchController] Game-over round history loaded: " +
+            history.Count + " rounds."
+        );
+    }
+
 
     
 
@@ -1494,7 +1723,8 @@ public class OnlineMatchController : MonoBehaviour
         lastProcessedRound = 0;
         pendingEnterGameplay = false;
     }
-    private void OnMatchValueChanged(object sender, ValueChangedEventArgs args)
+
+    /*private void OnMatchValueChanged(object sender, ValueChangedEventArgs args)
     {
         if (args == null)
         {
@@ -1556,23 +1786,284 @@ public class OnlineMatchController : MonoBehaviour
             HandleResolvedRound(resolvedRound);
             lastProcessedRound = resolvedRound;
         }
+        */
+    // (Re)watch private OnlineRoundHistoryEntry ParseOnlineRoundHistoryEntry(
+    /*        DataSnapshot roundSnapshot)
+    {
+                if (roundSnapshot == null ||
+                    !roundSnapshot.Exists)
+                {
+                    return null;
+                }
 
-        // (Re)watch submissions for the current round (if you still use this pattern)
-        if (currentMatch != null && watchedRoundNumber != currentMatch.currentRoundNumber)
+                OnlineRoundHistoryEntry entry =
+                    new OnlineRoundHistoryEntry();
+
+                int roundNumber;
+
+                if (!int.TryParse(
+                    roundSnapshot.Key,
+                    out roundNumber))
+                {
+                    return null;
+                }
+
+                entry.roundNumber = roundNumber;
+
+                DataSnapshot resultSnapshot =
+                    roundSnapshot.Child("result");
+
+                if (resultSnapshot.Exists)
+                {
+                    string rawResult =
+                        resultSnapshot.GetRawJsonValue();
+
+                    if (!string.IsNullOrEmpty(rawResult))
+                    {
+                        RoundResultData result =
+                            JsonUtility.FromJson<RoundResultData>(rawResult);
+
+                        if (result != null)
+                        {
+                            entry.player1Word = result.winnerIsPlayer1
+                                ? result.winnerWord
+                                : "";
+
+                            entry.player2Word = result.winnerIsPlayer1
+                                ? ""
+                                : result.winnerWord;
+
+                            entry.player1Score = result.winnerIsPlayer1
+                                ? result.winnerScore
+                                : 0;
+
+                            entry.player2Score = result.winnerIsPlayer1
+                                ? 0
+                                : result.winnerScore;
+
+                            entry.winnerIsPlayer1 =
+                                result.winnerIsPlayer1;
+
+                            entry.anyValidMove =
+                                result.anyValidMove;
+                        }
+                    }
+                }
+
+                return entry;
+            }
+    */
+    /*for the current round (if you still use this pattern)
+    if (currentMatch != null && watchedRoundNumber != currentMatch.currentRoundNumber)
+    {
+        WatchSubmissionsForRound(currentMatch.currentRoundNumber);
+    }
+
+    // If a panel requested entry, now is the time
+    if (pendingEnterGameplay)
+    {
+        TraceMatch("OnMatchValueChanged TRIGGER CheckSubmissionThenEnterGameplay"
+            + " | pendingEnterGameplay=" + pendingEnterGameplay);
+
+        CheckSubmissionThenEnterGameplay();
+
+        TraceMatch("OnMatchValueChanged RETURNED from CheckSubmissionThenEnterGameplay");
+    }
+}
+    */
+
+    private void OnMatchValueChanged(
+object sender,
+ValueChangedEventArgs args)
+    {
+        if (args == null)
         {
-            WatchSubmissionsForRound(currentMatch.currentRoundNumber);
+            TraceMatch("OnMatchValueChanged ARGS NULL");
+            return;
         }
 
-        // If a panel requested entry, now is the time
+        string raw = null;
+        int rawLen = -1;
+
+        if (args.Snapshot != null)
+        {
+            raw = args.Snapshot.GetRawJsonValue();
+            rawLen = string.IsNullOrEmpty(raw)
+                ? 0
+                : raw.Length;
+        }
+
+        Debug.Log(
+            "[MATCHTRACE CALLBACK] OnMatchValueChanged ENTER" +
+            " | dbError=" +
+            (args.DatabaseError != null
+                ? args.DatabaseError.Message
+                : "null") +
+            " | snapshotExists=" +
+            (args.Snapshot != null &&
+             args.Snapshot.Exists) +
+            " | rawLen=" + rawLen +
+            " | watchedMatchId=" + watchedMatchId
+        );
+
+        if (args.DatabaseError != null)
+        {
+            Debug.LogError(
+                "[OnlineMatchController] Match listener error: " +
+                args.DatabaseError.Message
+            );
+            return;
+        }
+
+        if (args.Snapshot == null ||
+            !args.Snapshot.Exists)
+        {
+            TraceMatch("OnMatchValueChanged SNAPSHOT MISSING");
+            return;
+        }
+
+        if (string.IsNullOrEmpty(raw))
+        {
+            TraceMatch("OnMatchValueChanged RAW JSON EMPTY");
+            return;
+        }
+
+        MatchData match =
+            JsonUtility.FromJson<MatchData>(raw);
+
+        Debug.Log(
+            "[MATCHTRACE CALLBACK] parsed match id = " +
+            (match == null ? "NULL" : match.matchId)
+        );
+
+        if (match == null)
+        {
+            TraceMatch("OnMatchValueChanged PARSE FAILED");
+            return;
+        }
+
+        currentMatch = match;
+
+        TraceMatch(
+            "OnMatchValueChanged AFTER currentMatch ASSIGN"
+        );
+
+        // Notify UI that the watched match snapshot changed.
+        OnMatchUpdated?.Invoke(currentMatch);
+
+        // Process a round when the remote match has advanced to the next round.
+        if (currentMatch.currentRoundNumber >
+            lastProcessedRound + 1)
+        {
+            int resolvedRound =
+                currentMatch.currentRoundNumber - 1;
+
+            HandleResolvedRound(resolvedRound);
+
+            lastProcessedRound = resolvedRound;
+        }
+
+        // Listen for submissions for the currently active round.
+        if (watchedRoundNumber !=
+            currentMatch.currentRoundNumber)
+        {
+            WatchSubmissionsForRound(
+                currentMatch.currentRoundNumber
+            );
+        }
+
+        // A UI action such as Resume asked us to enter gameplay once
+        // the match snapshot became available.
         if (pendingEnterGameplay)
         {
-            TraceMatch("OnMatchValueChanged TRIGGER CheckSubmissionThenEnterGameplay"
-                + " | pendingEnterGameplay=" + pendingEnterGameplay);
+            TraceMatch(
+                "OnMatchValueChanged TRIGGER " +
+                "CheckSubmissionThenEnterGameplay" +
+                " | pendingEnterGameplay=" +
+                pendingEnterGameplay
+            );
 
             CheckSubmissionThenEnterGameplay();
 
-            TraceMatch("OnMatchValueChanged RETURNED from CheckSubmissionThenEnterGameplay");
+            TraceMatch(
+                "OnMatchValueChanged RETURNED from " +
+                "CheckSubmissionThenEnterGameplay"
+            );
         }
     }
+
+    private void ShowOnlineRoundReplayRows(
+    MatchData match,
+    bool amPlayer1,
+    string opponentName)
+    {
+        if (match == null)
+        {
+            Debug.LogWarning(
+                "[OnlineMatchController] Cannot show replay: match is null."
+            );
+            return;
+        }
+
+        List<OnlineRoundHistoryEntry> history =
+            new List<OnlineRoundHistoryEntry>();
+
+        if (match.roundScores != null)
+        {
+            foreach (RoundScoreLine scoreLine in match.roundScores)
+            {
+                if (scoreLine == null)
+                    continue;
+
+                OnlineRoundHistoryEntry entry =
+                    new OnlineRoundHistoryEntry();
+
+                entry.roundNumber =
+                    scoreLine.roundNumber;
+
+                entry.player1Score =
+                    scoreLine.player1Score;
+
+                entry.player2Score =
+                    scoreLine.player2Score;
+
+                entry.player1Word =
+                    scoreLine.player1Score > 0
+                        ? "(word unavailable)"
+                        : "";
+
+                entry.player2Word =
+                    scoreLine.player2Score > 0
+                        ? "(word unavailable)"
+                        : "";
+
+                entry.anyValidMove =
+                    scoreLine.player1Score > 0 ||
+                    scoreLine.player2Score > 0;
+
+                entry.winnerIsPlayer1 =
+                    scoreLine.player1Score >
+                    scoreLine.player2Score;
+
+                history.Add(entry);
+            }
+        }
+
+        history.Sort((a, b) =>
+            a.roundNumber.CompareTo(b.roundNumber)
+        );
+
+        if (uiManager != null)
+        {
+            uiManager.ShowOnlineRoundReplayRows(
+                history,
+                amPlayer1,
+                opponentName,
+                null
+            );
+        }
+    }
+
+
     #endregion
 }

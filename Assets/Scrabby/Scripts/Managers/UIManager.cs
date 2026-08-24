@@ -1,4 +1,5 @@
 
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
@@ -24,9 +25,13 @@ public class UIManager : MonoBehaviour
     [SerializeField] private RectTransform overlayCanvasRect;
     [SerializeField] private GameObject validatedScorePopupPrefab;
     [SerializeField] private Vector2 validatedScorePopupOffset = new Vector2(40f, -40f);
-    //[SerializeField] private float validatedScorePopupLifetime = 1.5f;
-    ///using System;
-   
+
+    [SerializeField] private Transform roundListContainer;
+    [SerializeField] private RoundReplayRow roundReplayRowPrefab;
+
+    private readonly List<RoundReplayRow> spawnedRoundRows =
+        new List<RoundReplayRow>();
+
 
     public void SetTextReferences(TextMeshProUGUI human, TextMeshProUGUI ai, TextMeshProUGUI round)
     {
@@ -624,6 +629,18 @@ public class UIManager : MonoBehaviour
         gameOverSummaryText.text = finalMessage + "\n\n" + roundSummary;
     }
 
+    public void UpdateGameOverSummary(
+    string finalMessage,
+    string roundSummary)
+    {
+        if (gameOverPanel == null || gameOverSummaryText == null)
+            return;
+
+        gameOverPanel.SetActive(true);
+        gameOverSummaryText.text =
+            finalMessage + "\n\n" + roundSummary;
+    }
+
     public IEnumerator PlayWinningWordReplay(
         List<SimPlacedTileData> winningTiles,
         float totalDuration)
@@ -715,5 +732,86 @@ public class UIManager : MonoBehaviour
                 )
             );
         }
+    }
+    public void ShowOnlineRoundReplayRows(
+    List<OnlineRoundHistoryEntry> history,
+    bool amPlayer1,
+    string opponentName,
+    Action<OnlineRoundHistoryEntry> onReplay)
+    {
+        ClearOnlineRoundReplayRows();
+
+        if (roundListContainer == null ||
+            roundReplayRowPrefab == null ||
+            history == null)
+        {
+            Debug.LogWarning(
+                "[UIManager] Cannot create round replay rows: missing setup."
+            );
+            return;
+        }
+
+        foreach (OnlineRoundHistoryEntry round in history)
+        {
+            if (round == null)
+                continue;
+
+            string myWord = amPlayer1
+                ? round.player1Word
+                : round.player2Word;
+
+            string opponentWord = amPlayer1
+                ? round.player2Word
+                : round.player1Word;
+
+            int myScore = amPlayer1
+                ? round.player1Score
+                : round.player2Score;
+
+            int opponentScore = amPlayer1
+                ? round.player2Score
+                : round.player1Score;
+
+            string winnerText;
+
+            if (!round.anyValidMove)
+            {
+                winnerText = "No valid move";
+            }
+            else if (round.winnerIsPlayer1 == amPlayer1)
+            {
+                winnerText = "You won";
+            }
+            else
+            {
+                winnerText = opponentName + " won";
+            }
+
+            string rowText =
+                $"Round {round.roundNumber}: " +
+                $"{myWord} ({myScore}) vs " +
+                $"{opponentWord} ({opponentScore}) — " +
+                winnerText;
+
+            RoundReplayRow row = Instantiate(
+                roundReplayRowPrefab,
+                roundListContainer
+            );
+
+            row.Setup(round, rowText, onReplay);
+
+            spawnedRoundRows.Add(row);
+        }
+    }
+
+    public void ClearOnlineRoundReplayRows()
+    {
+        foreach (RoundReplayRow row in spawnedRoundRows)
+        {
+            if (row != null)
+                Destroy(row.gameObject);
+        }
+
+        spawnedRoundRows.Clear();
     }
 }
