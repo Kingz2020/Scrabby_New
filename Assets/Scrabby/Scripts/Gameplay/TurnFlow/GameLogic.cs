@@ -4697,12 +4697,6 @@ public class GameLogic : MonoBehaviour
             Singleton.Instance.UIManager.ClearRoundMessage();
         }
 
-        /*if (timer != null)
-        {
-            timer.ResetTimer();
-            timer.StartTimer();
-        }*/
-
         Debug.Log("[ONLINE] Local hydrated rack count = " + playerHandTiles.Count);
     }
 
@@ -5078,4 +5072,91 @@ public class GameLogic : MonoBehaviour
 
         SetInputLocked(false);
     }
+    public void LoadOnlineRoundReplay(
+    int boardSizeX,
+    int boardSizeY,
+    int roundNumber,
+    int totalRounds,
+    int localScore,
+    int opponentScore,
+    string boardStateJson,
+    string bonusBoardJson)
+    {
+        Debug.Log(
+            "[REPLAY] Loading completed online round " +
+            roundNumber
+        );
+
+        isOnlineMatch = false;
+        localPlayerUid = null;
+        currentMatchId = null;
+
+        StopAllCoroutines();
+        ClearBoardForNewGame();
+
+        InitGame(
+            0,
+            boardSizeX,
+            boardSizeY,
+            GameInitMode.Online
+        );
+
+        if (!string.IsNullOrEmpty(boardStateJson))
+        {
+            BoardStateData savedBoard =
+                JsonUtility.FromJson<BoardStateData>(
+                    boardStateJson
+                );
+
+            if (savedBoard != null &&
+                savedBoard.cells != null)
+            {
+                ApplyBoardStateToScene(savedBoard);
+                LoadBoardStateIntoValidatedTiles(savedBoard);
+            }
+            else
+            {
+                Debug.LogWarning(
+                    "[REPLAY] Could not parse replay board state."
+                );
+            }
+        }
+
+        ApplyBonusBoardFromMatch(bonusBoardJson);
+
+        playerHandTiles = new List<LetterInfo>();
+
+        humanTotalScore = localScore;
+        aiTotalScore = opponentScore;
+
+        currentRoundNumber = roundNumber;
+
+        SetMaxRounds(totalRounds);
+
+        roundStarted = false;
+        currentState = TurnState.Busy;
+
+        SetInputLocked(true);
+
+        if (Singleton.Instance != null &&
+            Singleton.Instance.UIManager != null)
+        {
+            Singleton.Instance.UIManager.RemoveAllHandTiles();
+
+            Singleton.Instance.UIManager.UpdateRoundText(
+                roundNumber,
+                totalRounds
+            );
+
+            Singleton.Instance.UIManager.UpdateTotalScores(
+                localScore,
+                opponentScore
+            );
+
+            Singleton.Instance.UIManager.ShowRoundMessage(
+                "Replay: Round " + roundNumber
+            );
+        }
+    }
+
 }

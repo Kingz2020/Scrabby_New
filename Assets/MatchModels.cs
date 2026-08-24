@@ -166,28 +166,29 @@ public class OnlineRoundHistoryEntry
 {
     public int roundNumber;
 
-    // Exact board and bonus state before either player’s move is applied.
     public string preRoundBoardStateJson;
     public string roundBonusBoardJson;
 
-    // Player 1 submission.
     public string player1Word;
     public int player1Score;
     public bool player1Valid;
     public string player1SimulatedTilesJson;
 
-    // Player 2 submission.
     public string player2Word;
     public int player2Score;
     public bool player2Valid;
     public string player2SimulatedTilesJson;
 
-    // Resolution.
     public string winnerUid;
     public string winnerWord;
     public int winnerScore;
-    public bool anyValidMove;
-
     public bool winnerIsPlayer1;
+    public bool anyValidMove;
+}
 
+[Serializable]
+public class OnlineRoundHistoryWrapper
+{
+    public List<OnlineRoundHistoryEntry> entries =
+        new List<OnlineRoundHistoryEntry>();
 }

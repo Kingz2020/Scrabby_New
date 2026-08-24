@@ -1221,7 +1221,9 @@ public class OnlineMatchController : MonoBehaviour
                 { "roundResolutionStatus", liveMatch.roundResolutionStatus },
                 { "status", liveMatch.status },
                 { "player1Score", liveMatch.player1Score },
-                { "player2Score", liveMatch.player2Score }
+                { "player2Score", liveMatch.player2Score },
+                { "roundScores", liveMatch.roundScores },
+                { "roundHistory", liveMatch.roundHistory }
             };
 
            
@@ -1295,6 +1297,102 @@ public class OnlineMatchController : MonoBehaviour
             });
     }
 
+    /*private void SaveRoundHistory(
+    DatabaseReference matchRef,
+    List<OnlineRoundHistoryEntry> roundHistory)
+    {
+        if (matchRef == null)
+        {
+            Debug.LogWarning(
+                "[OnlineMatchController] SaveRoundHistory skipped: matchRef is null."
+            );
+            return;
+        }
+
+        if (roundHistory == null ||
+            roundHistory.Count == 0)
+        {
+            Debug.LogWarning(
+                "[OnlineMatchController] SaveRoundHistory skipped: no history."
+            );
+            return;
+        }
+
+        matchRef.Child("roundHistory")
+            .SetRawJsonValueAsync(JsonUtility.ToJson(
+                new OnlineRoundHistoryWrapper
+                {
+                    entries = roundHistory
+                }
+            ))
+            .ContinueWithOnMainThread(task =>
+            {
+                if (task.IsFaulted)
+                {
+                    Debug.LogError(
+                        "[OnlineMatchController] Failed to save round history: " +
+                        task.Exception
+                    );
+                    return;
+                }
+
+                Debug.Log(
+                    "[OnlineMatchController] Saved " +
+                    roundHistory.Count +
+                    " round-history entries."
+                );
+            });
+    }
+    */
+    /*private void SaveRoundHistory(
+    DatabaseReference matchRef,
+    List<OnlineRoundHistoryEntry> roundHistory)
+    {
+        if (matchRef == null ||
+            roundHistory == null ||
+            roundHistory.Count == 0)
+        {
+            return;
+        }
+
+        Dictionary<string, object> updates =
+            new Dictionary<string, object>();
+
+        foreach (OnlineRoundHistoryEntry entry in roundHistory)
+        {
+            if (entry == null)
+                continue;
+
+            string path =
+                "roundHistory/" +
+                entry.roundNumber;
+
+            updates[path] = JsonUtility.ToJson(entry);
+        }
+
+        if (updates.Count == 0)
+            return;
+
+        matchRef.UpdateChildrenAsync(updates)
+            .ContinueWithOnMainThread(task =>
+            {
+                if (task.IsFaulted)
+                {
+                    Debug.LogError(
+                        "[OnlineMatchController] Failed to save round history: " +
+                        task.Exception
+                    );
+                    return;
+                }
+
+                Debug.Log(
+                    "[OnlineMatchController] Saved " +
+                    updates.Count +
+                    " replay-history entries."
+                );
+            });
+    }
+    */
     private void SaveRoundHistory(
     DatabaseReference matchRef,
     List<OnlineRoundHistoryEntry> roundHistory)
@@ -1991,8 +2089,140 @@ ValueChangedEventArgs args)
             );
         }
     }
-
     private void ShowOnlineRoundReplayRows(
+        MatchData match,
+        bool amPlayer1,
+        string opponentName)
+    {
+        if (match == null)
+            return;
+
+        if (match.roundHistory == null ||
+            match.roundHistory.Count == 0)
+        {
+            Debug.LogWarning(
+                "[OnlineMatchController] No round history found for replay."
+            );
+
+            if (uiManager != null)
+            {
+                uiManager.ClearOnlineRoundReplayRows();
+            }
+
+            return;
+        }
+
+        List<OnlineRoundHistoryEntry> history =
+            new List<OnlineRoundHistoryEntry>(
+                match.roundHistory
+            );
+
+        history.Sort((a, b) =>
+            a.roundNumber.CompareTo(b.roundNumber)
+        );
+
+        uiManager.ShowOnlineRoundReplayRows(
+            history,
+            amPlayer1,
+            opponentName,
+            ReplayRoundFromGameOver
+        );
+    }
+
+    private void ReplayRoundFromGameOver(
+    OnlineRoundHistoryEntry entry)
+    {
+        if (entry == null)
+        {
+            Debug.LogWarning(
+                "[OnlineMatchController] Replay requested with null history entry."
+            );
+            return;
+        }
+
+        if (gameLogic == null &&
+            Singleton.Instance != null)
+        {
+            gameLogic = Singleton.Instance.GameLogic;
+        }
+
+        if (gameLogic == null)
+        {
+            Debug.LogWarning(
+                "[OnlineMatchController] Cannot replay: GameLogic is missing."
+            );
+            return;
+        }
+
+        if (currentMatch == null)
+        {
+            Debug.LogWarning(
+                "[OnlineMatchController] Cannot replay: current match is missing."
+            );
+            return;
+        }
+
+        string localUid = GetCurrentUser() != null
+            ? GetCurrentUser().UserId
+            : "";
+
+        bool amPlayer1 =
+            currentMatch.player1Uid == localUid;
+
+        int localScore = 0;
+        int opponentScore = 0;
+
+        if (currentMatch.roundScores != null)
+        {
+            foreach (RoundScoreLine score in currentMatch.roundScores)
+            {
+                if (score == null ||
+                    score.roundNumber >= entry.roundNumber)
+                {
+                    continue;
+                }
+
+                localScore += amPlayer1
+                    ? score.player1Score
+                    : score.player2Score;
+
+                opponentScore += amPlayer1
+                    ? score.player2Score
+                    : score.player1Score;
+            }
+        }
+
+        if (gameplayPanel != null)
+            gameplayPanel.SetActive(true);
+
+        if (uiManager != null &&
+            uiManager.gameOverPanel != null)
+        {
+            uiManager.gameOverPanel.SetActive(false);
+        }
+
+        gameLogic.LoadOnlineRoundReplay(
+            15,
+            15,
+            entry.roundNumber,
+            currentMatch.totalRounds,
+            localScore,
+            opponentScore,
+            entry.preRoundBoardStateJson,
+            entry.roundBonusBoardJson
+        );
+
+        uiManager.ShowRoundMessage(
+            "Replay — Round " +
+            entry.roundNumber +
+            ": " +
+            (entry.anyValidMove
+                ? entry.winnerWord + " (" +
+                  entry.winnerScore + " points)"
+                : "No valid move")
+        );
+    }
+    /*private void ShowOnlineRoundReplayRows(
     MatchData match,
     bool amPlayer1,
     string opponentName)
@@ -2063,7 +2293,7 @@ ValueChangedEventArgs args)
             );
         }
     }
-
+    */
 
     #endregion
 }
