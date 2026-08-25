@@ -184,6 +184,8 @@ public class OnlineRoundHistoryEntry
     public int winnerScore;
     public bool winnerIsPlayer1;
     public bool anyValidMove;
+
+    public string postRoundBoardStateJson;
 }
 
 [Serializable]

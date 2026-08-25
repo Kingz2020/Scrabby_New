@@ -32,6 +32,15 @@ public class UIManager : MonoBehaviour
     private readonly List<RoundReplayRow> spawnedRoundRows =
         new List<RoundReplayRow>();
 
+    [SerializeField] private GameObject replayPreviewTilePrefab;
+
+    private readonly List<GameObject> replayPreviewTiles =
+        new List<GameObject>();
+
+
+    [SerializeField]
+    private Color replayPreviewColor =
+        new Color(1f, 0.82f, 0.18f, 0.75f);
 
     public void SetTextReferences(TextMeshProUGUI human, TextMeshProUGUI ai, TextMeshProUGUI round)
     {
@@ -813,5 +822,130 @@ public class UIManager : MonoBehaviour
         }
 
         spawnedRoundRows.Clear();
+    }
+
+    public void ShowReplayPreviewTiles(
+    List<SimPlacedTileData> tiles)
+    {
+        ClearReplayPreviewTiles();
+
+        if (tiles == null ||
+            tiles.Count == 0)
+        {
+            return;
+        }
+
+        if (gameBoard == null)
+        {
+            Debug.LogWarning(
+                "[REPLAY] Cannot show preview: gameBoard is null."
+            );
+            return;
+        }
+
+        GhostTile[] allGhostTiles =
+            gameBoard.GetComponentsInChildren<GhostTile>(true);
+
+        foreach (SimPlacedTileData tile in tiles)
+        {
+            if (tile == null)
+                continue;
+
+            GhostTile matchingGhostTile = null;
+
+            foreach (GhostTile ghostTile in allGhostTiles)
+            {
+                if (ghostTile == null ||
+                    ghostTile.letterPosition == null)
+                {
+                    continue;
+                }
+
+                if (ghostTile.letterPosition.RowX == tile.row &&
+                    ghostTile.letterPosition.ColY == tile.col)
+                {
+                    matchingGhostTile = ghostTile;
+                    break;
+                }
+            }
+
+            if (matchingGhostTile == null)
+            {
+                Debug.LogWarning(
+                    "[REPLAY] Preview could not find GhostTile at row " +
+                    tile.row +
+                    ", col " +
+                    tile.col
+                );
+                continue;
+            }
+
+            GameObject preview =
+                Instantiate(basicTile);
+
+            preview.transform.SetParent(
+                matchingGhostTile.transform,
+                false
+            );
+
+            TileScript tileScript =
+                preview.GetComponent<TileScript>();
+
+            if (tileScript != null)
+            {
+                LetterInfo tileInfo =
+                    new LetterInfo(
+                        tile.letter,
+                        tile.points
+                    );
+
+                tileInfo.bonusUsed = true;
+
+                tileScript.InitTile(tileInfo);
+                tileScript.SetLockedOnBoard(true);
+
+                if (tileScript.PlacedTileData != null)
+                {
+                    tileScript.PlacedTileData.letterPosition =
+                        new LetterPosition(
+                            tile.row,
+                            tile.col
+                        );
+                }
+            }
+
+            Image[] images =
+                preview.GetComponentsInChildren<Image>(true);
+
+            foreach (Image image in images)
+            {
+                if (image != null)
+                {
+                    Color original = image.color;
+
+                    image.color = new Color(
+                        replayPreviewColor.r,
+                        replayPreviewColor.g,
+                        replayPreviewColor.b,
+                        original.a * replayPreviewColor.a
+                    );
+                }
+            }
+
+            replayPreviewTiles.Add(preview);
+        }
+    }
+
+    public void ClearReplayPreviewTiles()
+    {
+        foreach (GameObject preview in replayPreviewTiles)
+        {
+            if (preview != null)
+            {
+                Destroy(preview);
+            }
+        }
+
+        replayPreviewTiles.Clear();
     }
 }

@@ -1046,70 +1046,8 @@ public class OnlineMatchController : MonoBehaviour
                 " p2=" + (winner != null && !winnerIsPlayer1 ? winner.score : 0)
             );
         }
-
-        if (liveMatch.roundHistory == null)
-            liveMatch.roundHistory = new List<OnlineRoundHistoryEntry>();
-
-        bool roundHistoryAlreadyRecorded = liveMatch.roundHistory.Exists(
-            entry => entry != null && entry.roundNumber == roundNumber
-        );
-
-        if (!roundHistoryAlreadyRecorded)
-        {
-            liveMatch.roundHistory.Add(new OnlineRoundHistoryEntry
-            {
-                roundNumber = roundNumber,
-
-                preRoundBoardStateJson = preRoundBoardStateJson,
-                roundBonusBoardJson = roundBonusBoardJson,
-
-                player1Word = player1Submission != null
-                    ? player1Submission.word
-                    : "",
-
-                player1Score = player1Submission != null
-                    ? player1Submission.score
-                    : 0,
-
-                player1Valid = player1Submission != null &&
-                               player1Submission.isValid,
-
-                player1SimulatedTilesJson = player1Submission != null
-                    ? player1Submission.simulatedTilesJson
-                    : "",
-
-                player2Word = player2Submission != null
-                    ? player2Submission.word
-                    : "",
-
-                player2Score = player2Submission != null
-                    ? player2Submission.score
-                    : 0,
-
-                player2Valid = player2Submission != null &&
-                               player2Submission.isValid,
-
-                player2SimulatedTilesJson = player2Submission != null
-                    ? player2Submission.simulatedTilesJson
-                    : "",
-
-                winnerUid = result.winnerUid,
-                winnerWord = result.winnerWord,
-                winnerScore = result.winnerScore,
-                anyValidMove = result.anyValidMove,
-                winnerIsPlayer1 = winner != null &&
-                   winner.uid == liveMatch.player1Uid
-
-            });
-
-            Debug.Log(
-                "[OnlineMatchController] Saved round replay history | round=" +
-                roundNumber +
-                " p1='" + (player1Submission != null ? player1Submission.word : "") +
-                "' p2='" + (player2Submission != null ? player2Submission.word : "") +
-                "' winner='" + result.winnerWord + "'"
-            );
-        }
+        
+        //}
 
         if (sharedRack.tiles == null)
         {
@@ -1152,6 +1090,75 @@ public class OnlineMatchController : MonoBehaviour
         liveMatch.currentRoundNumber = nextRound;
         liveMatch.roundResolutionStatus = isFinalRoundJustPlayed ? "done" : "idle";
         liveMatch.status = isFinalRoundJustPlayed ? "completed" : "active";
+
+        // --- Round history entry (single, correct block) ---
+        if (liveMatch.roundHistory == null)
+        {
+            liveMatch.roundHistory = new List<OnlineRoundHistoryEntry>();
+        }
+
+        bool roundHistoryAlreadyRecorded = liveMatch.roundHistory.Exists(
+            r => r != null && r.roundNumber == roundNumber
+        );
+
+        if (!roundHistoryAlreadyRecorded)
+        {
+            bool winnerIsPlayer1 = winner != null && winner.uid == liveMatch.player1Uid;
+
+            liveMatch.roundHistory.Add(new OnlineRoundHistoryEntry
+            {
+                roundNumber = roundNumber,
+
+                preRoundBoardStateJson = preRoundBoardStateJson,
+                postRoundBoardStateJson = liveMatch.boardStateJson,
+                roundBonusBoardJson = liveMatch.bonusBoardJson,
+
+                player1SimulatedTilesJson = player1Submission != null
+                    ? player1Submission.simulatedTilesJson
+                    : "",
+
+                player1Word = player1Submission != null
+                    ? player1Submission.word
+                    : "",
+
+                player1Score = player1Submission != null
+                    ? player1Submission.score
+                    : 0,
+
+                player1Valid = player1Submission != null &&
+                               player1Submission.isValid,
+
+                player2SimulatedTilesJson = player2Submission != null
+                    ? player2Submission.simulatedTilesJson
+                    : "",
+
+                player2Word = player2Submission != null
+                    ? player2Submission.word
+                    : "",
+
+                player2Score = player2Submission != null
+                    ? player2Submission.score
+                    : 0,
+
+                player2Valid = player2Submission != null &&
+                               player2Submission.isValid,
+
+                winnerUid = result.winnerUid,
+                winnerWord = result.winnerWord,
+                winnerScore = result.winnerScore,
+                winnerIsPlayer1 = winnerIsPlayer1,
+                anyValidMove = result.anyValidMove
+            });
+
+            Debug.Log(
+                "[OnlineMatchController] Saved round replay history | round=" +
+                roundNumber +
+                " p1='" + (player1Submission != null ? player1Submission.word : "") +
+                "' p2='" + (player2Submission != null ? player2Submission.word : "") +
+                "' winner='" + result.winnerWord + "'"
+            );
+        }
+
 
         // Regenerate bonus board for NEXT round, if match continues
         if (!isFinalRoundJustPlayed && Singleton.Instance != null && Singleton.Instance.GameLogic != null)
@@ -2178,6 +2185,102 @@ ValueChangedEventArgs args)
         }
     }
 
+    private IEnumerator ApplyReplayTilesAfterBoardBuild(
+    OnlineRoundHistoryEntry entry)
+    {
+        yield return null;
+        yield return null;
+
+        if (gameLogic == null ||
+            uiManager == null)
+        {
+            Debug.LogWarning(
+                "[REPLAY] Cannot run replay sequence: missing references."
+            );
+            yield break;
+        }
+
+        gameLogic.RevealReplayBonusTiles();
+
+        yield return new WaitForSeconds(0.8f);
+
+        List<SimPlacedTileData> player1Tiles =
+            GetReplayTiles(
+                entry.player1SimulatedTilesJson
+            );
+
+        List<SimPlacedTileData> player2Tiles =
+            GetReplayTiles(
+                entry.player2SimulatedTilesJson
+            );
+
+        if (player1Tiles.Count > 0)
+        {
+            uiManager.ShowRoundMessage(
+                currentMatch.player1DisplayName +
+                " played " +
+                entry.player1Word +
+                " (" +
+                entry.player1Score +
+                " points)"
+            );
+
+            uiManager.ShowReplayPreviewTiles(
+                player1Tiles
+            );
+
+            yield return new WaitForSeconds(1.5f);
+
+            uiManager.ClearReplayPreviewTiles();
+        }
+
+        if (player2Tiles.Count > 0)
+        {
+            uiManager.ShowRoundMessage(
+                currentMatch.player2DisplayName +
+                " played " +
+                entry.player2Word +
+                " (" +
+                entry.player2Score +
+                " points)"
+            );
+
+            uiManager.ShowReplayPreviewTiles(
+                player2Tiles
+            );
+
+            yield return new WaitForSeconds(1.5f);
+
+            uiManager.ClearReplayPreviewTiles();
+        }
+
+        if (entry.anyValidMove)
+        {
+            string winningTilesJson =
+                entry.winnerIsPlayer1
+                    ? entry.player1SimulatedTilesJson
+                    : entry.player2SimulatedTilesJson;
+
+            uiManager.ShowRoundMessage(
+                entry.winnerWord +
+                " wins the round for " +
+                entry.winnerScore +
+                " points!"
+            );
+
+            gameLogic.ApplyReplayWinningTiles(
+                winningTilesJson
+            );
+        }
+        else
+        {
+            uiManager.ShowRoundMessage(
+                "No valid move this round."
+            );
+        }
+    }
+
+
     private void ReplayRoundFromGameOver(
     OnlineRoundHistoryEntry entry)
     {
@@ -2270,15 +2373,19 @@ ValueChangedEventArgs args)
             entry.roundBonusBoardJson
         );
 
-        string winningTilesJson =
+        /*string winningTilesJson =
     entry.winnerIsPlayer1
         ? entry.player1SimulatedTilesJson
         : entry.player2SimulatedTilesJson;
 
-        gameLogic.ApplyReplayWinningTiles(
-            winningTilesJson
-        );
 
+         StartCoroutine(ApplyReplayTilesAfterBoardBuild(winningTilesJson));      
+        */
+            StartCoroutine(
+                ApplyReplayTilesAfterBoardBuild(
+                    entry
+                )
+            );
         uiManager.ShowRoundMessage(
             "Replay — Round " +
             entry.roundNumber +
@@ -2288,6 +2395,29 @@ ValueChangedEventArgs args)
                   entry.winnerScore + " points)"
                 : "No valid move")
         );
+    }
+
+    private List<SimPlacedTileData> GetReplayTiles(
+    string simulatedTilesJson)
+    {
+        List<SimPlacedTileData> result =
+            new List<SimPlacedTileData>();
+
+        if (string.IsNullOrEmpty(simulatedTilesJson))
+            return result;
+
+        SimTileListWrapper wrapper =
+            JsonUtility.FromJson<SimTileListWrapper>(
+                simulatedTilesJson
+            );
+
+        if (wrapper != null &&
+            wrapper.tiles != null)
+        {
+            result.AddRange(wrapper.tiles);
+        }
+
+        return result;
     }
     /*private void ShowOnlineRoundReplayRows(
     MatchData match,

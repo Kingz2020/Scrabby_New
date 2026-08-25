@@ -5305,4 +5305,17 @@ public class GameLogic : MonoBehaviour
             }
         }
     }
+
+    public void RevealReplayBonusTiles()
+    {
+        if (bonusBoardView == null)
+        {
+            Debug.LogWarning(
+                "[REPLAY] Cannot reveal bonuses: BonusBoardView is null."
+            );
+            return;
+        }
+
+        bonusBoardView.StartRevealBonusTiles(0.08f);
+    }
 }

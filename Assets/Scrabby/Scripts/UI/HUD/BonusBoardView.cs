@@ -37,6 +37,103 @@ public class BonusBoardView : MonoBehaviour
     {
         ClearBonusTiles();
 
+        BonusTile[,] boardBonusTiles =
+            gameLogic.GetBoardBonusTiles();
+
+        GhostTile[] ghostTiles =
+            FindObjectsByType<GhostTile>(
+                FindObjectsInactive.Exclude
+            );
+
+        WaitForSeconds wait =
+            new WaitForSeconds(delayBetweenTiles);
+
+        for (int y = 0; y < gameLogic.GetBoardSizeY(); y++)
+        {
+            for (int x = 0; x < gameLogic.GetBoardSizeX(); x++)
+            {
+                BonusTile bonusTile =
+                    boardBonusTiles[x, y];
+
+                if (bonusTile == null)
+                    continue;
+
+                DrawSingleBonusTile(
+                    boardBonusTiles,
+                    ghostTiles,
+                    x,
+                    y
+                );
+
+                yield return wait;
+            }
+        }
+    }
+
+    private void DrawSingleBonusTile(
+        BonusTile[,] boardBonusTiles,
+        GhostTile[] ghostTiles,
+        int x,
+        int y)
+    {
+        BonusTile bonusTile =
+            boardBonusTiles[x, y];
+
+        if (bonusTile == null)
+            return;
+
+        GhostTile matchingGhostTile =
+            FindGhostTileByLocation(
+                ghostTiles,
+                x + 1,
+                y + 1
+            );
+
+        if (matchingGhostTile == null)
+        {
+            Debug.LogWarning(
+                "No GhostTile found for x=" +
+                (x + 1) +
+                " y=" +
+                (y + 1)
+            );
+            return;
+        }
+
+        GameObject prefabToSpawn =
+            GetPrefabForBonusType(
+                bonusTile.bonusType
+            );
+
+        if (prefabToSpawn == null)
+        {
+            Debug.LogWarning(
+                "No prefab assigned for bonus type: " +
+                bonusTile.bonusType
+            );
+            return;
+        }
+
+        GameObject newBonusTileObject =
+            Instantiate(
+                prefabToSpawn,
+                matchingGhostTile.transform
+            );
+
+        newBonusTileObject.transform.localPosition =
+            Vector3.zero;
+
+        newBonusTileObject.transform.localRotation =
+            Quaternion.identity;
+
+        newBonusTileObject.transform.localScale =
+            Vector3.one;
+    }
+
+    /*private IEnumerator RevealBonusTiles(float delayBetweenTiles)
+    {
+        ClearBonusTiles();
+
         BonusTile[,] boardBonusTiles = gameLogic.GetBoardBonusTiles();
         GhostTile[] ghostTiles = FindObjectsByType<GhostTile>(FindObjectsInactive.Exclude);
 
@@ -56,8 +153,8 @@ public class BonusBoardView : MonoBehaviour
             }
         }
     }
-
-    private void DrawSingleBonusTile(BonusTile[,] boardBonusTiles, GhostTile[] ghostTiles, int x, int y)
+    */
+    /*private void DrawSingleBonusTile(BonusTile[,] boardBonusTiles, GhostTile[] ghostTiles, int x, int y)
     {
         BonusTile bonusTile = boardBonusTiles[y, x];
 
@@ -85,7 +182,7 @@ public class BonusBoardView : MonoBehaviour
         newBonusTileObject.transform.localRotation = Quaternion.identity;
         newBonusTileObject.transform.localScale = Vector3.one;
     }
-
+    */
     private GhostTile FindGhostTileByLocation(GhostTile[] ghostTiles, int y, int x)
     {
         foreach (GhostTile ghostTile in ghostTiles)
