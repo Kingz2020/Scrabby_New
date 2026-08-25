@@ -887,10 +887,10 @@ public class OnlineMatchController : MonoBehaviour
     }
 
     private void ResolveRoundNow(
-     MatchData liveMatch,
-     int roundNumber,
-     List<RoundSubmissionData> submissions,
-     DatabaseReference matchRef)
+    MatchData liveMatch,
+    int roundNumber,
+    List<RoundSubmissionData> submissions,
+    DatabaseReference matchRef)
     {
         Debug.Log("[OnlineMatchController] ResolveRoundNow START | matchId=" +
                   liveMatch.matchId + " round=" + roundNumber +
@@ -919,7 +919,7 @@ public class OnlineMatchController : MonoBehaviour
         }
 
         RoundSubmissionData player1Submission = submissions.Find(
-        sub => sub != null && sub.uid == liveMatch.player1Uid
+            sub => sub != null && sub.uid == liveMatch.player1Uid
         );
 
         RoundSubmissionData player2Submission = submissions.Find(
@@ -929,12 +929,18 @@ public class OnlineMatchController : MonoBehaviour
         Debug.Log("[OnlineMatchController] ResolveRoundNow winner uid=" +
                   (winner != null ? winner.uid : "NULL"));
 
-        BoardStateData board = JsonUtility.FromJson<BoardStateData>(liveMatch.boardStateJson) ?? new BoardStateData();
-        BagStateData bag = JsonUtility.FromJson<BagStateData>(liveMatch.bagStateJson) ?? new BagStateData();
-        RackStateData sharedRack = JsonUtility.FromJson<RackStateData>(liveMatch.sharedrackjson) ?? new RackStateData();
-
+        // 1. Capture FULL board BEFORE this round's winner is applied
         string preRoundBoardStateJson = liveMatch.boardStateJson;
         string roundBonusBoardJson = liveMatch.bonusBoardJson;
+
+        BoardStateData board = JsonUtility.FromJson<BoardStateData>(liveMatch.boardStateJson)
+                               ?? new BoardStateData();
+
+        BagStateData bag = JsonUtility.FromJson<BagStateData>(liveMatch.bagStateJson)
+                           ?? new BagStateData();
+
+        RackStateData sharedRack = JsonUtility.FromJson<RackStateData>(liveMatch.sharedrackjson)
+                                   ?? new RackStateData();
 
         Debug.Log("[OnlineMatchController] ResolveRoundNow parsed state | " +
                   "boardCells=" + (board.cells != null ? board.cells.Count : -1) +
@@ -955,8 +961,6 @@ public class OnlineMatchController : MonoBehaviour
             SimTileListWrapper wrapper = JsonUtility.FromJson<SimTileListWrapper>(winner.simulatedTilesJson);
 
             result.winningTilesJson = winner.simulatedTilesJson;
-
-            liveMatch.lastRoundResultJson = JsonUtility.ToJson(result);
 
             if (wrapper != null && wrapper.tiles != null)
             {
@@ -1021,7 +1025,8 @@ public class OnlineMatchController : MonoBehaviour
         {
             Debug.Log("[OnlineMatchController] ResolveRoundNow no valid winner; skipping board/rack updates.");
         }
-        //here
+
+        // Round scores
         if (liveMatch.roundScores == null)
             liveMatch.roundScores = new List<RoundScoreLine>();
 
@@ -1046,56 +1051,29 @@ public class OnlineMatchController : MonoBehaviour
                 " p2=" + (winner != null && !winnerIsPlayer1 ? winner.score : 0)
             );
         }
-        
-        //}
 
-        if (sharedRack.tiles == null)
-        {
-            Debug.LogWarning("[OnlineMatchController] ResolveRoundNow sharedRack.tiles is NULL; creating list.");
-            sharedRack.tiles = new List<TileData>();
-        }
-
-        if (bag.tiles == null)
-        {
-            Debug.LogWarning("[OnlineMatchController] ResolveRoundNow bag.tiles is NULL; creating list.");
-            bag.tiles = new List<TileData>();
-        }
-
-        int beforeRefill = sharedRack.tiles.Count;
-
-        while (sharedRack.tiles.Count < 7 && bag.tiles != null && bag.tiles.Count > 0)
-        {
-            sharedRack.tiles.Add(bag.tiles[0]);
-            bag.tiles.RemoveAt(0);
-        }
-
-        Debug.Log("[OnlineMatchController] ResolveRoundNow refilled rack from " +
-                  beforeRefill + " to " + sharedRack.tiles.Count +
-                  " (bag now " + (bag.tiles != null ? bag.tiles.Count : -1) + " tiles)");
+        // 2. Persist logical state (board now includes this round's winner)
+        liveMatch.boardStateJson = JsonUtility.ToJson(board);
+        liveMatch.bagStateJson = JsonUtility.ToJson(bag);
+        liveMatch.sharedrackjson = JsonUtility.ToJson(sharedRack);
+        liveMatch.lastRoundResultJson = JsonUtility.ToJson(result);
 
         int totalRounds = liveMatch.totalRounds > 0 ? liveMatch.totalRounds : 5;
         int nextRound = roundNumber + 1;
         bool isFinalRoundJustPlayed = nextRound > totalRounds;
+
+        liveMatch.currentRoundNumber = nextRound;
+        liveMatch.roundResolutionStatus = isFinalRoundJustPlayed ? "done" : "idle";
+        liveMatch.status = isFinalRoundJustPlayed ? "completed" : "active";
 
         Debug.Log("[OnlineMatchController] ResolveRoundNow round progression | " +
                   "current=" + roundNumber + " next=" + nextRound +
                   " totalRounds=" + totalRounds +
                   " isFinal=" + isFinalRoundJustPlayed);
 
-        // Persist logical state
-        liveMatch.boardStateJson = JsonUtility.ToJson(board);
-        liveMatch.bagStateJson = JsonUtility.ToJson(bag);
-        liveMatch.sharedrackjson = JsonUtility.ToJson(sharedRack);
-        liveMatch.lastRoundResultJson = JsonUtility.ToJson(result);
-        liveMatch.currentRoundNumber = nextRound;
-        liveMatch.roundResolutionStatus = isFinalRoundJustPlayed ? "done" : "idle";
-        liveMatch.status = isFinalRoundJustPlayed ? "completed" : "active";
-
-        // --- Round history entry (single, correct block) ---
+        // 3. Create history entry using pre/post snapshots
         if (liveMatch.roundHistory == null)
-        {
             liveMatch.roundHistory = new List<OnlineRoundHistoryEntry>();
-        }
 
         bool roundHistoryAlreadyRecorded = liveMatch.roundHistory.Exists(
             r => r != null && r.roundNumber == roundNumber
@@ -1109,9 +1087,13 @@ public class OnlineMatchController : MonoBehaviour
             {
                 roundNumber = roundNumber,
 
+                // FULL board BEFORE this round
                 preRoundBoardStateJson = preRoundBoardStateJson,
+
+                // FULL board AFTER this round
                 postRoundBoardStateJson = liveMatch.boardStateJson,
-                roundBonusBoardJson = liveMatch.bonusBoardJson,
+
+                roundBonusBoardJson = roundBonusBoardJson,
 
                 player1SimulatedTilesJson = player1Submission != null
                     ? player1Submission.simulatedTilesJson
@@ -1159,9 +1141,10 @@ public class OnlineMatchController : MonoBehaviour
             );
         }
 
-
         // Regenerate bonus board for NEXT round, if match continues
-        if (!isFinalRoundJustPlayed && Singleton.Instance != null && Singleton.Instance.GameLogic != null)
+        if (!isFinalRoundJustPlayed &&
+            Singleton.Instance != null &&
+            Singleton.Instance.GameLogic != null)
         {
             var gameLogic = Singleton.Instance.GameLogic;
 
@@ -1185,8 +1168,8 @@ public class OnlineMatchController : MonoBehaviour
         }
 
         Debug.Log("[OnlineMatchController] ResolveRoundNow ABOUT TO GUARD READ & WRITE | nextRound=" +
-          nextRound + " status=" + liveMatch.status +
-          " roundResolutionStatus=" + liveMatch.roundResolutionStatus);
+                  nextRound + " status=" + liveMatch.status +
+                  " roundResolutionStatus=" + liveMatch.roundResolutionStatus);
 
         // Guard: re-check right before writing — abort if someone already advanced this round
         matchRef.GetValueAsync().ContinueWithOnMainThread(guardTask =>
@@ -1220,23 +1203,18 @@ public class OnlineMatchController : MonoBehaviour
                 "updating resolved match fields.");
 
             var updates = new Dictionary<string, object>
-            {
-                { "boardStateJson", liveMatch.boardStateJson },
-                { "bagStateJson", liveMatch.bagStateJson },
-                { "sharedrackjson", liveMatch.sharedrackjson },
-                { "bonusBoardJson", liveMatch.bonusBoardJson },
-                { "lastRoundResultJson", liveMatch.lastRoundResultJson },
-                { "currentRoundNumber", liveMatch.currentRoundNumber },
-                { "roundResolutionStatus", liveMatch.roundResolutionStatus },
-                { "status", liveMatch.status },
-                { "player1Score", liveMatch.player1Score },
-                { "player2Score", liveMatch.player2Score }//,
-                //{ "roundScores", liveMatch.roundScores },
-                //{ "roundHistory", liveMatch.roundHistory }
-            };
-
-           
-
+        {
+            { "boardStateJson", liveMatch.boardStateJson },
+            { "bagStateJson", liveMatch.bagStateJson },
+            { "sharedrackjson", liveMatch.sharedrackjson },
+            { "bonusBoardJson", liveMatch.bonusBoardJson },
+            { "lastRoundResultJson", liveMatch.lastRoundResultJson },
+            { "currentRoundNumber", liveMatch.currentRoundNumber },
+            { "roundResolutionStatus", liveMatch.roundResolutionStatus },
+            { "status", liveMatch.status },
+            { "player1Score", liveMatch.player1Score },
+            { "player2Score", liveMatch.player2Score }
+        };
 
             matchRef.UpdateChildrenAsync(updates)
                 .ContinueWithOnMainThread(writeTask =>
