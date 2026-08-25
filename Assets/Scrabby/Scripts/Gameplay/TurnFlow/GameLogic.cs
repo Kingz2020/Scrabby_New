@@ -5158,5 +5158,151 @@ public class GameLogic : MonoBehaviour
             );
         }
     }
+    /*public void ApplyReplayMove(string simulatedTilesJson)
+    {
+        if (string.IsNullOrEmpty(simulatedTilesJson))
+        {
+            Debug.LogWarning(
+                "[REPLAY] No simulated tiles found for replay move."
+            );
+            return;
+        }
 
+        SimTileListWrapper wrapper =
+            JsonUtility.FromJson<SimTileListWrapper>(
+                simulatedTilesJson
+            );
+
+        if (wrapper == null ||
+            wrapper.tiles == null ||
+            wrapper.tiles.Count == 0)
+        {
+            Debug.LogWarning(
+                "[REPLAY] Simulated tile JSON contained no tiles."
+            );
+            return;
+        }
+
+        Debug.Log(
+            "[REPLAY] Applying " +
+            wrapper.tiles.Count +
+            " replay tiles."
+        );
+
+        foreach (SimulatedTile tile in wrapper.tiles)
+        {
+            if (tile == null)
+                continue;
+
+            int x = tile.col - 1;
+            int y = tile.row - 1;
+
+            BoardCellData cell =
+                FindCellInSceneOrBoard(x, y);
+
+            if (cell == null)
+            {
+                Debug.LogWarning(
+                    "[REPLAY] Could not find board cell at x=" +
+                    x + " y=" + y
+                );
+                continue;
+            }
+
+            cell.occupied = true;
+            cell.tile = new TileData
+            {
+                letter = tile.letter,
+                value = tile.points,
+                id = Guid.NewGuid().ToString("N")
+            };
+        }
+
+        BoardStateData replayBoard =
+            BuildBoardStateFromValidatedTiles();
+
+        if (replayBoard != null)
+            ApplyBoardStateToScene(replayBoard);
+    }*/
+    public void ApplyReplayWinningTiles(
+    string simulatedTilesJson)
+    {
+        if (string.IsNullOrEmpty(simulatedTilesJson))
+        {
+            Debug.LogWarning(
+                "[REPLAY] Winning simulated tiles JSON is empty."
+            );
+            return;
+        }
+
+        SimTileListWrapper wrapper =
+            JsonUtility.FromJson<SimTileListWrapper>(
+                simulatedTilesJson
+            );
+
+        if (wrapper == null ||
+            wrapper.tiles == null ||
+            wrapper.tiles.Count == 0)
+        {
+            Debug.LogWarning(
+                "[REPLAY] Winning simulated tiles JSON contained no tiles."
+            );
+            return;
+        }
+
+        Debug.Log(
+            "[REPLAY] Applying " +
+            wrapper.tiles.Count +
+            " winning replay tiles."
+        );
+
+        foreach (SimPlacedTileData tile in wrapper.tiles)
+        {
+            if (tile == null)
+            {
+                Debug.LogWarning(
+                    "[REPLAY] Skipping null replay tile."
+                );
+                continue;
+            }
+
+            int row = tile.row;
+            int col = tile.col;
+
+            if (row < 1 ||
+                row > boardSizeX ||
+                col < 1 ||
+                col > boardSizeY)
+            {
+                Debug.LogWarning(
+                    "[REPLAY] Tile out of board range: " +
+                    tile.letter +
+                    " at row=" + row +
+                    ", col=" + col
+                );
+                continue;
+            }
+
+            LetterInfo letterInfo = new LetterInfo(
+                tile.letter,
+                tile.points
+            );
+
+            letterInfo.bonusUsed = true;
+
+            LetterPosition position =
+                new LetterPosition(row, col);
+
+            validatedBoardTiles[row, col] = letterInfo;
+
+            if (Singleton.Instance != null &&
+                Singleton.Instance.UIManager != null)
+            {
+                Singleton.Instance.UIManager.PlaceAITileOnBoard(
+                    letterInfo,
+                    position
+                );
+            }
+        }
+    }
 }

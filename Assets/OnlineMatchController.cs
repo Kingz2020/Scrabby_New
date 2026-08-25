@@ -347,6 +347,8 @@ public class OnlineMatchController : MonoBehaviour
 
     public void ShowGameOverForMatch(MatchData match)
     {
+        currentMatch = match;
+
         if (uiManager == null)
             uiManager = Singleton.Instance != null ? Singleton.Instance.UIManager : null;
 
@@ -1221,9 +1223,9 @@ public class OnlineMatchController : MonoBehaviour
                 { "roundResolutionStatus", liveMatch.roundResolutionStatus },
                 { "status", liveMatch.status },
                 { "player1Score", liveMatch.player1Score },
-                { "player2Score", liveMatch.player2Score },
-                { "roundScores", liveMatch.roundScores },
-                { "roundHistory", liveMatch.roundHistory }
+                { "player2Score", liveMatch.player2Score }//,
+                //{ "roundScores", liveMatch.roundScores },
+                //{ "roundHistory", liveMatch.roundHistory }
             };
 
            
@@ -1397,6 +1399,10 @@ public class OnlineMatchController : MonoBehaviour
     DatabaseReference matchRef,
     List<OnlineRoundHistoryEntry> roundHistory)
     {
+        Debug.Log(
+            "[OnlineMatchController] SaveRoundHistory ENTER | count=" +
+            (roundHistory == null ? -1 : roundHistory.Count)
+        );
         if (matchRef == null || roundHistory == null || roundHistory.Count == 0)
         {
             Debug.LogWarning(
@@ -1469,6 +1475,11 @@ public class OnlineMatchController : MonoBehaviour
             );
             return;
         }
+
+        Debug.Log(
+            "[OnlineMatchController] SaveRoundHistory WRITING | fields=" +
+            updates.Count
+        );
 
         matchRef.UpdateChildrenAsync(updates)
             .ContinueWithOnMainThread(task =>
@@ -2090,18 +2101,23 @@ ValueChangedEventArgs args)
         }
     }
     private void ShowOnlineRoundReplayRows(
-        MatchData match,
-        bool amPlayer1,
-        string opponentName)
+    MatchData match,
+    bool amPlayer1,
+    string opponentName)
     {
         if (match == null)
+        {
+            Debug.LogWarning(
+                "[REPLAY] Cannot show replay rows: match is null."
+            );
             return;
+        }
 
         if (match.roundHistory == null ||
             match.roundHistory.Count == 0)
         {
             Debug.LogWarning(
-                "[OnlineMatchController] No round history found for replay."
+                "[REPLAY] No roundHistory found in completed match."
             );
 
             if (uiManager != null)
@@ -2113,20 +2129,53 @@ ValueChangedEventArgs args)
         }
 
         List<OnlineRoundHistoryEntry> history =
-            new List<OnlineRoundHistoryEntry>(
-                match.roundHistory
+            new List<OnlineRoundHistoryEntry>();
+
+        foreach (OnlineRoundHistoryEntry entry in match.roundHistory)
+        {
+            if (entry == null ||
+                entry.roundNumber <= 0)
+            {
+                continue;
+            }
+
+            history.Add(entry);
+        }
+
+        if (history.Count == 0)
+        {
+            Debug.LogWarning(
+                "[REPLAY] roundHistory exists, but it contains no valid rounds."
             );
+
+            if (uiManager != null)
+            {
+                uiManager.ClearOnlineRoundReplayRows();
+            }
+
+            return;
+        }
 
         history.Sort((a, b) =>
             a.roundNumber.CompareTo(b.roundNumber)
         );
 
-        uiManager.ShowOnlineRoundReplayRows(
-            history,
-            amPlayer1,
-            opponentName,
-            ReplayRoundFromGameOver
+        Debug.Log(
+            "[REPLAY] Showing " +
+            history.Count +
+            " valid history rows. First round=" +
+            history[0].roundNumber
         );
+
+        if (uiManager != null)
+        {
+            uiManager.ShowOnlineRoundReplayRows(
+                history,
+                amPlayer1,
+                opponentName,
+                ReplayRoundFromGameOver
+            );
+        }
     }
 
     private void ReplayRoundFromGameOver(
@@ -2136,6 +2185,15 @@ ValueChangedEventArgs args)
         {
             Debug.LogWarning(
                 "[OnlineMatchController] Replay requested with null history entry."
+            );
+            return;
+        }
+
+        if (entry.roundNumber <= 0)
+        {
+            Debug.LogError(
+                "[REPLAY] Refusing to replay invalid round number: " +
+                entry.roundNumber
             );
             return;
         }
@@ -2210,6 +2268,15 @@ ValueChangedEventArgs args)
             opponentScore,
             entry.preRoundBoardStateJson,
             entry.roundBonusBoardJson
+        );
+
+        string winningTilesJson =
+    entry.winnerIsPlayer1
+        ? entry.player1SimulatedTilesJson
+        : entry.player2SimulatedTilesJson;
+
+        gameLogic.ApplyReplayWinningTiles(
+            winningTilesJson
         );
 
         uiManager.ShowRoundMessage(

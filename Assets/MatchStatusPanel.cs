@@ -616,7 +616,7 @@ public class MatchStatusPanel : MonoBehaviour
                     );
                 }
 
-                Debug.Log(
+               /* Debug.Log(
                     "[MATCH STATUS] Per-user submission check" +
                     " | uid=" + myUid +
                     " | matchId=" + match.matchId +
@@ -624,7 +624,7 @@ public class MatchStatusPanel : MonoBehaviour
                     " | completed=" + subTask.IsCompleted +
                     " | exists=" + submissionExists
                 );
-
+               */
                 itemData.hasSubmittedThisRound = submissionExists;
             }
 
@@ -674,12 +674,12 @@ public class MatchStatusPanel : MonoBehaviour
                 });
             }
         }
-        else
+        /*else
         {
             Debug.Log("[MATCH STATUS] No invites found or error: " +
                       (invitesTask.IsFaulted ? invitesTask.Exception?.ToString() : "none"));
         }
-
+        */
         //BuildMatchList(activeItems, completedItems);
         BuildInviteRows(inviteItems);
 
