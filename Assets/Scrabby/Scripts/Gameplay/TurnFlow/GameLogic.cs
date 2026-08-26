@@ -914,24 +914,18 @@ public class GameLogic : MonoBehaviour
         int totalLetterPoints = 0;
         int wordMultiplier = 1;
 
-        if (enableScoreDebug)
-        {
-            string letters = string.Join("", word.ConvertAll(t => t.letter));
-            //Debug.Log($"SCORE DEBUG: Start CountWordPoints for word '{letters}'. placedThisTurn.Count={placedThisTurn.Count}");
-        }
-
         foreach (var tile in word)
         {
-            int row = -1;
-            int col = -1;
+            int x = -1;
+            int y = -1;
             bool isNewlyPlaced = false;
 
             foreach (var placedTile in placedThisTurn)
             {
                 if (placedTile.letterInfo == tile)
                 {
-                    row = placedTile.letterPosition.RowX;
-                    col = placedTile.letterPosition.ColY;
+                    x = placedTile.letterPosition.RowX;
+                    y = placedTile.letterPosition.ColY;
                     isNewlyPlaced = true;
                     break;
                 }
@@ -939,23 +933,28 @@ public class GameLogic : MonoBehaviour
 
             int letterPoints = tile.points;
 
-            if (isNewlyPlaced && row >= 0 && col >= 0)
+            if (isNewlyPlaced && x > 0 && y > 0)
             {
-                int bonusRow = row - 1;
-                int bonusCol = col - 1;
+                int bonusX = x - 1;
+                int bonusY = y - 1;
 
-                bool bonusIndexInRange =
-                    bonusRow >= 0 &&
-                    bonusRow < boardBonusTiles.GetLength(1) &&
-                    bonusCol >= 0 &&
-                    bonusCol < boardBonusTiles.GetLength(0);
+                bool inRange =
+                    bonusX >= 0 && bonusX < boardBonusTiles.GetLength(0) &&
+                    bonusY >= 0 && bonusY < boardBonusTiles.GetLength(1);
 
-                if (bonusIndexInRange)
+                if (inRange)
                 {
-                    BonusTile bonusTile = boardBonusTiles[bonusCol, bonusRow];
+                    BonusTile bonusTile = boardBonusTiles[bonusX, bonusY];
 
                     if (bonusTile != null && !tile.bonusUsed)
                     {
+                        Debug.Log(
+                            "[SCORE] Tile " + tile.letter +
+                            " at x=" + x + " y=" + y +
+                            " -> bonusX=" + bonusX + " bonusY=" + bonusY +
+                            " bonusType=" + bonusTile.bonusType
+                        );
+
                         switch (bonusTile.bonusType)
                         {
                             case BonusType.DoubleLetter:
@@ -971,28 +970,15 @@ public class GameLogic : MonoBehaviour
                                 wordMultiplier *= 3;
                                 break;
                         }
-
                     }
-
                 }
-
             }
 
             totalLetterPoints += letterPoints;
-
         }
 
-        int finalScore = totalLetterPoints * wordMultiplier;
-
-        if (enableScoreDebug)
-        {
-            string letters = string.Join("", word.ConvertAll(t => t.letter));
-
-        }
-
-        return finalScore;
+        return totalLetterPoints * wordMultiplier;
     }
-
 
     public int CountWordPoints(List<LetterInfo> word)
     {

@@ -29,6 +29,10 @@ public class OnlineMatchController : MonoBehaviour
     [SerializeField] private GameObject pregamePanel;
     [SerializeField] private MatchStatusPanel matchStatusPanel;
 
+    [SerializeField] private GameObject gameOverPanel;
+
+    [SerializeField] private GameObject backToMatchButton;
+
     [Header("Firebase")]
     private FirebaseDatabase database;
     private FirebaseAuth auth;
@@ -160,7 +164,41 @@ public class OnlineMatchController : MonoBehaviour
         TraceMatch("WatchMatch AFTER subscribe");
     }
 
-    
+    public void EnterReplayFromGameOver()
+    {
+
+        if (gameOverPanel != null)
+            gameOverPanel.SetActive(false);
+
+        if (gameplayPanel != null)
+            gameplayPanel.SetActive(true);
+
+        if (matchStatusPanel != null)
+            matchStatusPanel.gameObject.SetActive(false);
+
+        // Show the back button only in replay mode
+        if (backToMatchButton != null)
+            backToMatchButton.SetActive(true);
+        
+        // Start your existing replay flow here (coroutine, etc.)
+        // e.g. StartCoroutine(PlayReplaySequence());
+    }
+
+    // Called by the "Back to Match" button on the board UI
+    public void OnBackToMatchFromReplay()
+    {
+        // Stop any replay coroutine if you have one running
+        // e.g. StopCoroutine(replayCoroutine);
+
+        if (gameplayPanel != null)
+            gameplayPanel.SetActive(false);
+
+        if (backToMatchButton != null)
+            backToMatchButton.SetActive(false);
+
+        if (matchStatusPanel != null)
+            matchStatusPanel.gameObject.SetActive(true);
+    }
 
     /// <summary>
     /// Called by UI when the local player submits a move.
@@ -394,94 +432,9 @@ public class OnlineMatchController : MonoBehaviour
 
         uiManager.ShowGameOverPanel(finalMessage, roundSummary);
 
-        /* StartCoroutine(
-             LoadOnlineRoundHistoryForGameOver(
-                 match,
-                 finalMessage,
-                 opponentName,
-                 amPlayer1
-             )*/
-        //StartCoroutine(LoadOnlineRoundReplayRows(match,amPlayer1,opponentName));
-
         ShowOnlineRoundReplayRows(match,amPlayer1,opponentName);
-        //);
     }
 
-    /*private IEnumerator LoadOnlineRoundReplayRows(
-    MatchData match,
-    bool amPlayer1,
-    string opponentName)
-    {
-        if (match == null ||
-            string.IsNullOrEmpty(match.matchId))
-        {
-            Debug.LogWarning(
-                "[OnlineMatchController] Cannot load round replay: missing match."
-            );
-            yield break;
-        }
-
-        if (!EnsureFirebaseReady())
-        {
-            Debug.LogWarning(
-                "[OnlineMatchController] Cannot load round replay: Firebase is not ready."
-            );
-            yield break;
-        }
-
-        DatabaseReference roundsRef = dbRoot
-            .Child("matches")
-            .Child(match.matchId)
-            .Child("rounds");
-
-        var task = roundsRef.GetValueAsync();
-
-        yield return new WaitUntil(() => task.IsCompleted);
-
-        if (task.IsFaulted ||
-            task.IsCanceled ||
-            task.Result == null ||
-            !task.Result.Exists)
-        {
-            Debug.LogWarning(
-                "[OnlineMatchController] No round replay data found for match " +
-                match.matchId
-            );
-            yield break;
-        }
-
-        List<OnlineRoundHistoryEntry> history =
-            new List<OnlineRoundHistoryEntry>();
-
-        foreach (DataSnapshot roundSnapshot in task.Result.Children)
-        {
-            OnlineRoundHistoryEntry entry =
-                ParseOnlineRoundHistoryEntry(roundSnapshot);
-
-            if (entry != null)
-                history.Add(entry);
-        }
-
-        history.Sort((a, b) =>
-            a.roundNumber.CompareTo(b.roundNumber)
-        );
-
-        if (uiManager == null)
-        {
-            Debug.LogWarning(
-                "[OnlineMatchController] Cannot display round replay: UIManager is null."
-            );
-            yield break;
-        }
-
-        uiManager.ShowOnlineRoundReplayRows(
-            history,
-            amPlayer1,
-            opponentName,
-            ReplayRoundFromGameOver
-        );
-    }
-    */
     private IEnumerator LoadOnlineRoundHistoryForGameOver(
     MatchData match,
     string finalMessage,
@@ -1051,6 +1004,31 @@ public class OnlineMatchController : MonoBehaviour
                 " p2=" + (winner != null && !winnerIsPlayer1 ? winner.score : 0)
             );
         }
+
+        // Rack refill (this was missing before)
+        if (sharedRack.tiles == null)
+        {
+            Debug.LogWarning("[OnlineMatchController] ResolveRoundNow sharedRack.tiles is NULL; creating list.");
+            sharedRack.tiles = new List<TileData>();
+        }
+
+        if (bag.tiles == null)
+        {
+            Debug.LogWarning("[OnlineMatchController] ResolveRoundNow bag.tiles is NULL; creating list.");
+            bag.tiles = new List<TileData>();
+        }
+
+        int beforeRefill = sharedRack.tiles.Count;
+
+        while (sharedRack.tiles.Count < 7 && bag.tiles != null && bag.tiles.Count > 0)
+        {
+            sharedRack.tiles.Add(bag.tiles[0]);
+            bag.tiles.RemoveAt(0);
+        }
+
+        Debug.Log("[OnlineMatchController] ResolveRoundNow refilled rack from " +
+                  beforeRefill + " to " + sharedRack.tiles.Count +
+                  " (bag now " + (bag.tiles != null ? bag.tiles.Count : -1) + " tiles)");
 
         // 2. Persist logical state (board now includes this round's winner)
         liveMatch.boardStateJson = JsonUtility.ToJson(board);
@@ -2397,6 +2375,8 @@ ValueChangedEventArgs args)
 
         return result;
     }
+
+
     /*private void ShowOnlineRoundReplayRows(
     MatchData match,
     bool amPlayer1,
