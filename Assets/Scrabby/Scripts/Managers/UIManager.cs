@@ -32,11 +32,12 @@ public class UIManager : MonoBehaviour
     private readonly List<RoundReplayRow> spawnedRoundRows =
         new List<RoundReplayRow>();
 
-    [SerializeField] private GameObject replayPreviewTilePrefab;
+    //[SerializeField] private GameObject replayPreviewTilePrefab;
 
     private readonly List<GameObject> replayPreviewTiles =
         new List<GameObject>();
 
+    [SerializeField] private GameObject backToMatchButton;
 
     [SerializeField]
     private Color replayPreviewColor =
@@ -636,6 +637,26 @@ public class UIManager : MonoBehaviour
     {
         gameOverPanel.SetActive(true);
         gameOverSummaryText.text = finalMessage + "\n\n" + roundSummary;
+
+        bool isOnlineMatch =
+        Singleton.Instance != null &&
+        Singleton.Instance.GameLogic != null &&
+        Singleton.Instance.GameLogic.IsOnlineMatch;
+
+        Debug.Log(
+            "[GAME OVER] isOnlineMatch=" + isOnlineMatch +
+            " | backToMatchButton=" +
+            (backToMatchButton != null ? backToMatchButton.name : "NULL")
+        );
+
+        if (backToMatchButton != null)
+        {
+            backToMatchButton.SetActive(isOnlineMatch);
+
+            Debug.Log(
+            "[GAME OVER] Back button active after SetActive: " +
+            backToMatchButton.activeSelf);
+        }
     }
 
     public void UpdateGameOverSummary(

@@ -9,7 +9,12 @@ using UnityEngine.UI;
 using Random = UnityEngine.Random;
 using Unity.Profiling;
 
-
+// Coordinate convention used everywhere:
+// x = horizontal board coordinate / column, 1-based for LetterPosition.
+// y = vertical board coordinate / row, 1-based for LetterPosition.
+// LetterPosition.RowX = x; LetterPosition.ColY = y.
+// Board arrays use [x, y].
+// Bonus arrays are 0-based: boardBonusTiles[x - 1, y - 1].
 
 public class GameLogic : MonoBehaviour
 {
@@ -293,9 +298,12 @@ public class GameLogic : MonoBehaviour
         var boardGen = UnityEngine.Object.FindAnyObjectByType<BoardGen>();
         if (boardGen != null)
         {
-            boardSizeX = boardGen.RowY; // rows
-            boardSizeY = boardGen.RowX; // cols
-            Debug.Log("[INIT] Auto-detected board size " + boardSizeX + "x" + boardSizeY);
+            boardSizeX = boardGen.RowX; // x / width / columns
+            boardSizeY = boardGen.RowY; // y / height / rows
+
+            Debug.Log("[INIT] Auto-detected board size " +
+                      boardSizeX + " x " + boardSizeY +
+                      " (width x height)");
         }
 
         this.maxHandSize = maxHandSize;
@@ -329,7 +337,7 @@ public class GameLogic : MonoBehaviour
         else
             playerHandTiles.Clear();
 
-        boardBonusTiles = new BonusTile[boardSizeY, boardSizeX];
+        boardBonusTiles = new BonusTile[boardSizeX, boardSizeY];
 
         pendingPlayerMove = null;
         pendingAIMove = null;
@@ -489,7 +497,7 @@ public class GameLogic : MonoBehaviour
 
         playerHandTiles.Clear();
 
-        boardBonusTiles = new BonusTile[boardSizeY, boardSizeX];
+        boardBonusTiles = new BonusTile[boardSizeX, boardSizeY];
         if (bonusTileBag != null && bonusBag != null)
             bonusTileBag.ResetBonusBag(bonusBag);
 
@@ -1148,7 +1156,7 @@ public class GameLogic : MonoBehaviour
                 // validatedBoardTiles uses [row, col] with 1-cell padding
                 bool boardLetterOccupied =
                     validatedBoardTiles != null &&
-                    validatedBoardTiles[y + 1, x + 1] != null;
+                    validatedBoardTiles[x + 1, y + 1] != null;
 
                 if (!bonusCellOccupied && !boardLetterOccupied)
                 {
@@ -1189,7 +1197,7 @@ public class GameLogic : MonoBehaviour
             {
                 bool boardLetterOccupied =
                     validatedBoardTiles != null &&
-                    validatedBoardTiles[y + 1, x + 1] != null;
+                    validatedBoardTiles[x + 1, y + 1] != null;
 
                 if (boardLetterOccupied)
                 {
@@ -1683,7 +1691,7 @@ public class GameLogic : MonoBehaviour
 
         currentRoundNumber++;
 
-        boardBonusTiles = new BonusTile[boardSizeY, boardSizeX];
+        boardBonusTiles = new BonusTile[boardSizeX, boardSizeY];
         if (bonusTileBag != null && bonusBag != null)
             bonusTileBag.ResetBonusBag(bonusBag);
 
@@ -1932,15 +1940,15 @@ public class GameLogic : MonoBehaviour
             else
                 return null;
 
-            int bonusRow = row - 1;
-            int bonusCol = col - 1;
+            int bonusX = row - 1; // RowX is x
+            int bonusY = col - 1; // ColY is y
 
             int letterPoints = matchingTile.points;
 
-            if (bonusRow >= 0 && bonusRow < aiBonusBoard.GetLength(0) &&
-                bonusCol >= 0 && bonusCol < aiBonusBoard.GetLength(1))
+            if (bonusX >= 0 && bonusX < aiBonusBoard.GetLength(0) &&
+                bonusY >= 0 && bonusY < aiBonusBoard.GetLength(1))
             {
-                BonusTile bonusTile = aiBonusBoard[bonusCol, bonusRow];
+                BonusTile bonusTile = aiBonusBoard[bonusX, bonusY];
 
                 if (bonusTile != null)
                 {
@@ -2034,14 +2042,18 @@ public class GameLogic : MonoBehaviour
 
         foreach (SimPlacedTile tile in move.simulatedTiles)
         {
-            int bonusRow = tile.letterPosition.RowX - 1;
-            int bonusCol = tile.letterPosition.ColY - 1;
+            int bonusX = tile.letterPosition.RowX - 1;
+            int bonusY = tile.letterPosition.ColY - 1;
 
-            if (bonusRow < 0 || bonusRow >= boardBonusTiles.GetLength(1) ||
-                bonusCol < 0 || bonusCol >= boardBonusTiles.GetLength(0))
+            if (bonusX < 0 || bonusX >= boardBonusTiles.GetLength(0) ||
+                bonusY < 0 || bonusY >= boardBonusTiles.GetLength(1))
+            {
                 continue;
+            }
 
-            BonusTile bonusTile = boardBonusTiles[bonusCol, bonusRow];
+            BonusTile bonusTile = boardBonusTiles[bonusX, bonusY];
+
+
             if (bonusTile == null)
                 continue;
 
@@ -4821,7 +4833,7 @@ public class GameLogic : MonoBehaviour
             validatedBoardTiles = new LetterInfo[boardSizeX + 2, boardSizeY + 2];
 
         if (boardBonusTiles == null)
-            boardBonusTiles = new BonusTile[boardSizeY, boardSizeX];
+            boardBonusTiles = new BonusTile[boardSizeX, boardSizeY];
     }
 
     public string GenerateBonusBoardJsonForOnlineMatch()
@@ -4837,7 +4849,7 @@ public class GameLogic : MonoBehaviour
         if (validatedBoardTiles == null)
             validatedBoardTiles = new LetterInfo[boardSizeX + 2, boardSizeY + 2];
 
-        boardBonusTiles = new BonusTile[boardSizeY, boardSizeX];
+        boardBonusTiles = new BonusTile[boardSizeX, boardSizeY];
 
         Debug.Log(
             "[BONUS] boardBonusTiles created. Size=" +
@@ -4894,7 +4906,7 @@ public class GameLogic : MonoBehaviour
     {
         EnsureBoardInitializedForOnline();
 
-        boardBonusTiles = new BonusTile[boardSizeY, boardSizeX];
+        boardBonusTiles = new BonusTile[boardSizeX, boardSizeY];
 
         if (string.IsNullOrEmpty(bonusBoardJson))
             return;
@@ -5144,72 +5156,7 @@ public class GameLogic : MonoBehaviour
             );
         }
     }
-    /*public void ApplyReplayMove(string simulatedTilesJson)
-    {
-        if (string.IsNullOrEmpty(simulatedTilesJson))
-        {
-            Debug.LogWarning(
-                "[REPLAY] No simulated tiles found for replay move."
-            );
-            return;
-        }
-
-        SimTileListWrapper wrapper =
-            JsonUtility.FromJson<SimTileListWrapper>(
-                simulatedTilesJson
-            );
-
-        if (wrapper == null ||
-            wrapper.tiles == null ||
-            wrapper.tiles.Count == 0)
-        {
-            Debug.LogWarning(
-                "[REPLAY] Simulated tile JSON contained no tiles."
-            );
-            return;
-        }
-
-        Debug.Log(
-            "[REPLAY] Applying " +
-            wrapper.tiles.Count +
-            " replay tiles."
-        );
-
-        foreach (SimulatedTile tile in wrapper.tiles)
-        {
-            if (tile == null)
-                continue;
-
-            int x = tile.col - 1;
-            int y = tile.row - 1;
-
-            BoardCellData cell =
-                FindCellInSceneOrBoard(x, y);
-
-            if (cell == null)
-            {
-                Debug.LogWarning(
-                    "[REPLAY] Could not find board cell at x=" +
-                    x + " y=" + y
-                );
-                continue;
-            }
-
-            cell.occupied = true;
-            cell.tile = new TileData
-            {
-                letter = tile.letter,
-                value = tile.points,
-                id = Guid.NewGuid().ToString("N")
-            };
-        }
-
-        BoardStateData replayBoard =
-            BuildBoardStateFromValidatedTiles();
-
-        if (replayBoard != null)
-            ApplyBoardStateToScene(replayBoard);
-    }*/
+  
     public void ApplyReplayWinningTiles(
     string simulatedTilesJson)
     {

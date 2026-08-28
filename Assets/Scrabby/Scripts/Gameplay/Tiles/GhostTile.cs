@@ -2,6 +2,13 @@ using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
 
+// Coordinate convention used everywhere:
+// x = horizontal board coordinate / column, 1-based for LetterPosition.
+// y = vertical board coordinate / row, 1-based for LetterPosition.
+// LetterPosition.RowX = x; LetterPosition.ColY = y.
+// Board arrays use [x, y].
+// Bonus arrays are 0-based: boardBonusTiles[x - 1, y - 1].
+
 public class GhostTile : MonoBehaviour, IPointerEnterHandler, IPointerExitHandler
 {
     [SerializeField] private UnityEngine.UI.Image background;
