@@ -130,7 +130,7 @@ public class BonusBoardView : MonoBehaviour
             Vector3.one;
     }
 
-    private GhostTile FindGhostTileByLocation(GhostTile[] ghostTiles, int y, int x)
+    /*private GhostTile FindGhostTileByLocation(GhostTile[] ghostTiles, int y, int x)
     {
         foreach (GhostTile ghostTile in ghostTiles)
         {
@@ -141,7 +141,31 @@ public class BonusBoardView : MonoBehaviour
         }
 
         return null;
+    }*/
+    private GhostTile FindGhostTileByLocation(
+    GhostTile[] ghostTiles,
+    int x,
+    int y)
+    {
+        foreach (GhostTile ghostTile in ghostTiles)
+        {
+            if (ghostTile != null &&
+                ghostTile.letterPosition.RowX == x &&
+                ghostTile.letterPosition.ColY == y)
+            {
+                return ghostTile;
+            }
+        }
+
+        return null;
     }
+
+    public void DrawBonusTilesImmediately()
+    {
+        StopAllCoroutines();
+        DrawBonusTiles();
+    }
+
 
     private GameObject GetPrefabForBonusType(BonusType bonusType)
     {

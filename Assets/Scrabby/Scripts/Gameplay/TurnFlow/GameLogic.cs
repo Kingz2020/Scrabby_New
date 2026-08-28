@@ -4902,7 +4902,9 @@ public class GameLogic : MonoBehaviour
         return json;
     }
 
-    public void ApplyBonusBoardFromMatch(string bonusBoardJson)
+    public void ApplyBonusBoardFromMatch(
+    string bonusBoardJson,
+    bool animateReveal = true)
     {
         EnsureBoardInitializedForOnline();
 
@@ -4923,7 +4925,12 @@ public class GameLogic : MonoBehaviour
         }
 
         if (bonusBoardView != null)
-            bonusBoardView.StartRevealBonusTiles(0.3f);
+        {
+            if (animateReveal)
+                bonusBoardView.StartRevealBonusTiles(0.3f);
+            else
+                bonusBoardView.DrawBonusTilesImmediately();
+        }
     }
 
     public void SetInputLocked(bool locked)
@@ -5120,7 +5127,8 @@ public class GameLogic : MonoBehaviour
             }
         }
 
-        ApplyBonusBoardFromMatch(bonusBoardJson);
+        //ApplyBonusBoardFromMatch(bonusBoardJson);
+        ApplyBonusBoardFromMatch(bonusBoardJson,animateReveal: false);
 
         playerHandTiles = new List<LetterInfo>();
 
@@ -5244,11 +5252,11 @@ public class GameLogic : MonoBehaviour
         if (bonusBoardView == null)
         {
             Debug.LogWarning(
-                "[REPLAY] Cannot reveal bonuses: BonusBoardView is null."
+                "[REPLAY] Cannot draw bonuses: BonusBoardView is null."
             );
             return;
         }
 
-        bonusBoardView.StartRevealBonusTiles(0.08f);
+        bonusBoardView.DrawBonusTilesImmediately();
     }
 }

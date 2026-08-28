@@ -1921,9 +1921,9 @@ ValueChangedEventArgs args)
                 : "No valid move")
         );
 
-        gameLogic.RevealReplayBonusTiles();
+        //gameLogic.RevealReplayBonusTiles();
 
-        yield return new WaitForSeconds(0.8f);
+        //yield return new WaitForSeconds(0.8f);
 
         List<SimPlacedTileData> player1Tiles =
             GetReplayTiles(
@@ -2005,6 +2005,22 @@ ValueChangedEventArgs args)
     private void ReplayRoundFromGameOver(
     OnlineRoundHistoryEntry entry)
     {
+                Debug.Log(
+            "[REPLAY] Selected round=" + entry.roundNumber +
+            " | preBoardJsonLength=" +
+            (string.IsNullOrEmpty(entry.preRoundBoardStateJson)
+                ? 0
+                : entry.preRoundBoardStateJson.Length) +
+            " | postBoardJsonLength=" +
+            (string.IsNullOrEmpty(entry.postRoundBoardStateJson)
+                ? 0
+                : entry.postRoundBoardStateJson.Length) +
+            " | bonusJsonLength=" +
+            (string.IsNullOrEmpty(entry.roundBonusBoardJson)
+                ? 0
+                : entry.roundBonusBoardJson.Length)
+        );
+
         if (entry == null)
         {
             Debug.LogWarning(
@@ -2074,41 +2090,14 @@ ValueChangedEventArgs args)
             }
         }
 
-        if (gameplayPanel != null)
-            gameplayPanel.SetActive(true);
+        StartCoroutine(
+    StartReplayRoundWhenBoardIsReady(
+        entry,
+        localScore,
+        opponentScore
+    )
+);
 
-        if (uiManager != null &&
-            uiManager.gameOverPanel != null)
-        {
-            uiManager.gameOverPanel.SetActive(false);
-        }
-
-        //ShowPreviousRoundResultBeforeReplay(entry);
-
-        gameLogic.LoadOnlineRoundReplay(
-            15,
-            15,
-            entry.roundNumber,
-            currentMatch.totalRounds,
-            localScore,
-            opponentScore,
-            entry.preRoundBoardStateJson,
-            entry.roundBonusBoardJson
-        );
-            StartCoroutine(
-                ApplyReplayTilesAfterBoardBuild(
-                    entry
-                )
-            );
-        /*uiManager.ShowRoundMessage(
-            "Replay — Round " +
-            entry.roundNumber +
-            ": " +
-            (entry.anyValidMove
-                ? entry.winnerWord + " (" +
-                  entry.winnerScore + " points)"
-                : "No valid move")
-        );*/
     }
 
     private List<SimPlacedTileData> GetReplayTiles(
@@ -2132,6 +2121,80 @@ ValueChangedEventArgs args)
         }
 
         return result;
+    }
+
+    private IEnumerator StartReplayRoundWhenBoardIsReady(
+    OnlineRoundHistoryEntry entry,
+    int localScore,
+    int opponentScore)
+    {
+        if (entry == null || gameLogic == null)
+            yield break;
+
+        if (gameplayPanel != null)
+            gameplayPanel.SetActive(true);
+
+        if (uiManager != null &&
+            uiManager.gameOverPanel != null)
+        {
+            uiManager.gameOverPanel.SetActive(false);
+        }
+
+        // Lets Unity activate the board hierarchy and run BoardGen.Start().
+        yield return null;
+        yield return new WaitForEndOfFrame();
+
+        BoardGen boardGen = FindAnyObjectByType<BoardGen>();
+
+        if (boardGen == null)
+        {
+            Debug.LogError(
+                "[REPLAY] Cannot begin replay: BoardGen was not found."
+            );
+            yield break;
+        }
+
+        int boardWidth = boardGen.RowX;
+        int boardHeight = boardGen.RowY;
+
+        GhostTile[] ghostTiles = FindObjectsByType<GhostTile>(
+            FindObjectsInactive.Exclude
+        );
+
+        Debug.Log(
+            "[REPLAY] Board ready. board=" +
+            boardWidth + "x" + boardHeight +
+            " | active GhostTiles=" + ghostTiles.Length +
+            " | selected round=" + entry.roundNumber
+        );
+
+        int expectedGhostTileCount = boardWidth * boardHeight;
+
+        if (ghostTiles.Length < expectedGhostTileCount)
+        {
+            Debug.LogError(
+                "[REPLAY] Board is not ready. Expected at least " +
+                expectedGhostTileCount +
+                " GhostTiles but found " +
+                ghostTiles.Length + "."
+            );
+            yield break;
+        }
+
+        gameLogic.LoadOnlineRoundReplay(
+            boardWidth,
+            boardHeight,
+            entry.roundNumber,
+            currentMatch.totalRounds,
+            localScore,
+            opponentScore,
+            entry.preRoundBoardStateJson,
+            entry.roundBonusBoardJson
+        );
+
+        yield return StartCoroutine(
+            ApplyReplayTilesAfterBoardBuild(entry)
+        );
     }
 
     private IEnumerator ShowEarlierRoundResultsBeforeReplay(
