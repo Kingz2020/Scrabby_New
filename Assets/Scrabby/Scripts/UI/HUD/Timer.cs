@@ -75,4 +75,13 @@ public class Timer : MonoBehaviour
         int seconds = Mathf.CeilToInt(remainingTime);
         timerText.text = seconds.ToString();
     }
+
+    public void ResumeTimer()
+    {
+        if (remainingTime <= 0f)
+            return;
+
+        timerRunning = true;
+        UpdateTimerDisplay();
+    }
 }

@@ -3511,8 +3511,15 @@ public class GameLogic : MonoBehaviour
             else
             {
                 if (Singleton.Instance != null && Singleton.Instance.UIManager != null)
-                    Singleton.Instance.UIManager.ShowRoundMessage("Invalid move.");
+                    Singleton.Instance.UIManager.ShowRoundMessage("Invalid move. Try again.");
+
                 currentState = TurnState.PlayerTurn;
+
+                // The move was not submitted, so the player is still in the same round.
+                // Resume the existing timer rather than resetting it.
+                if (timer != null)
+                    timer.ResumeTimer();
+
                 return;
             }
 
