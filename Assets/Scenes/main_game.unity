@@ -4817,7 +4817,7 @@ MonoBehaviour:
   m_TargetGraphic: {fileID: 1185748093}
   m_HandleRect: {fileID: 1185748092}
   m_Direction: 0
-  m_Value: 0
+  m_Value: 1
   m_Size: 1
   m_NumberOfSteps: 0
   m_OnValueChanged:
@@ -5629,7 +5629,7 @@ RectTransform:
   m_AnchorMin: {x: 0, y: 0.5}
   m_AnchorMax: {x: 1, y: 0.5}
   m_AnchoredPosition: {x: 0, y: 0}
-  m_SizeDelta: {x: 0, y: 20}
+  m_SizeDelta: {x: 0, y: 45}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &440436067
 MonoBehaviour:
@@ -6694,8 +6694,8 @@ MonoBehaviour:
   m_TargetGraphic: {fileID: 850349771}
   m_HandleRect: {fileID: 850349770}
   m_Direction: 0
-  m_Value: 0
-  m_Size: 1
+  m_Value: 1
+  m_Size: 0.99999994
   m_NumberOfSteps: 0
   m_OnValueChanged:
     m_PersistentCalls:
@@ -8049,7 +8049,7 @@ RectTransform:
   m_AnchorMin: {x: 0, y: 0.5}
   m_AnchorMax: {x: 1, y: 0.5}
   m_AnchoredPosition: {x: 0, y: 0}
-  m_SizeDelta: {x: 0, y: 20}
+  m_SizeDelta: {x: 0, y: 45}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &662977353
 MonoBehaviour:
@@ -8858,8 +8858,8 @@ MonoBehaviour:
   m_faceColor:
     serializedVersion: 2
     rgba: 4294967295
-  m_fontSize: 14
-  m_fontSizeBase: 14
+  m_fontSize: 40
+  m_fontSizeBase: 40
   m_fontWeight: 400
   m_enableAutoSizing: 0
   m_fontSizeMin: 18
@@ -9104,7 +9104,7 @@ MonoBehaviour:
   m_TargetGraphic: {fileID: 1789655221}
   m_HandleRect: {fileID: 1789655220}
   m_Direction: 2
-  m_Value: 0
+  m_Value: 1
   m_Size: 1
   m_NumberOfSteps: 0
   m_OnValueChanged:
@@ -10484,7 +10484,7 @@ MonoBehaviour:
   m_TargetGraphic: {fileID: 1206947822}
   m_HandleRect: {fileID: 1206947821}
   m_Direction: 2
-  m_Value: 0
+  m_Value: 1
   m_Size: 1
   m_NumberOfSteps: 0
   m_OnValueChanged:
@@ -11559,7 +11559,7 @@ RectTransform:
   m_AnchorMin: {x: 0, y: 0.5}
   m_AnchorMax: {x: 1, y: 0.5}
   m_AnchoredPosition: {x: 0, y: 0}
-  m_SizeDelta: {x: 0, y: 20}
+  m_SizeDelta: {x: 0, y: 45}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &988109918
 MonoBehaviour:
@@ -19132,7 +19132,6 @@ MonoBehaviour:
   validatedScorePopupOffset: {x: 40, y: -40}
   roundListContainer: {fileID: 146377715}
   roundReplayRowPrefab: {fileID: 3007080502781839535, guid: 50cc945e9a7b3cb48ae2523e1c4a2044, type: 3}
-  replayPreviewTilePrefab: {fileID: 0}
   backToMatchButton: {fileID: 1775335555}
   replayPreviewColor: {r: 1, g: 0.82, b: 0.18, a: 0.75}
 --- !u!1 &1641919008
@@ -21135,8 +21134,8 @@ MonoBehaviour:
   m_faceColor:
     serializedVersion: 2
     rgba: 4294967295
-  m_fontSize: 14
-  m_fontSizeBase: 14
+  m_fontSize: 40
+  m_fontSizeBase: 40
   m_fontWeight: 400
   m_enableAutoSizing: 0
   m_fontSizeMin: 18
@@ -22847,8 +22846,8 @@ MonoBehaviour:
   m_faceColor:
     serializedVersion: 2
     rgba: 4294967295
-  m_fontSize: 14
-  m_fontSizeBase: 14
+  m_fontSize: 40
+  m_fontSizeBase: 40
   m_fontWeight: 400
   m_enableAutoSizing: 0
   m_fontSizeMin: 18
