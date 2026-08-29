@@ -3491,7 +3491,7 @@ public class GameLogic : MonoBehaviour
             currentState = TurnState.Busy;
 
             if (timer != null)
-                timer.StopTimer()roundText.text =
+                timer.StopTimer();
 
             RoundMove move = EvaluatePlayerSubmission();
 
