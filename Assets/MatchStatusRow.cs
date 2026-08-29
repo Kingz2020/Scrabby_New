@@ -23,13 +23,6 @@ public class MatchStatusRow : MonoBehaviour
     System.Action<string, string, bool> onAction,
     System.Action<string> onDecline = null)
     {
-       /* Debug.Log(
-                "[MATCH ROW SETUP]" +
-                " matchId=" + data.matchId +
-                " room=" + data.roomCode +
-                " submitted=" + data.hasSubmittedThisRound +
-                " status=" + data.status
-                    );*/
 
         roomCode = data.roomCode;
         matchId = data.matchId;
@@ -64,14 +57,6 @@ public class MatchStatusRow : MonoBehaviour
             "Resume";
 
 
-        /*Debug.Log(
-                "[MATCH ROW DISPLAY]" +
-                " matchId=" + data.matchId +
-                " canResume=" + canResume +
-                " label=" + actionButtonText.text +
-                " | submitted=" + data.hasSubmittedThisRound
-            );*/
-
         if (data.isRoom || isCompleted || data.isInvite)
         {
             actionButton.interactable = true;
@@ -83,8 +68,6 @@ public class MatchStatusRow : MonoBehaviour
             actionButton.image.color = canResume ? Color.green : Color.gray;
         }
 
-        /*actionButton.onClick.RemoveAllListeners();
-        actionButton.onClick.AddListener(() => onAction?.Invoke(roomCode, matchId, isCompleted));*/
 
         actionButton.onClick.RemoveAllListeners();
 
