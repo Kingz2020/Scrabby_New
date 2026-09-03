@@ -47,6 +47,7 @@ public class GhostTile : MonoBehaviour, IPointerEnterHandler, IPointerExitHandle
         if (background != null)
         {
             background.color = new Color(0f, 0f, 0f, 0f);
+            //background.color = new Color(1f, 0f, 0f, 0.25f);
         }
 
         if (border != null)
