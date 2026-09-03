@@ -1,10 +1,22 @@
 fileFormatVersion: 2
-guid: 668737f2a52a8dc419024345a64e241c
+guid: e0e15f0000a2b1d45a01718e3ab12ead
 TextureImporter:
   internalIDToNameTable:
   - first:
-      213: -3578067337841405778
-    second: arrows_down_0
+      213: 447101263578236909
+    second: all3_chat_gpt_0
+  - first:
+      213: 6809972640059140502
+    second: all3_chat_gpt_1
+  - first:
+      213: 7868034572495377848
+    second: all3_chat_gpt_2
+  - first:
+      213: 7455009343947765070
+    second: all3_chat_gpt_3
+  - first:
+      213: 5145184000947586086
+    second: all3_chat_gpt_4
   externalObjects: {}
   serializedVersion: 13
   mipmaps:
@@ -40,9 +52,9 @@ TextureImporter:
     filterMode: 1
     aniso: 1
     mipBias: 0
-    wrapU: 0
-    wrapV: 0
-    wrapW: 0
+    wrapU: 1
+    wrapV: 1
+    wrapW: 1
   nPOTScale: 0
   lightmap: 0
   compressionQuality: 50
@@ -113,23 +125,111 @@ TextureImporter:
     serializedVersion: 2
     sprites:
     - serializedVersion: 2
-      name: arrows_down_0
+      name: all3_chat_gpt_0
       rect:
         serializedVersion: 2
-        x: 0
-        y: 0
-        width: 524
-        height: 403
+        x: 119
+        y: 130
+        width: 623
+        height: 476
       alignment: 0
-      pivot: {x: 0, y: 0}
+      pivot: {x: 0.5, y: 0.5}
       border: {x: 0, y: 0, z: 0, w: 0}
       customData: 
       outline: []
       physicsShape: []
       tessellationDetail: -1
       bones: []
-      spriteID: ea01981b6b6285ec0800000000000000
-      internalID: -3578067337841405778
+      spriteID: de7853afa3c643600800000000000000
+      internalID: 447101263578236909
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: all3_chat_gpt_1
+      rect:
+        serializedVersion: 2
+        x: 265
+        y: 588
+        width: 8
+        height: 7
+      alignment: 0
+      pivot: {x: 0.5, y: 0.5}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 699aadc0902e18e50800000000000000
+      internalID: 6809972640059140502
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: all3_chat_gpt_2
+      rect:
+        serializedVersion: 2
+        x: 444
+        y: 589
+        width: 8
+        height: 8
+      alignment: 0
+      pivot: {x: 0.5, y: 0.5}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 8b5541ec1cfd03d60800000000000000
+      internalID: 7868034572495377848
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: all3_chat_gpt_3
+      rect:
+        serializedVersion: 2
+        x: 770
+        y: 39
+        width: 641
+        height: 578
+      alignment: 0
+      pivot: {x: 0.5, y: 0.5}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: e45793fff73857760800000000000000
+      internalID: 7455009343947765070
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: all3_chat_gpt_4
+      rect:
+        serializedVersion: 2
+        x: 1429
+        y: 63
+        width: 623
+        height: 569
+      alignment: 0
+      pivot: {x: 0.5, y: 0.5}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 6240188a69d576740800000000000000
+      internalID: 5145184000947586086
       vertices: []
       indices: 
       edges: []
@@ -138,7 +238,7 @@ TextureImporter:
     customData: 
     physicsShape: []
     bones: []
-    spriteID: 
+    spriteID: 692e8e755c508054f985f01950f36000
     internalID: 0
     vertices: []
     indices: 
@@ -148,7 +248,11 @@ TextureImporter:
     spriteCustomMetadata:
       entries: []
     nameFileIdTable:
-      arrows_down_0: -3578067337841405778
+      all3_chat_gpt_0: 447101263578236909
+      all3_chat_gpt_1: 6809972640059140502
+      all3_chat_gpt_2: 7868034572495377848
+      all3_chat_gpt_3: 7455009343947765070
+      all3_chat_gpt_4: 5145184000947586086
   mipmapLimitGroupName: 
   pSDRemoveMatte: 0
   userData: 

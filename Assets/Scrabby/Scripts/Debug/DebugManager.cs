@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 using System.Collections.Generic;
 using System.Linq;
 using TMPro;
@@ -12,7 +13,17 @@ public class DebugManager: MonoBehaviour {
     [SerializeField] private TMP_InputField fixedletters;
     
     public void LoadFromJson() {
-        letterBag = Singleton.Instance.GameLogic.GetTileBag().FromJsonToClass(json);
+        //letterBag = Singleton.Instance.GameLogic.GetTileBag().FromJsonToClass(json);
+        Stopwatch stopwatch = Stopwatch.StartNew();
+
+        letterBag = Singleton.Instance.GameLogic
+            .GetTileBag()
+            .FromJsonToClass(json);
+
+        UnityEngine.Debug.Log(
+            $"[Solo Timing] LoadFromJson: " +
+            $"{stopwatch.ElapsedMilliseconds} ms"
+        );
     }
 
     public void SaveAsJson() {
@@ -21,8 +32,31 @@ public class DebugManager: MonoBehaviour {
 
     public void StartNewGame()
     {
-        Singleton.Instance.GameLogic.GetTileBag().ResetLetterBag(letterBag);
-        Singleton.Instance.GameLogic.InitGame(6, 15, 15, GameLogic.GameInitMode.Solo);
+        // Singleton.Instance.GameLogic.GetTileBag().ResetLetterBag(letterBag);
+        // Singleton.Instance.GameLogic.InitGame(6, 15, 15, GameLogic.GameInitMode.Solo);
+        Stopwatch stopwatch = Stopwatch.StartNew();
+
+        Singleton.Instance.GameLogic
+            .GetTileBag()
+            .ResetLetterBag(letterBag);
+
+        UnityEngine.Debug.Log(
+            $"[Solo Timing] ResetLetterBag: " +
+            $"{stopwatch.ElapsedMilliseconds} ms"
+        );
+
+        Singleton.Instance.GameLogic.InitGame(
+            6,
+            15,
+            15,
+            GameLogic.GameInitMode.Solo
+        );
+
+        UnityEngine.Debug.Log(
+            $"[Solo Timing] InitGame total: " +
+            $"{stopwatch.ElapsedMilliseconds} ms"
+        );
+
     }
 
     public void RefillHand() {
@@ -41,19 +75,19 @@ public class DebugManager: MonoBehaviour {
     }
 
     public void CheckSameLine() {
-        Debug.Log(Singleton.Instance.GameLogic.AllTilesInSameLine());
+        UnityEngine.Debug.Log(Singleton.Instance.GameLogic.AllTilesInSameLine());
     }
 
     public void CheckHasHoles() {
-        Debug.Log(Singleton.Instance.GameLogic.HasHoles(Singleton.Instance.GameLogic.AllTilesInSameLine()));
+        UnityEngine.Debug.Log(Singleton.Instance.GameLogic.HasHoles(Singleton.Instance.GameLogic.AllTilesInSameLine()));
     }
 
     public void CheckConnectedToOldTiles() {
-        Debug.Log(Singleton.Instance.GameLogic.CheckConnectedToTiles());
+        UnityEngine.Debug.Log(Singleton.Instance.GameLogic.CheckConnectedToTiles());
     }
 
     public void CheckValidMove() {
-        Debug.Log(Singleton.Instance.GameLogic.ValidMove());
+        UnityEngine.Debug.Log(Singleton.Instance.GameLogic.ValidMove());
     }
 
     public void CollectAllWords() {
@@ -62,7 +96,7 @@ public class DebugManager: MonoBehaviour {
             foreach (var word in wordList) {
                 completed += word.letter;
             }
-            Debug.Log(completed);
+            UnityEngine.Debug.Log(completed);
         }
     }
 
@@ -71,13 +105,13 @@ public class DebugManager: MonoBehaviour {
     }
 
     public void CheckWordValidity() {
-        Debug.Log(Singleton.Instance.GameLogic.CheckWordValidity(
+        UnityEngine.Debug.Log(Singleton.Instance.GameLogic.CheckWordValidity(
             Singleton.Instance.GameLogic.CollectAllWords(Singleton.Instance.GameLogic.AllTilesInSameLine())));
     }
 
     public void CountPointsForWord() {
         foreach (var wordList in Singleton.Instance.GameLogic.CollectAllWords(Singleton.Instance.GameLogic.AllTilesInSameLine())) {
-            Debug.Log(Singleton.Instance.GameLogic.CountWordPoints(wordList));
+            UnityEngine.Debug.Log(Singleton.Instance.GameLogic.CountWordPoints(wordList));
         }
     }
 
@@ -96,9 +130,9 @@ public class DebugManager: MonoBehaviour {
         else {
             wordList = Singleton.Instance.WordLookupLogic.FindWords(letterList);
         }
-        Debug.LogFormat("Found {0} words", wordList.Count);
-        Debug.Log(wordList.ToString());
-        Debug.Log(string.Join(", ", wordList));        
+        UnityEngine.Debug.LogFormat("Found {0} words", wordList.Count);
+        UnityEngine.Debug.Log(wordList.ToString());
+        UnityEngine.Debug.Log(string.Join(", ", wordList));        
     }
     
 }

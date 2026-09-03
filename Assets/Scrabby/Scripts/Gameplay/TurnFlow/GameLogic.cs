@@ -93,6 +93,9 @@ public class GameLogic : MonoBehaviour
     private int[,] cachedHorizontalCrossChecks;
     private int[,] cachedVerticalCrossChecks;
 
+    //private bool aiGaddagReady;
+    //private bool aiGaddagBuilding;
+
     private const int GaddagNodeBudgetPerSlice = 256;
     private const double GaddagFrameBudgetMs = 2.0;
 
@@ -291,15 +294,19 @@ public class GameLogic : MonoBehaviour
             Singleton.Instance.UIManager.ClearRoundMessage();
         }
     }
-    public void InitGame(int maxHandSize, int boardSizeX, int boardSizeY, GameInitMode mode)
+    public void InitGame(
+    int maxHandSize,
+    int boardSizeX,
+    int boardSizeY,
+    GameInitMode mode)
     {
         currentInitMode = mode;
 
         var boardGen = UnityEngine.Object.FindAnyObjectByType<BoardGen>();
         if (boardGen != null)
         {
-            boardSizeX = boardGen.RowX; // x / width / columns
-            boardSizeY = boardGen.RowY; // y / height / rows
+            boardSizeX = boardGen.RowX;
+            boardSizeY = boardGen.RowY;
 
             Debug.Log("[INIT] Auto-detected board size " +
                       boardSizeX + " x " + boardSizeY +
@@ -312,16 +319,20 @@ public class GameLogic : MonoBehaviour
 
         InitSharedState();
         LoadDictionaryIfNeeded();
-        EnsureAIGaddagReady();
 
         if (mode == GameInitMode.Solo)
         {
             InitSoloState();
+
+            // Only local Solo AI needs this 279,496-word structure.
+            EnsureAIGaddagReady();
+
             Debug.Log("[INIT] Solo InitGame complete.");
         }
         else
         {
             InitOnlineStateShell();
+
             Debug.Log("[INIT] Online InitGame complete. Waiting for match snapshot.");
         }
     }
