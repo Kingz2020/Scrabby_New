@@ -195,12 +195,15 @@ public class GameLogic : MonoBehaviour
             get { return root; }
         }
 
+        public long NodeCount { get; private set; }
+
+
         public bool ContainsWord(string word)
         {
             if (string.IsNullOrWhiteSpace(word))
                 return false;
 
-            return words.Contains(word.ToUpper());
+            return words.Contains(word.ToUpperInvariant());
         }
 
         public void AddWord(string word)
@@ -208,20 +211,31 @@ public class GameLogic : MonoBehaviour
             if (string.IsNullOrWhiteSpace(word))
                 return;
 
-            word = word.Trim().ToUpper();
+            word = word.Trim().ToUpperInvariant();
 
-            if (words.Contains(word))
+            if (!words.Add(word))
                 return;
-
-            words.Add(word);
 
             for (int split = 1; split <= word.Length; split++)
             {
-                string prefix = word.Substring(0, split);
-                string suffix = split < word.Length ? word.Substring(split) : string.Empty;
-                string form = Reverse(prefix) + Separator + suffix;
+                GaddagNode current = root;
 
-                AddPath(form);
+                // Reverse prefix directly.
+                for (int i = split - 1; i >= 0; i--)
+                {
+                    current = current.GetOrAdd(word[i]);
+                }
+
+                // Separator.
+                current = current.GetOrAdd(Separator);
+
+                // Suffix directly.
+                for (int i = split; i < word.Length; i++)
+                {
+                    current = current.GetOrAdd(word[i]);
+                }
+
+                current.isTerminal = true;
             }
         }
 
@@ -255,19 +269,39 @@ public class GameLogic : MonoBehaviour
 
     public class GaddagNode
     {
+        public static long CreatedCount=0;
+        //public static long GetOrAddCalls;
+        //public static long EdgeCreationCount;
+
         public Dictionary<char, GaddagNode> edges = new Dictionary<char, GaddagNode>();
         public bool isTerminal = false;
 
+        public GaddagNode()
+        {
+            CreatedCount++;
+        }
+
         public GaddagNode GetOrAdd(char c)
         {
+            //GetOrAddCalls++;
+
             GaddagNode next;
+
             if (!edges.TryGetValue(c, out next))
             {
                 next = new GaddagNode();
-                edges[c] = next;
+                edges.Add(c, next);
+                //EdgeCreationCount++;
             }
 
             return next;
+        }
+
+        public static void ResetCounters()
+        {
+            CreatedCount = 0;
+            //GetOrAddCalls = 0;
+            //EdgeCreationCount = 0;
         }
     }
 
@@ -3078,7 +3112,7 @@ public class GameLogic : MonoBehaviour
 
         Dictionary<char, int> needed = new Dictionary<char, int>();
 
-        word = word.Trim().ToUpper();
+        word = word.Trim().ToUpperInvariant();
 
         for (int i = 0; i < word.Length; i++)
         {
@@ -3182,7 +3216,7 @@ public class GameLogic : MonoBehaviour
             if (string.IsNullOrWhiteSpace(word))
                 continue;
 
-            word = word.Trim().ToUpper();
+            word = word.Trim().ToUpperInvariant();
 
             if (word.Length == 0 || word.Length > rack.Count)
                 continue;
@@ -3683,7 +3717,7 @@ public class GameLogic : MonoBehaviour
             if (string.IsNullOrWhiteSpace(word))
                 continue;
 
-            word = word.Trim().ToUpper();
+            word = word.Trim().ToUpperInvariant();
 
             if (word.Length < 2 || word.Length > playerHandTiles.Count)
                 continue;
@@ -4201,18 +4235,22 @@ public class GameLogic : MonoBehaviour
             return;
 
         var buildTimer = System.Diagnostics.Stopwatch.StartNew();
-
+        GaddagNode.CreatedCount = 0;
         aiGaddagLexicon = new GaddagLexicon();
+
+        int addedWords = 0;
 
         if (scrabbleWords != null)
         {
             for (int i = 0; i < scrabbleWords.Count; i++)
             {
                 string word = scrabbleWords[i];
+
                 if (string.IsNullOrWhiteSpace(word))
                     continue;
 
-                aiGaddagLexicon.AddWord(word.Trim().ToUpperInvariant());
+                aiGaddagLexicon.AddWord(word);
+                addedWords++;
             }
         }
 
@@ -4224,7 +4262,14 @@ public class GameLogic : MonoBehaviour
         if (!aiGaddagBuildLogged)
         {
             aiGaddagBuildLogged = true;
-            Debug.Log($"[AI-TIME] GADDAG build complete | words={(scrabbleWords != null ? scrabbleWords.Count : 0)} | dt={aiGaddagBuildMs:F2}ms");
+
+            Debug.Log(
+                        $"[AI-TIME] GADDAG build complete | " +
+                        $"sourceWords={scrabbleWords?.Count ?? 0} | " +
+                        $"addedWords={addedWords} | " +
+                        $"nodes={GaddagNode.CreatedCount:N0} | " +
+                        $"dt={aiGaddagBuildMs:F2}ms"
+                    );
         }
     }
     private string RackToString(List<LetterInfo> tiles)

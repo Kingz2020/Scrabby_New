@@ -130,18 +130,6 @@ public class BonusBoardView : MonoBehaviour
             Vector3.one;
     }
 
-    /*private GhostTile FindGhostTileByLocation(GhostTile[] ghostTiles, int y, int x)
-    {
-        foreach (GhostTile ghostTile in ghostTiles)
-        {
-            if (ghostTile.letterPosition.RowX == y && ghostTile.letterPosition.ColY == x)
-            {
-                return ghostTile;
-            }
-        }
-
-        return null;
-    }*/
     private GhostTile FindGhostTileByLocation(
     GhostTile[] ghostTiles,
     int x,
