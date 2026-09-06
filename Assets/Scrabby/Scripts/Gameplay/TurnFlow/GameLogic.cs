@@ -11,6 +11,7 @@ using UnityEngine.UI;
 using Random = UnityEngine.Random;
 using Unity.Profiling;
 using Stopwatch = System.Diagnostics.Stopwatch;
+using UnityEngine.Networking;
 
 // Coordinate convention used everywhere:
 // x = horizontal board coordinate / column, 1-based for LetterPosition.
@@ -93,6 +94,11 @@ public class GameLogic : MonoBehaviour
     private bool aiEvaluationRunning = false;
     private bool aiEvaluationFinished = false;
     private RoundMove aiBestMoveSoFar = null;
+
+    private bool aiGaddagLoading;
+    private const string GaddagBinaryFileName = "gaddag.bin";
+
+
     private int[,] cachedHorizontalCrossChecks;
     private int[,] cachedVerticalCrossChecks;
 
@@ -111,8 +117,8 @@ public class GameLogic : MonoBehaviour
     private int buildMoveCalls = 0;
     private double buildMoveMs = 0;
 
-    private bool aiGaddagBuildLogged = false;
-    private double aiGaddagBuildMs = 0.0;
+    //private bool aiGaddagBuildLogged = false;
+    //private double aiGaddagBuildMs = 0.0;
     private IMoveAgent humanAgent;
     private IMoveAgent aiAgent;
     private bool opponentMoveRequested = false;
@@ -128,6 +134,12 @@ public class GameLogic : MonoBehaviour
     public event Action<RoundMove> onlineSubmissionReady;
 
     private GameInitMode currentInitMode = GameInitMode.Solo;
+
+    private void Awake()
+    {
+        EnsureAIGaddagReady();
+    }
+
 
     [ContextMenu("Build GADDAG Binary")]
     private void BuildGaddagBinaryForEditor()
@@ -4543,7 +4555,89 @@ public class GameLogic : MonoBehaviour
             }
         }
     }
+    private void EnsureAIGaddagReady()
+    {
+        if (aiGaddagReady &&
+            aiGaddagLexicon != null &&
+            aiGaddagLexicon.Root != null)
+        {
+            return;
+        }
 
+        if (aiGaddagLoading)
+            return;
+
+        StartCoroutine(LoadAIGaddagFromBinary());
+    }
+
+
+    private IEnumerator LoadAIGaddagFromBinary()
+    {
+        aiGaddagLoading = true;
+
+        Stopwatch timer = Stopwatch.StartNew();
+
+        string binaryPath = Path.Combine(
+            Application.streamingAssetsPath,
+            GaddagBinaryFileName);
+
+        using (UnityWebRequest request = UnityWebRequest.Get(binaryPath))
+        {
+            yield return request.SendWebRequest();
+
+#if UNITY_2020_2_OR_NEWER
+        bool requestFailed =
+            request.result != UnityWebRequest.Result.Success;
+#else
+            bool requestFailed =
+                request.isNetworkError || request.isHttpError;
+#endif
+
+            if (requestFailed)
+            {
+                aiGaddagLoading = false;
+
+                Debug.LogError(
+                    $"[GADDAG] Failed to load gaddag.bin | " +
+                    $"path={binaryPath} | error={request.error}");
+
+                yield break;
+            }
+
+            byte[] bytes = request.downloadHandler.data;
+
+            try
+            {
+                GaddagNode.ResetCounters();
+
+                aiGaddagLexicon = GaddagLexicon.LoadFromBinary(bytes);
+
+                aiGaddagReady = true;
+
+                timer.Stop();
+
+                Debug.Log(
+                    $"[AI-TIME] GADDAG binary loaded | " +
+                    $"bytes={bytes.Length:N0} | " +
+                    $"nodes={aiGaddagLexicon.NodeCount:N0} | " +
+                    $"createdNodes={GaddagNode.CreatedCount:N0} | " +
+                    $"dt={timer.Elapsed.TotalMilliseconds:F2}ms");
+            }
+            catch (Exception exception)
+            {
+                aiGaddagReady = false;
+
+                Debug.LogError(
+                    $"[GADDAG] Failed to deserialize gaddag.bin | " +
+                    $"error={exception}");
+            }
+            finally
+            {
+                aiGaddagLoading = false;
+            }
+        }
+    }
+    /*
     private void EnsureAIGaddagReady()
     {
         if (aiGaddagReady && aiGaddagLexicon != null && aiGaddagLexicon.Root != null)
@@ -4586,7 +4680,7 @@ public class GameLogic : MonoBehaviour
                         $"dt={aiGaddagBuildMs:F2}ms"
                     );
         }
-    }
+    }*/
     private string RackToString(List<LetterInfo> tiles)
     {
         if (tiles == null) return "NULL";
