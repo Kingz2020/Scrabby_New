@@ -1,6 +1,8 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.IO;
+//using System.Diagnostics;
 using Unity.VisualScripting;
 using UnityEngine;
 using UnityEngine.Events;
@@ -8,6 +10,7 @@ using UnityEngine.UI;
 //using static GameLogic;
 using Random = UnityEngine.Random;
 using Unity.Profiling;
+using Stopwatch = System.Diagnostics.Stopwatch;
 
 // Coordinate convention used everywhere:
 // x = horizontal board coordinate / column, 1-based for LetterPosition.
@@ -126,6 +129,73 @@ public class GameLogic : MonoBehaviour
 
     private GameInitMode currentInitMode = GameInitMode.Solo;
 
+    [ContextMenu("Build GADDAG Binary")]
+    private void BuildGaddagBinaryForEditor()
+    {
+        if (Application.isPlaying)
+        {
+            Debug.LogWarning(
+                "[GADDAG] Stop Play Mode before building the packaged binary.");
+
+            return;
+        }
+
+        if (scrabbleWordsList == null)
+        {
+            Debug.LogError(
+                "[GADDAG] scrabbleWordsList has not been assigned in the Inspector.");
+
+            return;
+        }
+
+        string[] rawWords = scrabbleWordsList.text.Split(
+            new[] { '\r', '\n' },
+            System.StringSplitOptions.RemoveEmptyEntries);
+
+        string outputFolder = Path.Combine(Application.dataPath, "StreamingAssets");
+        string outputPath = Path.Combine(outputFolder, "gaddag.bin");
+
+        Directory.CreateDirectory(outputFolder);
+
+        GaddagNode.ResetCounters();
+
+        Stopwatch timer = Stopwatch.StartNew();
+
+        GaddagLexicon lexicon = new GaddagLexicon();
+
+        int addedWords = 0;
+
+        for (int i = 0; i < rawWords.Length; i++)
+        {
+            string word = rawWords[i];
+
+            if (string.IsNullOrWhiteSpace(word))
+                continue;
+
+            lexicon.AddWord(word);
+            addedWords++;
+        }
+
+        lexicon.SaveToBinary(outputPath);
+
+        timer.Stop();
+
+#if UNITY_EDITOR
+    UnityEditor.AssetDatabase.Refresh();
+#endif
+
+        long fileBytes = new FileInfo(outputPath).Length;
+
+        Debug.Log(
+            $"[GADDAG] Binary created | " +
+            $"sourceWords={rawWords.Length:N0} | " +
+            $"addedWords={addedWords:N0} | " +
+            $"nodes={GaddagNode.CreatedCount:N0} | " +
+            $"fileBytes={fileBytes:N0} | " +
+            $"dt={timer.Elapsed.TotalMilliseconds:F2}ms | " +
+            $"path={outputPath}");
+    }
+
     public enum GameMode
     {
         HumanVsAI,
@@ -184,6 +254,251 @@ public class GameLogic : MonoBehaviour
         public int Length;
     }
 
+
+
+
+    public class GaddagLexicon
+    {
+        public const char Separator = '>';
+
+        // Change this if you deliberately change the binary format later.
+        private const int BinaryFormatVersion = 1;
+        private const string BinaryMagic = "SCRABBY_GADDAG";
+
+        private readonly GaddagNode root = new GaddagNode();
+        private readonly HashSet<string> words = new HashSet<string>();
+
+        public GaddagNode Root
+        {
+            get { return root; }
+        }
+
+        public long NodeCount { get; private set; }
+
+        public bool ContainsWord(string word)
+        {
+            if (string.IsNullOrWhiteSpace(word))
+                return false;
+
+            return words.Contains(word.Trim().ToUpperInvariant());
+        }
+
+        public void AddWord(string word)
+        {
+            if (string.IsNullOrWhiteSpace(word))
+                return;
+
+            word = word.Trim().ToUpperInvariant();
+
+            if (!words.Add(word))
+                return;
+
+            for (int split = 1; split <= word.Length; split++)
+            {
+                GaddagNode current = root;
+
+                for (int i = split - 1; i >= 0; i--)
+                {
+                    current = current.GetOrAdd(word[i]);
+                }
+
+                current = current.GetOrAdd(Separator);
+
+                for (int i = split; i < word.Length; i++)
+                {
+                    current = current.GetOrAdd(word[i]);
+                }
+
+                current.isTerminal = true;
+            }
+        }
+
+        // Writes a compact tree format:
+        // Header: magic string + binary version
+        // Node: terminal bool + child count (ushort)
+        // Edge: edge character (char) + child node recursively
+        //
+        // A GADDAG is a tree in your implementation, not a shared-node graph,
+        // so recursive serialization is valid.
+        public void SaveToBinary(string path)
+        {
+            if (string.IsNullOrWhiteSpace(path))
+                throw new ArgumentException("Binary path is null or empty.", nameof(path));
+
+            string directory = Path.GetDirectoryName(path);
+
+            if (!string.IsNullOrEmpty(directory))
+                Directory.CreateDirectory(directory);
+
+            using (FileStream stream = new FileStream(
+                path,
+                FileMode.Create,
+                FileAccess.Write,
+                FileShare.None))
+            using (BinaryWriter writer = new BinaryWriter(stream))
+            {
+                writer.Write(BinaryMagic);
+                writer.Write(BinaryFormatVersion);
+
+                long writtenNodeCount = 0;
+                WriteNode(writer, root, ref writtenNodeCount);
+
+                writer.Flush();
+
+                NodeCount = writtenNodeCount;
+            }
+        }
+
+        public static GaddagLexicon LoadFromBinary(string path)
+        {
+            if (string.IsNullOrWhiteSpace(path))
+                throw new ArgumentException("Binary path is null or empty.", nameof(path));
+
+            if (!File.Exists(path))
+                throw new FileNotFoundException("GADDAG binary was not found.", path);
+
+            using (FileStream stream = new FileStream(
+                path,
+                FileMode.Open,
+                FileAccess.Read,
+                FileShare.Read))
+            using (BinaryReader reader = new BinaryReader(stream))
+            {
+                return LoadFromBinary(reader);
+            }
+        }
+
+        
+
+        // This overload lets Unity load the binary from StreamingAssets on Android
+        // as byte[] via UnityWebRequest, then deserialize directly from memory.
+        public static GaddagLexicon LoadFromBinary(byte[] bytes)
+        {
+            if (bytes == null || bytes.Length == 0)
+                throw new ArgumentException("GADDAG binary data is empty.", nameof(bytes));
+
+            using (MemoryStream stream = new MemoryStream(bytes, false))
+            using (BinaryReader reader = new BinaryReader(stream))
+            {
+                return LoadFromBinary(reader);
+            }
+        }
+
+        private static GaddagLexicon LoadFromBinary(BinaryReader reader)
+        {
+            string magic = reader.ReadString();
+
+            if (magic != BinaryMagic)
+            {
+                throw new InvalidDataException(
+                    "This file is not a valid Scrabby GADDAG binary.");
+            }
+
+            int version = reader.ReadInt32();
+
+            if (version != BinaryFormatVersion)
+            {
+                throw new InvalidDataException(
+                    $"Unsupported GADDAG binary version {version}. " +
+                    $"Expected {BinaryFormatVersion}.");
+            }
+
+            GaddagLexicon lexicon = new GaddagLexicon();
+
+            // Important:
+            // lexicon.root already exists and is readonly.
+            // We clear and fill that existing object; we never replace it.
+            lexicon.root.edges.Clear();
+            lexicon.root.isTerminal = false;
+
+            long loadedNodeCount = 0;
+            ReadNodeInto(reader, lexicon.root, ref loadedNodeCount);
+
+            lexicon.NodeCount = loadedNodeCount;
+
+            return lexicon;
+        }
+
+        private static void WriteNode(
+            BinaryWriter writer,
+            GaddagNode node,
+            ref long writtenNodeCount)
+        {
+            writtenNodeCount++;
+
+            writer.Write(node.isTerminal);
+
+            int edgeCount = node.edges.Count;
+
+            if (edgeCount > ushort.MaxValue)
+            {
+                throw new InvalidDataException(
+                    $"Node has too many edges: {edgeCount}.");
+            }
+
+            writer.Write((ushort)edgeCount);
+
+            // Dictionary iteration order is not guaranteed. Sorting produces
+            // deterministic binary output, useful for Git diffs and debugging.
+            List<char> edgeLetters = new List<char>(node.edges.Keys);
+            edgeLetters.Sort();
+
+            for (int i = 0; i < edgeLetters.Count; i++)
+            {
+                char edgeLetter = edgeLetters[i];
+                GaddagNode child = node.edges[edgeLetter];
+
+                writer.Write(edgeLetter);
+                WriteNode(writer, child, ref writtenNodeCount);
+            }
+        }
+
+        private static void ReadNodeInto(
+            BinaryReader reader,
+            GaddagNode node,
+            ref long loadedNodeCount)
+        {
+            loadedNodeCount++;
+
+            node.isTerminal = reader.ReadBoolean();
+
+            ushort edgeCount = reader.ReadUInt16();
+
+            node.edges.Clear();
+
+            for (int i = 0; i < edgeCount; i++)
+            {
+                char edgeLetter = reader.ReadChar();
+
+                GaddagNode child = new GaddagNode();
+                node.edges.Add(edgeLetter, child);
+
+                ReadNodeInto(reader, child, ref loadedNodeCount);
+            }
+        }
+
+        // Retained from your original class, although currently unused.
+        private void AddPath(string form)
+        {
+            GaddagNode current = root;
+
+            for (int i = 0; i < form.Length; i++)
+            {
+                current = current.GetOrAdd(form[i]);
+            }
+
+            current.isTerminal = true;
+        }
+
+        // Retained from your original class, although currently unused.
+        private string Reverse(string input)
+        {
+            char[] chars = input.ToCharArray();
+            Array.Reverse(chars);
+            return new string(chars);
+        }
+    }
+    /*
     public class GaddagLexicon
     {
         public const char Separator = '>';
@@ -258,7 +573,7 @@ public class GameLogic : MonoBehaviour
             return new string(chars);
         }
     }
-
+    */
     public class AnchorSquare
     {
         public int row;
