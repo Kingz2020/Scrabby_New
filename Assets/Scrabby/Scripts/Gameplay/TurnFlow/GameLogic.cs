@@ -87,6 +87,8 @@ public class GameLogic : MonoBehaviour
     private HashSet<string> scrabbleWordSet;
     private GaddagLexicon aiGaddagLexicon;
 
+    private SoloDifficulty currentSoloDifficulty = SoloDifficulty.Medium;
+
     private int[,] precalculatedCrossChecks;
     private int[,] precalculatedCrossChecksVertical;
     private bool aiGaddagReady = false;
@@ -137,6 +139,7 @@ public class GameLogic : MonoBehaviour
 
     private void Awake()
     {
+        //SetSoloDifficulty(SoloDifficulty.Medium);
         EnsureAIGaddagReady();
     }
 
@@ -206,6 +209,14 @@ public class GameLogic : MonoBehaviour
             $"fileBytes={fileBytes:N0} | " +
             $"dt={timer.Elapsed.TotalMilliseconds:F2}ms | " +
             $"path={outputPath}");
+    }
+
+    public enum SoloDifficulty
+    {
+        Easy = 0,
+        Medium = 1,
+        Hard = 2,
+        Expert = 3
     }
 
     public enum GameMode
@@ -325,6 +336,9 @@ public class GameLogic : MonoBehaviour
             }
         }
 
+
+        
+        
         // Writes a compact tree format:
         // Header: magic string + binary version
         // Node: terminal bool + child count (ushort)
@@ -464,6 +478,8 @@ public class GameLogic : MonoBehaviour
                 WriteNode(writer, child, ref writtenNodeCount);
             }
         }
+
+        
 
         private static void ReadNodeInto(
             BinaryReader reader,
@@ -636,6 +652,19 @@ public class GameLogic : MonoBehaviour
     {
         if (rounds > 0)
             maxRounds = rounds;
+    }
+
+    public SoloDifficulty CurrentSoloDifficulty
+    {
+        get { return currentSoloDifficulty; }
+    }
+
+    public void SetSoloDifficulty(SoloDifficulty difficulty)
+    {
+        currentSoloDifficulty = difficulty;
+
+        Debug.Log(
+            $"[AI] Solo difficulty set to {currentSoloDifficulty}");
     }
 
     private void InitOnlineStateShell()
@@ -1105,6 +1134,59 @@ public class GameLogic : MonoBehaviour
 
         return CheckConnectedToTiles();
     }
+
+    private void GetDifficultyRankRange(
+                                            SoloDifficulty difficulty,
+                                            int moveCount,
+                                            out int firstIndex,
+                                            out int lastIndexInclusive)
+    {
+        if (moveCount <= 1)
+        {
+            firstIndex = 0;
+            lastIndexInclusive = 0;
+            return;
+        }
+
+        float minimumPercentile;
+        float maximumPercentileExclusive;
+
+        switch (difficulty)
+        {
+            case SoloDifficulty.Easy:
+                minimumPercentile = 0.50f;
+                maximumPercentileExclusive = 0.75f;
+                break;
+
+            case SoloDifficulty.Medium:
+                minimumPercentile = 0.20f;
+                maximumPercentileExclusive = 0.45f;
+                break;
+
+            case SoloDifficulty.Hard:
+                minimumPercentile = 0.05f;
+                maximumPercentileExclusive = 0.20f;
+                break;
+
+            case SoloDifficulty.Expert:
+            default:
+                minimumPercentile = 0.00f;
+                maximumPercentileExclusive = 0.05f;
+                break;
+        }
+
+        firstIndex = Mathf.FloorToInt(moveCount * minimumPercentile);
+
+        int endExclusive = Mathf.CeilToInt(
+            moveCount * maximumPercentileExclusive);
+
+        endExclusive = Mathf.Clamp(endExclusive, 1, moveCount);
+
+        firstIndex = Mathf.Clamp(firstIndex, 0, endExclusive - 1);
+
+        lastIndexInclusive = endExclusive - 1;
+    }
+
 
     public List<List<LetterInfo>> CollectAllWords(TilePlacement orientation)
     {
