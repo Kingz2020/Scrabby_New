@@ -5,6 +5,7 @@ public class SoloDifficultyPanelController : MonoBehaviour
 {
     [Header("Panel")]
     [SerializeField] private GameObject difficultyPanel;
+    [SerializeField] private GameObject gameplayPanel;
     [SerializeField] private GameObject optionPanel;
 
     [Header("Difficulty Buttons")]
@@ -82,34 +83,36 @@ public class SoloDifficultyPanelController : MonoBehaviour
 
     private void StartSoloGame(GameLogic.SoloDifficulty difficulty)
     {
-        if (isStartingSoloGame)
+        Debug.Log($"[UI] Starting solo game, difficulty={difficulty}");
+
+        if (gameLogic == null)
+        {
+            Debug.LogError("[UI] gameLogic is not assigned.");
             return;
+        }
 
-        isStartingSoloGame = true;
+        if (gameplayPanel == null)
+        {
+            Debug.LogError("[UI] gameplayPanel is not assigned.");
+            return;
+        }
 
-        SetDifficultyButtonsInteractable(false);
-
-        PlayerPrefs.SetInt(DifficultyPrefsKey, (int)difficulty);
-        PlayerPrefs.Save();
-
-        Debug.Log(
-            $"[Solo Difficulty] Selected {difficulty} | " +
-            $"percentile={GetPercentileDescription(difficulty)}");
-
+        // Hide difficulty selection.
         if (difficultyPanel != null)
             difficultyPanel.SetActive(false);
 
-        // Store the selected level before your existing solo-game start flow.
+        // Show the actual gameplay panel.
+        gameplayPanel.SetActive(true);
+
+        Debug.Log("[UI] gameplayPanel activated");
+
+        // Set the selected difficulty before starting the game.
         gameLogic.SetSoloDifficulty(difficulty);
 
-        // TODO:
-        // Replace this with the exact code you currently use to start Solo.
-        //
-        // For example, if DebugManager currently starts it:
-        // debugManager.StartNewGame();
-        //
-        // Or if GameLogic starts it:
-        // gameLogic.InitGame(...);
+        // This calls ClearBoardForNewGame(), InitGame(), and StartRound().
+        gameLogic.BeginGameFromButton();
+
+        Debug.Log("[UI] BeginGameFromButton called");
     }
 
     private void SelectDifficultyForTesting(GameLogic.SoloDifficulty difficulty)

@@ -52,7 +52,7 @@ public class GameLogic : MonoBehaviour
     private static readonly ProfilerMarker StartNextRoundMarker =
         new ProfilerMarker("Round.StartNextRound");
 
-    private int maxHandSize;
+    private int maxHandSize=7;
     private int boardSizeX;
     private int boardSizeY;
     private int currentTurn;
@@ -137,9 +137,16 @@ public class GameLogic : MonoBehaviour
 
     private GameInitMode currentInitMode = GameInitMode.Solo;
 
+    private const int MaxAIDifficultyCandidates = 300;
+    private readonly List<RoundMove> aiDifficultyCandidates =
+        new List<RoundMove>(MaxAIDifficultyCandidates);
+
     private void Awake()
     {
         //SetSoloDifficulty(SoloDifficulty.Medium);
+        /*if (maxHandSize <= 0)
+            maxHandSize = 7;
+        */
         EnsureAIGaddagReady();
     }
 
@@ -2251,96 +2258,71 @@ public class GameLogic : MonoBehaviour
         return clone;
     }
 
-    private RoundMove FindBestFirstTurnPlacement(string word, List<LetterInfo> aiTiles, BonusTile[,] aiBonusBoard)
+    private RoundMove FindBestFirstTurnPlacementGaddag(
+    List<LetterInfo> rack,
+    BonusTile[,] bonusBoard)
     {
-        //Debug.Log("=== FindBestFirstTurnPlacement START for word '" + word + "' ===");
-
-        RoundMove bestPlacement = null;
-
-        if (string.IsNullOrEmpty(word))
+        using (FirstTurnMarker.Auto())
         {
-            //  Debug.LogWarning("FindBestFirstTurnPlacement: word is null or empty.");
-            return null;
-        }
+            if (rack == null || rack.Count == 0)
+                return CreateInvalidMove(false, GetCurrentTimeUsed());
 
-        int wordLength = word.Length;
-        int candidateAttempts = 0;
-        int validCandidates = 0;
+            List<string> words;
 
-        // Horizontal placements
-        for (int row = 1; row <= boardSizeX; row++)
-        {
-            for (int startCol = 1; startCol <= boardSizeY - wordLength + 1; startCol++)
+            using (FindWordsMarker.Auto())
             {
-                candidateAttempts++;
+                words = FindPossibleAIWordsFromRackFast(rack);
+            }
 
-                RoundMove candidate = ScoreAIFirstTurnPlacement(
-                    word,
-                    row,
-                    startCol,
-                    TilePlacement.Horizontal,
-                    aiTiles,
-                    aiBonusBoard
-                );
-
-                if (candidate == null || !candidate.isValid)
-                    continue;
-
-                validCandidates++;
-                /*Debug.Log(
-                    "FindBestFirstTurnPlacement: VALID H candidate for '" + word +
-                    "' at [row=" + row + ", startCol=" + startCol +
-                    "], score " + candidate.score
-                );*/
-
-                if (bestPlacement == null || IsBetterAIMove(candidate, bestPlacement))
+            using (ScoreSortMarker.Auto())
+            {
+                words.Sort((a, b) =>
                 {
-                    bestPlacement = candidate;
-                    /*Debug.Log(
-                        "FindBestFirstTurnPlacement: NEW BEST H placement for '" + word +
-                        "' => score " + bestPlacement.score +
-                        " at [row=" + row + ", startCol=" + startCol + "]"
-                    );*/
+                    int scoreA = EstimateWordBaseScoreFromRack(a, rack);
+                    int scoreB = EstimateWordBaseScoreFromRack(b, rack);
+
+                    if (scoreA != scoreB)
+                        return scoreB.CompareTo(scoreA);
+
+                    return b.Length.CompareTo(a.Length);
+                });
+            }
+
+            int maxWordsToTest = Mathf.Min(words.Count, 30);
+
+            aiDifficultyCandidates.Clear();
+
+            using (TestPlacementsMarker.Auto())
+            {
+                for (int i = 0; i < maxWordsToTest; i++)
+                {
+                    string word = words[i];
+                    if (string.IsNullOrEmpty(word))
+                        continue;
+
+                    //RoundMove candidate = FindBestFirstTurnPlacement(word, rack, bonusBoard);
+                    RoundMove candidate = ScoreAIFirstTurnPlacement(
+                                            word,
+                                            boardSizeX / 2,
+                                            boardSizeY / 2,
+                                            TilePlacement.Horizontal,
+                                            rack,
+                                            bonusBoard);
+
+                    if (candidate != null && candidate.isValid)
+                    {
+                        aiDifficultyCandidates.Add(candidate);
+
+                        if (aiDifficultyCandidates.Count >= MaxAIDifficultyCandidates)
+                            break;
+                    }
                 }
             }
+
+            RoundMove chosen = SelectMoveForDifficulty(aiDifficultyCandidates);
+
+            return chosen ?? CreateInvalidMove(false, GetCurrentTimeUsed());
         }
-
-        // Vertical placements
-        for (int col = 1; col <= boardSizeY; col++)
-        {
-            for (int startRow = 1; startRow <= boardSizeX - wordLength + 1; startRow++)
-            {
-                candidateAttempts++;
-
-                RoundMove candidate = ScoreAIFirstTurnPlacement(
-                    word,
-                    startRow,
-                    col,
-                    TilePlacement.Vertical,
-                    aiTiles,
-                    aiBonusBoard
-                );
-
-                if (candidate == null || !candidate.isValid)
-                    continue;
-
-                validCandidates++;
-
-                if (bestPlacement == null || IsBetterAIMove(candidate, bestPlacement))
-                {
-                    bestPlacement = candidate;
-                }
-            }
-        }
-
-        if (bestPlacement == null)
-            Debug.LogWarning("FindBestFirstTurnPlacement: No valid placement found for word '" + word + "'.");
-        else
-            Debug.Log("FindBestFirstTurnPlacement: BEST placement for word '" + word +
-                      "' => score " + bestPlacement.score);
-
-        Debug.Log("=== FindBestFirstTurnPlacement END for word '" + word + "' ===");
-        return bestPlacement;
     }
 
     private RoundMove ScoreAIFirstTurnPlacement(
@@ -3102,6 +3084,8 @@ public class GameLogic : MonoBehaviour
         {
             using (EvaluateAIMoveMarker.Auto())
             {
+                aiDifficultyCandidates.Clear();
+
                 if (currentRoundSnapshot == null)
                 {
                     Debug.LogError("[AI-TRACE] currentRoundSnapshot is NULL");
@@ -3540,7 +3524,7 @@ public class GameLogic : MonoBehaviour
         return true;
     }
 
-    private RoundMove FindBestFirstTurnPlacementGaddag(
+    /*private RoundMove FindBestFirstTurnPlacementGaddag(
     List<LetterInfo> rack,
     BonusTile[,] bonusBoard)
     {
@@ -3595,7 +3579,7 @@ public class GameLogic : MonoBehaviour
             return best ?? CreateInvalidMove(false, GetCurrentTimeUsed());
         }
     }
-
+    */
     private List<string> FindPossibleAIWordsFromRackFast(List<LetterInfo> rack)
     {
         List<string> results = new List<string>();
@@ -4045,6 +4029,11 @@ public class GameLogic : MonoBehaviour
     }
     private IEnumerator RefillPlayerHandAnimated(float totalDuration = 2f)
     {
+        Debug.Log($"[HAND-DEBUG] RefillPlayerHandAnimated ENTER " +
+              $"playerHandTiles={(playerHandTiles == null ? "null" : "not null")} " +
+              $"playerHandTiles.Count={(playerHandTiles == null ? -1 : playerHandTiles.Count)} " +
+              $"maxHandSize={maxHandSize}");
+
         Debug.Log("RefillPlayerHandAnimated START");
 
         if (playerHandTiles == null)
@@ -4380,12 +4369,16 @@ public class GameLogic : MonoBehaviour
         $"candidates={ctx.candidateCount} best={(ctx.bestMove != null ? ctx.bestMove.word : "NONE")} " +
         $"xLeft={ctx.debugLeftCrossRejects} xRight={ctx.debugRightCrossRejects} " +
         $"rackRemovals={ctx.rackTileRemovals} terminalHits={ctx.terminalHits} buildMoveNulls={ctx.buildMoveNulls}"
-        //);
         );
 
         precalculatedCrossChecks = null;
         precalculatedCrossChecksVertical = null;
-        onComplete?.Invoke(ctx.bestMove);
+
+        // At this point, aiDifficultyCandidates has been filled inside
+        // GenerateLeftPart/GenerateTopPart via ConsiderAIDifficultyCandidate.
+        RoundMove chosen = SelectMoveForDifficulty(aiDifficultyCandidates);
+
+        onComplete?.Invoke(chosen ?? ctx.bestMove);
     }
 
     private bool ShouldYieldSearch(GaddagSearchContext ctx)
@@ -4552,6 +4545,8 @@ public class GameLogic : MonoBehaviour
                 RoundMove move = BuildMove(state, TilePlacement.Horizontal);
                 if (move != null)
                 {
+                    ConsiderAIDifficultyCandidate(move);
+
                     ctx.candidateCount++;
                     if (ctx.bestMove == null || IsBetterAIMove(move, ctx.bestMove))
                         ctx.bestMove = move;
@@ -4568,6 +4563,8 @@ public class GameLogic : MonoBehaviour
                 RoundMove move = BuildMove(state, TilePlacement.Horizontal);
                 if (move != null)
                 {
+                    ConsiderAIDifficultyCandidate(move);
+
                     ctx.candidateCount++;
                     if (ctx.bestMove == null || IsBetterAIMove(move, ctx.bestMove))
                         ctx.bestMove = move;
@@ -4927,6 +4924,8 @@ public class GameLogic : MonoBehaviour
                 RoundMove move = BuildMove(state, TilePlacement.Vertical);
                 if (move != null)
                 {
+                    ConsiderAIDifficultyCandidate(move);
+
                     ctx.candidateCount++;
                     if (ctx.bestMove == null || IsBetterAIMove(move, ctx.bestMove))
                         ctx.bestMove = move;
@@ -4943,6 +4942,7 @@ public class GameLogic : MonoBehaviour
                 RoundMove move = BuildMove(state, TilePlacement.Vertical);
                 if (move != null)
                 {
+                    ConsiderAIDifficultyCandidate(move);
                     ctx.candidateCount++;
                     if (ctx.bestMove == null || IsBetterAIMove(move, ctx.bestMove))
                         ctx.bestMove = move;
@@ -5812,5 +5812,46 @@ public class GameLogic : MonoBehaviour
         }
 
         bonusBoardView.DrawBonusTilesImmediately();
+    }
+
+    private RoundMove SelectMoveForDifficulty(List<RoundMove> candidates)
+    {
+        if (candidates == null || candidates.Count == 0)
+            return null;
+
+        // Sort best first using your existing comparison.
+        candidates.Sort((a, b) =>
+            IsBetterAIMove(a, b) ? -1 : (IsBetterAIMove(b, a) ? 1 : 0));
+
+        GetDifficultyRankRange(
+            currentSoloDifficulty,
+            candidates.Count,
+            out int firstIndex,
+            out int lastIndexInclusive);
+
+        int chosenIndex = UnityEngine.Random.Range(
+            firstIndex,
+            lastIndexInclusive + 1);
+
+        RoundMove chosen = candidates[chosenIndex];
+
+        Debug.Log(
+            $"[AI] Difficulty={currentSoloDifficulty} | " +
+            $"candidates={candidates.Count:N0} | " +
+            $"bestWord={candidates[0]?.word ?? "NONE"} | " +
+            $"chosenRank={chosenIndex + 1}/{candidates.Count} | " +
+            $"chosenWord={chosen?.word ?? "NONE"}");
+
+        return chosen;
+    }
+    private void ConsiderAIDifficultyCandidate(RoundMove candidate)
+    {
+        if (candidate == null || !candidate.isValid)
+            return;
+
+        if (aiDifficultyCandidates.Count >= MaxAIDifficultyCandidates)
+            return;
+
+        aiDifficultyCandidates.Add(candidate);
     }
 }

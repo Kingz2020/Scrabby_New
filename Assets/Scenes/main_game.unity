@@ -15423,6 +15423,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SoloDifficultyPanelController
   difficultyPanel: {fileID: 1264370537}
+  gameplayPanel: {fileID: 1281643445}
   optionPanel: {fileID: 412975885}
   easyButton: {fileID: 242632478}
   mediumButton: {fileID: 543054372}
@@ -15492,7 +15493,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 0
+  m_IsActive: 1
 --- !u!224 &1281643446
 RectTransform:
   m_ObjectHideFlags: 0
