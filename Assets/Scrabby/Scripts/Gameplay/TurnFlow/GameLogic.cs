@@ -922,6 +922,15 @@ public class GameLogic : MonoBehaviour
         if (Singleton.Instance != null && Singleton.Instance.UIManager != null)
             Singleton.Instance.UIManager.RemoveAllHandTiles();
 
+        var bag = GetTileBag();
+        var letters = bag.GetLetters();
+
+        UnityEngine.Debug.Log(
+            $"[BAG-DEBUG] Before RefillPlayerHandAnimated in StartRound | " +
+            $"bag null? {bag == null} | " +
+            $"letters count={letters?.Count ?? -1}"
+        );
+
         yield return StartCoroutine(RefillPlayerHandAnimated(2f));
         ResetDisplay();
 

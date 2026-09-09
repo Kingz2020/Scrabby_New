@@ -25,7 +25,73 @@ public class DebugManager: MonoBehaviour {
             $"{stopwatch.ElapsedMilliseconds} ms"
         );
     }
+    /*private void StartSoloGame(GameLogic.SoloDifficulty difficulty)
+    {
+        Debug.Log($"[UI] Starting solo game, difficulty={difficulty}");
 
+        if (gameLogic == null)
+        {
+            Debug.LogError("[UI] gameLogic is not assigned.");
+            return;
+        }
+
+        if (gameplayPanel == null)
+        {
+            Debug.LogError("[UI] gameplayPanel is not assigned.");
+            return;
+        }
+
+        if (difficultyPanel != null)
+            difficultyPanel.SetActive(false);
+
+        gameplayPanel.SetActive(true);
+        Debug.Log("[UI] gameplayPanel activated");
+
+        // Call the new StartNewGame(difficulty), which mirrors the old flow.
+        StartNewGame(difficulty);
+
+        Debug.Log($"[UI] Difficulty set to {difficulty}. Waiting for Play button.");
+    }*/
+    public void StartNewGame(GameLogic.SoloDifficulty difficulty)
+    {
+        UnityEngine.Debug.Log($"[Solo] StartNewGame with difficulty={difficulty}");
+
+        // Set difficulty on GameLogic
+        Singleton.Instance.GameLogic.SetSoloDifficulty(difficulty);
+
+        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+
+        Singleton.Instance.GameLogic
+            .GetTileBag()
+            .ResetLetterBag(letterBag);
+
+        var bagAfterReset = Singleton.Instance.GameLogic.GetTileBag();
+        var lettersAfterReset = bagAfterReset.GetLetters();
+
+        UnityEngine.Debug.Log(
+            $"[BAG-DEBUG] After ResetLetterBag in StartNewGame | " +
+            $"count={lettersAfterReset?.Count ?? -1}"
+        );
+
+        UnityEngine.Debug.Log(
+            $"[Solo Timing] ResetLetterBag: " +
+            $"{stopwatch.ElapsedMilliseconds} ms"
+        );
+
+        Singleton.Instance.GameLogic.InitGame(
+            6,
+            15,
+            15,
+            GameLogic.GameInitMode.Solo
+        );
+
+        UnityEngine.Debug.Log(
+            $"[Solo Timing] InitGame total: " +
+            $"{stopwatch.ElapsedMilliseconds} ms"
+        );
+
+        UnityEngine.Debug.Log($"[Solo] StartNewGame complete, difficulty={difficulty}. Waiting for Play.");
+    }
     public void StartNewGame()
     {
         // Singleton.Instance.GameLogic.GetTileBag().ResetLetterBag(letterBag);

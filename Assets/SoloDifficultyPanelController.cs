@@ -99,14 +99,18 @@ public class SoloDifficultyPanelController : MonoBehaviour
         gameplayPanel.SetActive(true);
         Debug.Log("[UI] gameplayPanel activated");
 
-        gameLogic.SetSoloDifficulty(difficulty);
-
-        // Initialize the game (like old StartNewGame), but do NOT start the round yet.
-        gameLogic.InitSoloGameForDifficulty(7, 15, 15);
+        // Call the new parameterized version
+        if (Singleton.Instance != null && Singleton.Instance.DebugManager != null)
+        {
+            Singleton.Instance.DebugManager.StartNewGame(difficulty);
+        }
+        else
+        {
+            Debug.LogError("[UI] Singleton or DebugManager not available.");
+        }
 
         Debug.Log($"[UI] Difficulty set to {difficulty}. Waiting for Play button.");
     }
-
 
     private string GetPercentileDescription(GameLogic.SoloDifficulty difficulty)
     {
