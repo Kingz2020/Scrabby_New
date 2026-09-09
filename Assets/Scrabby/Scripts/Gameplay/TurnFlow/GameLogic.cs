@@ -52,7 +52,7 @@ public class GameLogic : MonoBehaviour
     private static readonly ProfilerMarker StartNextRoundMarker =
         new ProfilerMarker("Round.StartNextRound");
 
-    private int maxHandSize=7;
+    private int maxHandSize;//=7;
     private int boardSizeX;
     private int boardSizeY;
     private int currentTurn;
@@ -697,6 +697,9 @@ public class GameLogic : MonoBehaviour
     int boardSizeY,
     GameInitMode mode)
     {
+        Debug.Log($"[INIT-DEBUG] InitGame CALLED maxHandSizeParam={maxHandSize} " +
+              $"this.maxHandSize(before)={this.maxHandSize}");
+
         currentInitMode = mode;
 
         var boardGen = UnityEngine.Object.FindAnyObjectByType<BoardGen>();
@@ -4034,7 +4037,9 @@ public class GameLogic : MonoBehaviour
               $"playerHandTiles.Count={(playerHandTiles == null ? -1 : playerHandTiles.Count)} " +
               $"maxHandSize={maxHandSize}");
 
-        Debug.Log("RefillPlayerHandAnimated START");
+
+
+        //Debug.Log("RefillPlayerHandAnimated START");
 
         if (playerHandTiles == null)
         {
@@ -5853,5 +5858,18 @@ public class GameLogic : MonoBehaviour
             return;
 
         aiDifficultyCandidates.Add(candidate);
+    }
+
+    public void InitSoloGameForDifficulty(int handSize, int boardX, int boardY)
+    {
+        Debug.Log($"[INIT] InitSoloGameForDifficulty: hand={handSize} board={boardX}x{boardY}");
+
+        if (_tileBag != null)
+        {
+            _tileBag.ResetLetterBag(letterBag);
+            Debug.Log("[INIT] Tile bag reset.");
+        }
+
+        InitGame(handSize, boardX, boardY, GameInitMode.Solo);
     }
 }

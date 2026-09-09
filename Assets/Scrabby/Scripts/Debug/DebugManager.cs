@@ -26,10 +26,6 @@ public class DebugManager: MonoBehaviour {
         );
     }
 
-    public void SaveAsJson() {
-        json = Singleton.Instance.GameLogic.GetTileBag().SaveAsJson(letterBag);
-    }
-
     public void StartNewGame()
     {
         // Singleton.Instance.GameLogic.GetTileBag().ResetLetterBag(letterBag);
@@ -57,6 +53,11 @@ public class DebugManager: MonoBehaviour {
             $"{stopwatch.ElapsedMilliseconds} ms"
         );
 
+    }
+
+    public void SaveAsJson()
+    {
+        json = Singleton.Instance.GameLogic.GetTileBag().SaveAsJson(letterBag);
     }
 
     public void RefillHand() {

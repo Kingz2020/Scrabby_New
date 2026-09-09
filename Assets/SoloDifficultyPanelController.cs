@@ -18,8 +18,6 @@ public class SoloDifficultyPanelController : MonoBehaviour
     [Header("Existing Game References")]
     [SerializeField] private GameLogic gameLogic;
 
-    private bool isStartingSoloGame;
-
     private const string DifficultyPrefsKey = "Scrabby.SoloDifficulty";
 
     private void Awake()
@@ -42,8 +40,7 @@ public class SoloDifficultyPanelController : MonoBehaviour
 
     public void Open()
     {
-        isStartingSoloGame = false;
-        SetDifficultyButtonsInteractable(true);
+        //SetDifficultyButtonsInteractable(true);
 
         if (difficultyPanel != null)
             difficultyPanel.SetActive(true);
@@ -71,8 +68,7 @@ public class SoloDifficultyPanelController : MonoBehaviour
 
     public void OnBackPressed()
     {
-        if (isStartingSoloGame)
-            return;
+ 
 
         if (difficultyPanel != null)
             difficultyPanel.SetActive(false);
@@ -97,67 +93,20 @@ public class SoloDifficultyPanelController : MonoBehaviour
             return;
         }
 
-        // Hide difficulty selection.
         if (difficultyPanel != null)
             difficultyPanel.SetActive(false);
 
-        // Show the actual gameplay panel.
         gameplayPanel.SetActive(true);
-
         Debug.Log("[UI] gameplayPanel activated");
 
-        // Set the selected difficulty before starting the game.
         gameLogic.SetSoloDifficulty(difficulty);
 
-        // This calls ClearBoardForNewGame(), InitGame(), and StartRound().
-        gameLogic.BeginGameFromButton();
+        // Initialize the game (like old StartNewGame), but do NOT start the round yet.
+        gameLogic.InitSoloGameForDifficulty(7, 15, 15);
 
-        Debug.Log("[UI] BeginGameFromButton called");
+        Debug.Log($"[UI] Difficulty set to {difficulty}. Waiting for Play button.");
     }
 
-    private void SelectDifficultyForTesting(GameLogic.SoloDifficulty difficulty)
-    {
-        Debug.Log($"[Solo Difficulty] Button pressed: {difficulty}");
-
-        if (gameLogic == null)
-        {
-            Debug.LogWarning(
-                "[Solo Difficulty] gameLogic reference is not assigned.");
-            return;
-        }
-
-        // Store the selected level.
-        gameLogic.SetSoloDifficulty(difficulty);
-
-        // Close difficulty panel.
-        if (difficultyPanel != null)
-            difficultyPanel.SetActive(false);
-
-        // Start solo game with the chosen difficulty.
-        if (Singleton.Instance != null &&
-            Singleton.Instance.DebugManager != null)
-        {
-            Singleton.Instance.DebugManager.LoadFromJson();
-            Singleton.Instance.DebugManager.StartNewGame();
-
-            Debug.Log(
-                $"[Solo Difficulty] Starting new solo game with difficulty {difficulty}");
-        }
-        else
-        {
-            Debug.LogWarning(
-                "[Solo Difficulty] Singleton or DebugManager not available to start game.");
-        }
-    }
-
-    private void SetDifficultyButtonsInteractable(bool interactable)
-    {
-        easyButton.interactable = interactable;
-        mediumButton.interactable = interactable;
-        hardButton.interactable = interactable;
-        expertButton.interactable = interactable;
-        backButton.interactable = interactable;
-    }
 
     private string GetPercentileDescription(GameLogic.SoloDifficulty difficulty)
     {
