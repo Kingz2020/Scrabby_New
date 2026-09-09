@@ -887,6 +887,26 @@ public class GameLogic : MonoBehaviour
     {
         Debug.Log("[ONLINE-CHECK] StartRound START. isOnlineMatch=" + isOnlineMatch);
 
+        // SOLO-only safeguard: ensure bag is populated before first round
+        /*if (currentInitMode == GameInitMode.Solo)
+        {
+            var bag = GetTileBag();
+            var letters = bag.GetLetters();
+
+            if (letters == null || letters.Count == 0)
+            {
+                UnityEngine.Debug.LogWarning(
+                    "[SOLO-INIT] StartRound detected empty bag in Solo mode. " +
+                    "Calling DebugManager.StartNewGame(Easy) as fallback."
+                );
+
+                if (Singleton.Instance != null && Singleton.Instance.DebugManager != null)
+                {
+                    // Fallback to Easy if difficulty not yet set; you can adjust this.
+                    Singleton.Instance.DebugManager.StartNewGame(GameLogic.SoloDifficulty.Easy);
+                }
+            }
+        }*/
 
         roundStarted = true;
         roundFlowActive = false;

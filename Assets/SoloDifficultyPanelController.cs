@@ -99,7 +99,6 @@ public class SoloDifficultyPanelController : MonoBehaviour
         gameplayPanel.SetActive(true);
         Debug.Log("[UI] gameplayPanel activated");
 
-        // Call the new parameterized version
         if (Singleton.Instance != null && Singleton.Instance.DebugManager != null)
         {
             Singleton.Instance.DebugManager.StartNewGame(difficulty);

@@ -25,33 +25,7 @@ public class DebugManager: MonoBehaviour {
             $"{stopwatch.ElapsedMilliseconds} ms"
         );
     }
-    /*private void StartSoloGame(GameLogic.SoloDifficulty difficulty)
-    {
-        Debug.Log($"[UI] Starting solo game, difficulty={difficulty}");
 
-        if (gameLogic == null)
-        {
-            Debug.LogError("[UI] gameLogic is not assigned.");
-            return;
-        }
-
-        if (gameplayPanel == null)
-        {
-            Debug.LogError("[UI] gameplayPanel is not assigned.");
-            return;
-        }
-
-        if (difficultyPanel != null)
-            difficultyPanel.SetActive(false);
-
-        gameplayPanel.SetActive(true);
-        Debug.Log("[UI] gameplayPanel activated");
-
-        // Call the new StartNewGame(difficulty), which mirrors the old flow.
-        StartNewGame(difficulty);
-
-        Debug.Log($"[UI] Difficulty set to {difficulty}. Waiting for Play button.");
-    }*/
     public void StartNewGame(GameLogic.SoloDifficulty difficulty)
     {
         UnityEngine.Debug.Log($"[Solo] StartNewGame with difficulty={difficulty}");
@@ -60,6 +34,13 @@ public class DebugManager: MonoBehaviour {
         Singleton.Instance.GameLogic.SetSoloDifficulty(difficulty);
 
         var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+
+        int letterBagCount = GetLetterBagTileCount(letterBag);
+
+        UnityEngine.Debug.Log(
+            "[BAG-DEBUG] StartNewGame(difficulty) ENTER | " +
+            $"letterBag count={letterBagCount}"
+        );
 
         Singleton.Instance.GameLogic
             .GetTileBag()
@@ -201,5 +182,16 @@ public class DebugManager: MonoBehaviour {
         UnityEngine.Debug.Log(wordList.ToString());
         UnityEngine.Debug.Log(string.Join(", ", wordList));        
     }
-    
+    private int GetLetterBagTileCount(LetterBag bag)
+    {
+        if (bag == null || bag.letters == null)
+            return -1;
+
+        int count = 0;
+        foreach (var dist in bag.letters)
+        {
+            count += dist.amount;
+        }
+        return count;
+    }
 }

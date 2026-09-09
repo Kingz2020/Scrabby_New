@@ -47,6 +47,13 @@ public class OptionPanelController : MonoBehaviour
         if (gameoverPanel != null) gameoverPanel.SetActive(false);
         if (matchstatusPanel != null) matchstatusPanel.SetActive(false);
 
+        if (Singleton.Instance == null || Singleton.Instance.DebugManager == null)
+            return;
+
+        // Always load the letter bag when entering solo.
+        Singleton.Instance.DebugManager.LoadFromJson();
+
+
         if (difficultyPanel == null)
         {
             Debug.LogWarning(
