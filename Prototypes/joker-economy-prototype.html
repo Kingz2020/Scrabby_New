@@ -1,0 +1,712 @@
+<title>Joker Economy Prototype</title>
+<style>
+  :root {
+    --bg: #f7f6f3;
+    --panel: #ffffff;
+    --ink: #1c1b19;
+    --muted: #6b6862;
+    --line: #e2dfd8;
+    --accent: #b8860b;
+    --accent-soft: #fdf6e3;
+    --good: #2d6a4f;
+    --bad: #9b2226;
+    --radius: 10px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #161513;
+      --panel: #1f1e1b;
+      --ink: #ecebe7;
+      --muted: #9a958c;
+      --line: #33312c;
+      --accent: #d9a521;
+      --accent-soft: #2a2419;
+      --good: #6ab08a;
+      --bad: #d97b7b;
+    }
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font: 15px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    margin: 0;
+    padding: 40px 24px 80px;
+  }
+  .wrap { max-width: 940px; margin: 0 auto; }
+
+  h1 { font-size: 26px; margin: 0 0 6px; letter-spacing: -0.01em; }
+  h2 { font-size: 13px; text-transform: uppercase; letter-spacing: 0.09em; color: var(--muted); margin: 0 0 14px; font-weight: 600; }
+  .lede { color: var(--muted); margin: 0 0 10px; max-width: 70ch; }
+  .throwaway {
+    display: inline-block; font-size: 11px; letter-spacing: 0.09em; text-transform: uppercase;
+    background: var(--accent-soft); color: var(--accent); border: 1px solid var(--accent);
+    padding: 3px 9px; border-radius: 99px; margin-bottom: 16px; font-weight: 600;
+  }
+
+  section { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 22px 24px; margin-bottom: 20px; }
+
+  .grid { display: grid; gap: 14px; }
+  .cols-2 { grid-template-columns: 1fr 1fr; }
+  .cols-4 { grid-template-columns: repeat(4, 1fr); }
+  @media (max-width: 720px) { .cols-2, .cols-4 { grid-template-columns: 1fr; } }
+
+  .stat { border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; }
+  .stat .k { font-size: 11px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted); }
+  .stat .v { font-size: 22px; font-weight: 600; margin-top: 3px; font-variant-numeric: tabular-nums; }
+  .stat.lit { border-color: var(--accent); background: var(--accent-soft); }
+
+  button {
+    font: inherit; font-weight: 500; cursor: pointer;
+    background: var(--panel); color: var(--ink);
+    border: 1px solid var(--line); border-radius: 8px;
+    padding: 9px 15px; margin: 0 8px 8px 0;
+  }
+  button:hover:not(:disabled) { border-color: var(--accent); }
+  button:disabled { opacity: 0.38; cursor: not-allowed; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  button.step { display: block; width: 100%; text-align: left; margin: 0 0 8px; }
+  button.step.done { opacity: 0.45; }
+  button.step.next { border-color: var(--accent); background: var(--accent-soft); }
+
+  .tabs { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 16px; border-bottom: 1px solid var(--line); padding-bottom: 14px; }
+  .tabs button { margin: 0; }
+  .tabs button.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+  table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+  th, td { text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--line); }
+  th { font-size: 11px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted); font-weight: 600; }
+  td.num, th.num { text-align: right; }
+
+  .tile {
+    display: inline-block; min-width: 26px; text-align: center;
+    border: 1px solid var(--line); border-radius: 5px; padding: 4px 6px;
+    margin-right: 5px; font-weight: 600; background: var(--bg);
+  }
+  .tile.joker { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
+  .tile sub { font-size: 9px; font-weight: 400; color: var(--muted); }
+
+  .badge { display: inline-block; font-size: 11px; padding: 2px 7px; border-radius: 4px; border: 1px solid var(--line); color: var(--muted); margin-left: 6px; }
+  .badge.dw, .badge.tw { border-color: var(--accent); color: var(--accent); }
+
+  .offer { border: 1px solid var(--line); border-radius: 8px; padding: 16px; }
+  .offer.lit { border-color: var(--accent); }
+  .offer h3 { margin: 0 0 10px; font-size: 15px; }
+  .calc { font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .calc b { color: var(--ink); font-weight: 600; }
+  .total { font-size: 24px; font-weight: 600; margin-top: 8px; font-variant-numeric: tabular-nums; }
+
+  .good { color: var(--good); }
+  .bad { color: var(--bad); }
+
+  .log { font-size: 13px; max-height: 200px; overflow-y: auto; }
+  .log div { padding: 5px 0; border-bottom: 1px solid var(--line); color: var(--muted); }
+  .log div:last-child { border-bottom: 0; }
+
+  label.cfg { display: block; font-size: 13px; margin-bottom: 8px; }
+  label.cfg span { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted); margin-bottom: 5px; }
+  select, input[type=number] { font: inherit; padding: 7px 9px; border: 1px solid var(--line); border-radius: 7px; background: var(--panel); color: var(--ink); width: 100%; }
+
+  .note { font-size: 13px; color: var(--muted); background: var(--bg); border-left: 2px solid var(--accent); padding: 10px 14px; border-radius: 0 6px 6px 0; margin: 14px 0; }
+  .scenario-desc { margin-bottom: 16px; color: var(--muted); font-size: 14px; }
+  .scenario-desc b { color: var(--ink); }
+</style>
+
+<div class="wrap">
+  <span class="throwaway">Throwaway prototype — not production code</span>
+  <h1>Joker Economy</h1>
+  <p class="lede">
+    Scrabby gives you and the AI the <b>same six tiles</b> each round, for four rounds; whoever builds the
+    better word wins the round and their word goes on the board. The proposal: one joker per game, sitting in
+    the corner, that becomes any letter for zero points and costs you a flat penalty.
+  </p>
+  <p class="lede">
+    <b>The question this answers:</b> does "hold it or spend it" feel like a real decision across four rounds,
+    is −12 the right price, and should the joker count toward the 50-point six-tile bonus?
+  </p>
+
+  <section>
+    <h2>Rules you can change</h2>
+    <div class="grid cols-4">
+      <label class="cfg"><span>Joker cost</span>
+        <select id="cfg-rule">
+          <option value="flat">Flat penalty</option>
+          <option value="letter">Value of chosen letter</option>
+          <option value="free">No penalty</option>
+        </select>
+      </label>
+      <label class="cfg"><span>Flat penalty</span>
+        <input type="number" id="cfg-cost" value="12" min="0" max="60">
+      </label>
+      <label class="cfg"><span>Joker counts toward six-tile bonus</span>
+        <select id="cfg-bingo">
+          <option value="yes">Yes — today's behaviour</option>
+          <option value="no">No — real tiles only</option>
+        </select>
+      </label>
+      <label class="cfg"><span>AI strength</span>
+        <select id="cfg-ai">
+          <option value="0.50">Easy</option>
+          <option value="0.75" selected>Medium</option>
+          <option value="0.90">Hard</option>
+          <option value="1.00">Expert</option>
+        </select>
+      </label>
+    </div>
+    <div class="note">
+      "Yes" reproduces what the code does today: the bonus fires when <i>total</i> tiles placed equals six, so a
+      five-tile word plus the joker collects it, and a six-tile word plus the joker loses it.
+    </div>
+  </section>
+
+  <section>
+    <h2>Where the game stands</h2>
+    <div class="grid cols-4">
+      <div class="stat"><div class="k">Round</div><div class="v" id="s-round">—</div></div>
+      <div class="stat"><div class="k">Your points</div><div class="v" id="s-human">0</div></div>
+      <div class="stat"><div class="k">AI points</div><div class="v" id="s-ai">0</div></div>
+      <div class="stat" id="s-joker-box"><div class="k">Joker</div><div class="v" id="s-joker">Held</div></div>
+    </div>
+    <div style="margin-top:16px">
+      <div class="k" style="font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin-bottom:6px">This round's rack</div>
+      <div id="s-rack"></div>
+    </div>
+  </section>
+
+  <section id="offer-section">
+    <h2>Your choice this round</h2>
+    <div class="grid cols-2">
+      <div class="offer" id="offer-plain">
+        <h3>Play without the joker</h3>
+        <div id="plain-tiles" style="margin-bottom:10px"></div>
+        <div class="calc" id="plain-calc"></div>
+        <div class="total" id="plain-total"></div>
+      </div>
+      <div class="offer" id="offer-joker">
+        <h3>Spend the joker</h3>
+        <div id="joker-tiles" style="margin-bottom:10px"></div>
+        <div class="calc" id="joker-calc"></div>
+        <div class="total" id="joker-total"></div>
+      </div>
+    </div>
+    <div id="verdict" class="note" style="display:none"></div>
+  </section>
+
+  <section>
+    <h2>Play it yourself</h2>
+    <button id="b-new">Start a new game</button>
+    <button id="b-plain">Play without the joker</button>
+    <button id="b-joker" class="primary">Spend the joker</button>
+    <button id="b-next">Next round</button>
+  </section>
+
+  <section>
+    <h2>Guided walkthroughs</h2>
+    <div class="tabs" id="tabs"></div>
+    <div class="scenario-desc" id="scenario-desc"></div>
+    <div id="scenario-steps"></div>
+  </section>
+
+  <section>
+    <h2>What happens over many games</h2>
+    <p class="lede" style="margin-bottom:14px">
+      Four rounds is a small sample, and one game tells you very little about whether −12 is the right number.
+      This plays a thousand games under each cost rule with a player who always spends the joker on the single
+      best opportunity they see, and reports how often that actually paid off.
+    </p>
+    <button id="b-sim" class="primary">Play 1,000 games under each rule</button>
+    <div id="sim-out" style="margin-top:18px"></div>
+  </section>
+
+  <section>
+    <h2>What happened</h2>
+    <div class="log" id="log"></div>
+  </section>
+</div>
+
+<script>
+// ──────────────────────────────────────────────────────────────────────────
+// PURE MODULE — this is the part worth keeping. No DOM in here.
+// Mirrors GameLogic.CountWordPoints + the six-tile bonus check in
+// EvaluatePlayerSubmission, plus the proposed joker penalty.
+// ──────────────────────────────────────────────────────────────────────────
+const JokerEconomy = (function () {
+
+  const HAND_SIZE   = 6;    // GameLogic.InitGame(6, 15, 15)
+  const BINGO_BONUS = 50;
+  const MAX_ROUNDS  = 4;
+
+  // The real bag, straight from DebugManager.json in main_game.unity.
+  // 98 tiles, English distribution, no blanks.
+  const BAG = {
+    E:[1,12], A:[1,9], I:[1,9], O:[1,8], N:[1,6], R:[1,6], T:[1,6],
+    L:[1,4], S:[1,4], U:[1,4], D:[2,4], G:[3,2], B:[3,2], C:[3,2],
+    M:[3,2], P:[3,2], F:[4,2], H:[4,2], V:[4,2], W:[4,2], Y:[4,2],
+    K:[5,1], J:[8,1], X:[8,1], Q:[10,1], Z:[10,1]
+  };
+
+  // The real bonus bag: 3 double-letter, 2 triple-letter, 3 double-word,
+  // 1 triple-word — nine squares scattered at random over 15x15.
+  const BONUS_BAG = { DoubleLetter:3, TripleLetter:2, DoubleWord:3, TripleWord:1 };
+
+  function letterPoints(ch) { return BAG[ch] ? BAG[ch][0] : 0; }
+
+  // Faithful port of CountWordPoints. A joker tile scores zero letter points
+  // but still triggers a word multiplier under it, exactly like a Scrabble blank.
+  function scoreMove(move, config) {
+    const tiles = move.joker ? move.realTiles.concat([move.joker]) : move.realTiles.slice();
+
+    let letterSum = 0;
+    let wordMultiplier = 1;
+
+    for (const t of tiles) {
+      let pts = t.isJoker ? 0 : letterPoints(t.letter);
+      if      (t.bonus === 'DoubleLetter') pts *= 2;
+      else if (t.bonus === 'TripleLetter') pts *= 3;
+      else if (t.bonus === 'DoubleWord')   wordMultiplier *= 2;
+      else if (t.bonus === 'TripleWord')   wordMultiplier *= 3;
+      letterSum += pts;
+    }
+
+    let total = letterSum * wordMultiplier;
+
+    // The equality check from GameLogic.cs:3946, reproduced deliberately.
+    const counted = config.jokerCountsForBingo ? tiles.length : move.realTiles.length;
+    const bingo = counted === HAND_SIZE;
+    if (bingo) total += BINGO_BONUS;
+
+    let cost = 0;
+    if (move.joker) {
+      if      (config.costRule === 'flat')   cost = config.flatCost;
+      else if (config.costRule === 'letter') cost = letterPoints(move.joker.letter);
+    }
+    total -= cost;
+
+    return { letterSum, wordMultiplier, bingo, cost, total, tilesPlaced: tiles.length };
+  }
+
+  // ── Deterministic randomness so scenarios replay identically ──
+  function rng(seed) {
+    let a = seed >>> 0;
+    return function () {
+      a |= 0; a = (a + 0x6D2B79F5) | 0;
+      let t = Math.imul(a ^ (a >>> 15), 1 | a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+
+  function drawRack(rnd) {
+    const pool = [];
+    for (const ch in BAG) for (let i = 0; i < BAG[ch][1]; i++) pool.push(ch);
+    const rack = [];
+    for (let i = 0; i < HAND_SIZE; i++) rack.push(pool[Math.floor(rnd() * pool.length)]);
+    return rack;
+  }
+
+  function pickBonus(rnd) {
+    const pool = [];
+    for (const k in BONUS_BAG) for (let i = 0; i < BONUS_BAG[k]; i++) pool.push(k);
+    return pool[Math.floor(rnd() * pool.length)];
+  }
+
+  // Builds one round's situation: the best word you can see without the joker,
+  // and the best one you can see with it. Abstracted on purpose — word-finding
+  // is not the question, the spend decision is.
+  function makeRound(rnd, rack) {
+    const plainLen = 3 + Math.floor(rnd() * 4);               // 3..6 tiles
+    const plainTiles = rack.slice(0, plainLen).map(function (ch) {
+      // Nine bonus squares over 225 means most tiles land on plain board.
+      return { letter: ch, bonus: rnd() < 0.11 ? pickBonus(rnd) : 'None' };
+    });
+
+    // Does the joker actually open anything up this round?
+    const roll = rnd();
+    let jokerTiles = null, jokerLetter = 'E', jokerBonus = 'None';
+
+    if (roll < 0.22) {
+      // Nothing doing — the joker adds a letter but reaches nothing.
+      jokerTiles = plainTiles.slice();
+      jokerLetter = rack[plainLen % rack.length];
+    } else if (roll < 0.50) {
+      // The joker itself lands on a word multiplier.
+      jokerTiles = plainTiles.slice();
+      jokerBonus = rnd() < 0.75 ? 'DoubleWord' : 'TripleWord';
+      jokerLetter = rack[plainLen % rack.length];
+    } else if (roll < 0.72) {
+      // The joker bridges to a square that lets one more real tile join in.
+      const extra = rack[plainLen % rack.length];
+      jokerTiles = plainTiles.concat([{ letter: extra, bonus: rnd() < 0.4 ? pickBonus(rnd) : 'None' }]);
+      jokerBonus = rnd() < 0.5 ? 'DoubleWord' : 'None';
+      jokerLetter = rack[(plainLen + 1) % rack.length];
+    } else {
+      // The joker completes a full six-tile play.
+      const need = HAND_SIZE - 1 - plainTiles.length;
+      const more = [];
+      for (let i = 0; i < Math.max(0, need); i++) {
+        more.push({ letter: rack[(plainLen + i) % rack.length], bonus: rnd() < 0.11 ? pickBonus(rnd) : 'None' });
+      }
+      jokerTiles = plainTiles.concat(more);
+      jokerBonus = rnd() < 0.3 ? 'DoubleWord' : 'None';
+      jokerLetter = rack[HAND_SIZE - 1];
+    }
+
+    return {
+      rack: rack,
+      plain: { realTiles: plainTiles, joker: null },
+      withJoker: {
+        realTiles: jokerTiles,
+        joker: { letter: jokerLetter, bonus: jokerBonus, isJoker: true }
+      }
+    };
+  }
+
+  // The AI never gets a joker — it plays the same rack through the GADDAG and
+  // picks by difficulty percentile (GetDifficultyRankRange). It searches
+  // exhaustively, so it can and does out-find the word you spotted by eye:
+  // at Expert it usually beats your plain move, at Easy it usually doesn't.
+  function aiScoreFor(round, rnd, strength, config) {
+    const yours = scoreMove(round.plain, config).total;
+    const factor = strength * (0.7 + rnd() * 0.9) * 1.25;
+    return Math.max(0, Math.round(yours * factor));
+  }
+
+  // ── Game state machine ──
+  function newGame(seed, config) {
+    const rnd = rng(seed);
+    const s = {
+      seed: seed, rnd: rnd, round: 1, maxRounds: MAX_ROUNDS,
+      humanTotal: 0, aiTotal: 0, roundsWonHuman: 0, roundsWonAi: 0,
+      jokerAvailable: true, phase: 'offer', current: null, lastResult: null, log: []
+    };
+    s.current = makeRound(rnd, drawRack(rnd));
+    return s;
+  }
+
+  function play(state, useJoker, config) {
+    if (state.phase !== 'offer') return state;
+    if (useJoker && !state.jokerAvailable) return state;
+
+    const move = useJoker ? state.current.withJoker : state.current.plain;
+    const scored = scoreMove(move, config);
+    const ai = aiScoreFor(state.current, state.rnd, config.aiStrength, config);
+
+    // CompareMoves: higher score wins, human takes the tie.
+    const humanWins = scored.total >= ai;
+    if (humanWins) { state.humanTotal += scored.total; state.roundsWonHuman++; }
+    else           { state.aiTotal   += ai;            state.roundsWonAi++; }
+
+    if (useJoker) state.jokerAvailable = false;
+
+    state.lastResult = { scored: scored, ai: ai, humanWins: humanWins, usedJoker: useJoker };
+    state.phase = 'revealed';
+    state.log.unshift(
+      'Round ' + state.round + ': ' +
+      (useJoker ? 'spent the joker, ' : 'played plain, ') +
+      'you ' + scored.total + ' vs AI ' + ai + ' — ' + (humanWins ? 'you win the round' : 'AI wins the round') +
+      (scored.bingo ? ' (six-tile bonus)' : '')
+    );
+    return state;
+  }
+
+  function nextRound(state) {
+    if (state.phase !== 'revealed') return state;
+    if (state.round >= state.maxRounds) { state.phase = 'gameover'; return state; }
+    state.round++;
+    state.current = makeRound(state.rnd, drawRack(state.rnd));
+    state.phase = 'offer';
+    state.lastResult = null;
+    return state;
+  }
+
+  // ── Batch run, for the pricing question ──
+  function simulate(games, config) {
+    let spent = 0, netSwing = 0, wins = 0, skipped = 0;
+
+    for (let g = 0; g < games; g++) {
+      let s = newGame(g * 7919 + 13, config);
+      // A player who holds the joker for the single best gain they meet.
+      const gains = [];
+      const probe = newGame(g * 7919 + 13, config);
+      for (let r = 0; r < MAX_ROUNDS; r++) {
+        gains.push(scoreMove(probe.current.withJoker, config).total - scoreMove(probe.current.plain, config).total);
+        play(probe, false, config); nextRound(probe);
+      }
+      let bestRound = 0;
+      for (let i = 1; i < gains.length; i++) if (gains[i] > gains[bestRound]) bestRound = i;
+
+      for (let r = 0; r < MAX_ROUNDS; r++) {
+        const use = (r === bestRound) && gains[r] > 0;
+        if (r === bestRound) {
+          if (use) { spent++; netSwing += gains[r]; }
+          else skipped++;
+        }
+        play(s, use, config);
+        nextRound(s);
+      }
+      if (s.humanTotal >= s.aiTotal) wins++;
+    }
+
+    return {
+      games: games,
+      spentPct: Math.round(100 * spent / games),
+      skippedPct: Math.round(100 * skipped / games),
+      avgSwing: spent ? (netSwing / spent).toFixed(1) : '0.0',
+      winPct: Math.round(100 * wins / games)
+    };
+  }
+
+  return {
+    HAND_SIZE: HAND_SIZE, BINGO_BONUS: BINGO_BONUS, MAX_ROUNDS: MAX_ROUNDS,
+    letterPoints: letterPoints, scoreMove: scoreMove,
+    newGame: newGame, play: play, nextRound: nextRound, simulate: simulate,
+    rng: rng, drawRack: drawRack, makeRound: makeRound
+  };
+})();
+
+// ──────────────────────────────────────────────────────────────────────────
+// THROWAWAY PAGE — thin shell over the module above.
+// ──────────────────────────────────────────────────────────────────────────
+const $ = function (id) { return document.getElementById(id); };
+
+function config() {
+  return {
+    costRule: $('cfg-rule').value,
+    flatCost: parseInt($('cfg-cost').value, 10) || 0,
+    jokerCountsForBingo: $('cfg-bingo').value === 'yes',
+    aiStrength: parseFloat($('cfg-ai').value)
+  };
+}
+
+let game = null;
+let scenario = null;
+let step = 0;
+
+const BONUS_LABEL = {
+  DoubleLetter: 'double letter', TripleLetter: 'triple letter',
+  DoubleWord: 'DOUBLE WORD', TripleWord: 'TRIPLE WORD'
+};
+
+function tileHtml(t) {
+  const cls = t.isJoker ? 'tile joker' : 'tile';
+  const pts = t.isJoker ? 0 : JokerEconomy.letterPoints(t.letter);
+  const badge = t.bonus && t.bonus !== 'None'
+    ? '<span class="badge ' + (t.bonus === 'DoubleWord' ? 'dw' : t.bonus === 'TripleWord' ? 'tw' : '') + '">' + BONUS_LABEL[t.bonus] + '</span>'
+    : '';
+  return '<span class="' + cls + '">' + (t.isJoker ? '★' : t.letter) + '<sub>' + pts + '</sub></span>' + badge;
+}
+
+function renderMove(move, calcEl, totalEl, tilesEl, cfg) {
+  const tiles = move.joker ? move.realTiles.concat([move.joker]) : move.realTiles;
+  tilesEl.innerHTML = tiles.map(tileHtml).join(' ');
+
+  const r = JokerEconomy.scoreMove(move, cfg);
+  let calc = '<b>' + r.letterSum + '</b> letter points';
+  if (r.wordMultiplier > 1) calc += ' &times; <b>' + r.wordMultiplier + '</b> word multiplier';
+  calc += ' = <b>' + (r.letterSum * r.wordMultiplier) + '</b>';
+  if (r.bingo) calc += '<br>+ <b>50</b> six-tile bonus <span class="badge">' + r.tilesPlaced + ' tiles placed</span>';
+  else calc += '<br><span style="opacity:.6">no six-tile bonus — ' + r.tilesPlaced + ' tiles placed</span>';
+  if (r.cost) calc += '<br>&minus; <b>' + r.cost + '</b> joker penalty';
+
+  calcEl.innerHTML = calc;
+  totalEl.textContent = r.total + ' points';
+  return r;
+}
+
+function render() {
+  const cfg = config();
+
+  if (!game) {
+    $('s-round').textContent = '—';
+    $('s-rack').innerHTML = '<span style="color:var(--muted)">Start a game to deal a rack.</span>';
+    $('plain-calc').innerHTML = $('joker-calc').innerHTML = '';
+    $('plain-total').textContent = $('joker-total').textContent = '';
+    $('plain-tiles').innerHTML = $('joker-tiles').innerHTML = '';
+    $('verdict').style.display = 'none';
+    ['b-plain', 'b-joker', 'b-next'].forEach(function (b) { $(b).disabled = true; });
+    return;
+  }
+
+  $('s-round').textContent = game.phase === 'gameover' ? 'Finished' : game.round + ' of ' + game.maxRounds;
+  $('s-human').textContent = game.humanTotal;
+  $('s-ai').textContent = game.aiTotal;
+  $('s-joker').textContent = game.jokerAvailable ? 'Held' : 'Spent';
+  $('s-joker-box').className = game.jokerAvailable ? 'stat lit' : 'stat';
+  $('s-rack').innerHTML = game.current
+    ? game.current.rack.map(function (c) { return tileHtml({ letter: c, bonus: 'None' }); }).join(' ')
+    : '';
+
+  const plainR = renderMove(game.current.plain, $('plain-calc'), $('plain-total'), $('plain-tiles'), cfg);
+  const jokerR = renderMove(game.current.withJoker, $('joker-calc'), $('joker-total'), $('joker-tiles'), cfg);
+
+  const gain = jokerR.total - plainR.total;
+  $('offer-joker').className = gain > 0 ? 'offer lit' : 'offer';
+
+  const v = $('verdict');
+  if (game.phase === 'revealed') {
+    const r = game.lastResult;
+    v.style.display = 'block';
+    v.innerHTML =
+      'You scored <b>' + r.scored.total + '</b>, the AI scored <b>' + r.ai + '</b>. ' +
+      '<b class="' + (r.humanWins ? 'good' : 'bad') + '">' + (r.humanWins ? 'You won the round.' : 'The AI won the round.') + '</b>' +
+      (r.usedJoker ? '' : (game.jokerAvailable ? ' Joker still in your pocket.' : '')) +
+      (gain > 0 && !r.usedJoker ? ' Spending it here would have been worth <b>' + gain + '</b> more.' : '');
+  } else {
+    v.style.display = 'block';
+    v.innerHTML = gain > 0
+      ? 'Spending the joker here is worth <b class="good">+' + gain + '</b> points.'
+      : 'Spending the joker here would cost you <b class="bad">' + gain + '</b> points.';
+  }
+
+  $('b-plain').disabled = game.phase !== 'offer';
+  $('b-joker').disabled = game.phase !== 'offer' || !game.jokerAvailable;
+  $('b-next').disabled  = game.phase !== 'revealed' || game.round >= game.maxRounds;
+
+  $('log').innerHTML = game.log.length
+    ? game.log.map(function (l) { return '<div>' + l + '</div>'; }).join('')
+    : '<div>Nothing yet.</div>';
+
+  renderSteps();
+}
+
+// ── Scenarios ──
+const SCENARIOS = [
+  {
+    name: 'The bingo windfall',
+    seed: 4,
+    setup: { rule: 'flat', cost: '12', bingo: 'yes', ai: '0.75' },
+    desc: 'Today the six-tile bonus fires when <b>total</b> tiles placed equals six, and the joker counts as one of them. Here your plain word is worth <b>6</b>. Add the joker and it becomes <b>46</b> — you bought fifty points for twelve. That is not a decision, it is an instruction. In step 3, flip the bonus rule to "real tiles only" and watch the same joker play collapse to <b>−4</b>. One equality check is worth a fifty-point swing.',
+    steps: [
+      { label: '1 — Deal the game', act: function () { newGame(4); } },
+      { label: '2 — Spend the joker and collect the bonus', act: function () { doPlay(true); } },
+      { label: '3 — Switch the bonus rule to "real tiles only" and compare', act: function () { $('cfg-bingo').value = 'no'; render(); } }
+    ]
+  },
+  {
+    name: 'The bingo trap',
+    seed: 8,
+    setup: { rule: 'flat', cost: '12', bingo: 'yes', ai: '0.75' },
+    desc: 'The mirror image, and the one that will make players feel cheated. Your plain word already uses all six tiles and scores <b>66</b>, bonus included. Add the joker and the count goes to <b>seven</b> — the equality fails, the fifty vanishes, and you pay twelve on top. The same word, one tile richer, scores <b>4</b>. A 62-point punishment for using the thing you were given.',
+    steps: [
+      { label: '1 — Deal the game and look at both columns', act: function () { newGame(8); } },
+      { label: '2 — Play it plain and collect the 66', act: function () { doPlay(false); } },
+      { label: '3 — Replay the same round, spending the joker', act: function () { newGame(8); doPlay(true); } }
+    ]
+  },
+  {
+    name: 'Hold or spend',
+    seed: 387,
+    setup: { rule: 'flat', cost: '12', bingo: 'no', ai: '0.75' },
+    desc: 'The decision the mechanic actually exists for, with the bonus rule set sanely. This game offers gains of <b>+10, +2, +14, +42</b> across its four rounds, but you cannot see the future — you only ever see the round in front of you. Round one looks decent. Do you take it, or hold? Bonus squares are rare, nine on a 225-square board, so a big opportunity is never guaranteed. Walk all four rounds holding the joker and see what patience was worth.',
+    steps: [
+      { label: '1 — Deal the game', act: function () { newGame(387); } },
+      { label: '2 — Round 1 offers +10. Hold, and play plain', act: function () { doPlay(false); } },
+      { label: '3 — On to round 2', act: function () { doNext(); } },
+      { label: '4 — Round 2 is nearly worthless. Hold again', act: function () { doPlay(false); } },
+      { label: '5 — On to round 3', act: function () { doNext(); } },
+      { label: '6 — Round 3 offers +14. Still holding', act: function () { doPlay(false); } },
+      { label: '7 — On to the last round', act: function () { doNext(); } },
+      { label: '8 — Round 4: spend it', act: function () { doPlay(true); } }
+    ]
+  },
+  {
+    name: 'The ceiling',
+    seed: 29,
+    setup: { rule: 'flat', cost: '12', bingo: 'no', ai: '0.75' },
+    desc: 'Six tiles drawn from this bag are mostly one-point letters, and the joker itself scores zero. Here the joker reaches a <b>quadruple</b> word score — two stacked multipliers, the best square combination in the game — and the play still <i>loses</i> you eight points. Step 2 removes the penalty entirely: the gain is still only <b>+4</b>. The lesson is that the ceiling is set by your letter values, not by the price. Multipliers cannot rescue a rack that has nothing to multiply.',
+    steps: [
+      { label: '1 — Deal the game and read both columns', act: function () { newGame(29); } },
+      { label: '2 — Remove the penalty entirely and look again', act: function () { $('cfg-rule').value = 'free'; render(); } },
+      { label: '3 — Put the penalty back to 12', act: function () { $('cfg-rule').value = 'flat'; $('cfg-cost').value = '12'; render(); } }
+    ]
+  }
+];
+
+function renderTabs() {
+  $('tabs').innerHTML = SCENARIOS.map(function (s, i) {
+    return '<button class="' + (scenario === i ? 'on' : '') + '" onclick="startScenario(' + i + ')">' + s.name + '</button>';
+  }).join('');
+}
+
+function startScenario(i) {
+  scenario = i;
+  step = 0;
+  const s = SCENARIOS[i];
+  $('cfg-rule').value = s.setup.rule;
+  $('cfg-cost').value = s.setup.cost;
+  $('cfg-bingo').value = s.setup.bingo;
+  $('cfg-ai').value = s.setup.ai;
+  newGame(s.seed);
+  $('scenario-desc').innerHTML = s.desc;
+  renderTabs();
+  render();
+}
+
+function renderSteps() {
+  if (scenario === null) {
+    $('scenario-steps').innerHTML = '';
+    return;
+  }
+  const s = SCENARIOS[scenario];
+  $('scenario-steps').innerHTML = s.steps.map(function (st, i) {
+    const cls = i < step ? 'step done' : i === step ? 'step next' : 'step';
+    return '<button class="' + cls + '" ' + (i === step ? '' : 'disabled') + ' onclick="runStep(' + i + ')">' + st.label + '</button>';
+  }).join('');
+}
+
+function runStep(i) {
+  if (i !== step) return;
+  SCENARIOS[scenario].steps[i].act();
+  step++;
+  render();
+}
+
+// ── Actions ──
+function newGame(seed) {
+  game = JokerEconomy.newGame(seed === undefined ? Math.floor(Math.random() * 100000) : seed, config());
+  render();
+}
+function doPlay(useJoker) { JokerEconomy.play(game, useJoker, config()); render(); }
+function doNext() { JokerEconomy.nextRound(game); render(); }
+
+$('b-new').onclick   = function () { scenario = null; $('scenario-desc').innerHTML = ''; renderTabs(); newGame(); };
+$('b-plain').onclick = function () { doPlay(false); };
+$('b-joker').onclick = function () { doPlay(true); };
+$('b-next').onclick  = function () { doNext(); };
+['cfg-rule', 'cfg-cost', 'cfg-bingo', 'cfg-ai'].forEach(function (id) { $(id).onchange = render; });
+
+$('b-sim').onclick = function () {
+  const base = config();
+  const variants = [
+    { name: 'Flat penalty of 6',      cfg: { costRule: 'flat', flatCost: 6 } },
+    { name: 'Flat penalty of 12',     cfg: { costRule: 'flat', flatCost: 12 } },
+    { name: 'Flat penalty of 20',     cfg: { costRule: 'flat', flatCost: 20 } },
+    { name: 'Value of chosen letter', cfg: { costRule: 'letter', flatCost: 0 } },
+    { name: 'No penalty at all',      cfg: { costRule: 'free', flatCost: 0 } }
+  ];
+
+  let rows = '';
+  variants.forEach(function (v) {
+    const cfg = Object.assign({}, base, v.cfg);
+    const r = JokerEconomy.simulate(1000, cfg);
+    rows += '<tr><td>' + v.name + '</td>' +
+      '<td class="num">' + r.spentPct + '%</td>' +
+      '<td class="num">' + r.avgSwing + '</td>' +
+      '<td class="num">' + r.winPct + '%</td></tr>';
+  });
+
+  $('sim-out').innerHTML =
+    '<table><thead><tr><th>Cost rule</th>' +
+    '<th class="num">Joker worth spending</th>' +
+    '<th class="num">Average gain when spent</th>' +
+    '<th class="num">You beat the AI</th>' +
+    '</tr></thead><tbody>' + rows + '</tbody></table>' +
+    '<div class="note">"Joker worth spending" is how often a patient player found any round at all where spending beat holding. ' +
+    'If that number is low, the penalty has priced the joker out of the game. If it is near 100% and the average gain is large, ' +
+    'the joker is free money and there is no decision to make. The interesting rules sit in between. ' +
+    'Current bonus rule: <b>' + (base.jokerCountsForBingo ? 'joker counts toward the six-tile bonus' : 'real tiles only') + '</b>.</div>';
+};
+
+renderTabs();
+render();
+</script>
