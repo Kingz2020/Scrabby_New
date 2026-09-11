@@ -190,6 +190,7 @@ public class UIManager : MonoBehaviour
             {
                 GameObject tempTile = Instantiate(basicTile);
                 tempTile.transform.SetParent(ghostTile.transform, false);
+                ghostTile.FitChildToCell(tempTile.transform);
 
                 TileScript tileScript = tempTile.GetComponent<TileScript>();
                 if (tileScript != null)
@@ -234,6 +235,7 @@ public class UIManager : MonoBehaviour
 
             GameObject tempTile = Instantiate(basicTile);
             tempTile.transform.SetParent(ghostTile.transform, false);
+            ghostTile.FitChildToCell(tempTile.transform);
 
             TileScript tileScript =
                 tempTile.GetComponent<TileScript>();
@@ -908,6 +910,8 @@ public class UIManager : MonoBehaviour
                 matchingGhostTile.transform,
                 false
             );
+
+            matchingGhostTile.FitChildToCell(preview.transform);
 
             TileScript tileScript =
                 preview.GetComponent<TileScript>();

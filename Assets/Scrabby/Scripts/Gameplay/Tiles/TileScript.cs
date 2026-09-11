@@ -135,7 +135,7 @@ public class TileScript : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDr
         placedTile.letterPosition = targetLocation.letterPosition;
 
         transform.SetParent(targetLocation.transform);
-        transform.localPosition = Vector3.zero;
+        targetLocation.FitChildToCell(transform);
 
         Singleton.Instance.DropManager.SetTempGrabbedTile(placedTile);
         Singleton.Instance.DropManager.AddLocation();

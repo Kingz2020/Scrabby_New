@@ -72,6 +72,25 @@ public class GhostTile : MonoBehaviour, IPointerEnterHandler, IPointerExitHandle
         Debug.Log($"[GHOST] {name} SetLocation => RowX={x}, ColY={y}");
     }
 
+    // The grid sizes each cell to match the board art's cavity, but a child
+    // parented in keeps whatever size its prefab was authored at. Stretching it
+    // to the cell is what makes every tile the same size and flush in the cavity.
+    public void FitChildToCell(Transform child)
+    {
+        RectTransform rt = child as RectTransform;
+
+        if (rt == null)
+            return;
+
+        rt.localRotation = Quaternion.identity;
+        rt.localScale = Vector3.one;
+        rt.anchorMin = Vector2.zero;
+        rt.anchorMax = Vector2.one;
+        rt.pivot = new Vector2(0.5f, 0.5f);
+        rt.offsetMin = Vector2.zero;
+        rt.offsetMax = Vector2.zero;
+    }
+
     public void ResetVisuals()
     {
         if (background != null)

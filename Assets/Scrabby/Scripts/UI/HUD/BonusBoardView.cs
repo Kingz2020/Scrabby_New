@@ -120,14 +120,9 @@ public class BonusBoardView : MonoBehaviour
                 matchingGhostTile.transform
             );
 
-        newBonusTileObject.transform.localPosition =
-            Vector3.zero;
-
-        newBonusTileObject.transform.localRotation =
-            Quaternion.identity;
-
-        newBonusTileObject.transform.localScale =
-            Vector3.one;
+        matchingGhostTile.FitChildToCell(
+            newBonusTileObject.transform
+        );
     }
 
     private GhostTile FindGhostTileByLocation(
