@@ -66,7 +66,16 @@ public class BoardGen : MonoBehaviour {
         grid.constraint = GridLayoutGroup.Constraint.FixedColumnCount;
         grid.constraintCount = RowX;
 
+        // GetStartOffset drops the whole surplus at the far edge, so with the
+        // default UpperLeft every rounding error piles up below the last row and
+        // the board reads lop-sided. Centred, any residual splits evenly instead.
+        grid.childAlignment = TextAnchor.MiddleCenter;
+
         float height = padY * 2f + cell * RowY + gap * (RowY - 1);
         rect.sizeDelta = new Vector2(rect.sizeDelta.x, height);
+
+        Debug.Log($"[BOARD] width={width:F2} cell={cell:F2} gap={gap:F2} " +
+                  $"padX={padX:F2} padY={padY:F2} height={height:F2} " +
+                  $"rectAfter={rect.rect.width:F2}x{rect.rect.height:F2}");
     }
 }
