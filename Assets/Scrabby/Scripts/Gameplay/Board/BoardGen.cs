@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.UI;
 
 // Coordinate convention used everywhere:
 // x = horizontal board coordinate / column, 1-based for LetterPosition.
@@ -7,12 +8,22 @@ using UnityEngine;
 // Board arrays use [x, y].
 // Bonus arrays are 0-based: boardBonusTiles[x - 1, y - 1].
 
-public class BoardGen: MonoBehaviour {
+public class BoardGen : MonoBehaviour {
 
     public GameObject GhostGO;
     public int RowX;
     public int RowY;
-    
+
+    [Header("Proportions, as a fraction of the board's width")]
+
+    [SerializeField] private float sidePadding = 0.022f;
+    [SerializeField] private float topPadding = 0.012f;
+    [SerializeField] private float cellGap = 0.0152f;
+
+    private GridLayoutGroup grid;
+    private RectTransform rect;
+    private float lastWidth = -1f;
+
     public void Start() {
         for (int y = 1; y <= RowY; y++) {
             for (int x = 1; x <= RowX; x++) {
@@ -20,6 +31,42 @@ public class BoardGen: MonoBehaviour {
                 goTemp.GetComponent<GhostTile>().SetLocation(x, y);
             }
         }
+
+        FitToWidth();
+    }
+
+    private void OnRectTransformDimensionsChange() {
+        FitToWidth();
+    }
+
+    // Each cell draws its own cavity, so the grid owes nothing to a background
+    // image and can simply divide up whatever width it is handed. That is what
+    // makes the board survive an aspect ratio it was never designed against.
+    private void FitToWidth() {
+        if (grid == null) grid = GetComponent<GridLayoutGroup>();
+        if (rect == null) rect = transform as RectTransform;
+        if (grid == null || rect == null || RowX <= 0 || RowY <= 0) return;
+
+        float width = rect.rect.width;
+        if (width <= 0f || Mathf.Approximately(width, lastWidth)) return;
+        lastWidth = width;
+
+        float padX = width * sidePadding;
+        float padY = width * topPadding;
+        float gap = width * cellGap;
+
+        float cell = (width - padX * 2f - gap * (RowX - 1)) / RowX;
+        if (cell <= 0f) return;
+
+        grid.padding = new RectOffset(
+            Mathf.RoundToInt(padX), Mathf.RoundToInt(padX),
+            Mathf.RoundToInt(padY), Mathf.RoundToInt(padY));
+        grid.cellSize = new Vector2(cell, cell);
+        grid.spacing = new Vector2(gap, gap);
+        grid.constraint = GridLayoutGroup.Constraint.FixedColumnCount;
+        grid.constraintCount = RowX;
+
+        float height = padY * 2f + cell * RowY + gap * (RowY - 1);
+        rect.sizeDelta = new Vector2(rect.sizeDelta.x, height);
     }
 }
-;

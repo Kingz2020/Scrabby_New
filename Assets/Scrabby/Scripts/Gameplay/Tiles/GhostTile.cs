@@ -11,7 +11,6 @@ using UnityEngine.UI;
 
 public class GhostTile : MonoBehaviour, IPointerEnterHandler, IPointerExitHandler
 {
-    [SerializeField] private UnityEngine.UI.Image background;
     [SerializeField] private UnityEngine.UI.Image border;
     [SerializeField] private UnityEngine.UI.Image donut;
 
@@ -42,12 +41,6 @@ public class GhostTile : MonoBehaviour, IPointerEnterHandler, IPointerExitHandle
             {
                 donut = donutTrans.GetComponent<UnityEngine.UI.Image>();
             }
-        }
-
-        if (background != null)
-        {
-            background.color = new Color(0f, 0f, 0f, 0f);
-            //background.color = new Color(1f, 0f, 0f, 0.25f);
         }
 
         if (border != null)
@@ -93,11 +86,6 @@ public class GhostTile : MonoBehaviour, IPointerEnterHandler, IPointerExitHandle
 
     public void ResetVisuals()
     {
-        if (background != null)
-        {
-            background.color = new Color(0f, 0f, 0f, 0f);
-        }
-
         if (border != null)
         {
             border.color = normalBorderColor;
@@ -123,11 +111,6 @@ public class GhostTile : MonoBehaviour, IPointerEnterHandler, IPointerExitHandle
 
         if (Singleton.Instance.DropManager.isCurrentlyDragging)
         {
-            if (background != null)
-            {
-                background.color = new Color(0f, 0f, 0f, 0f);
-            }
-
             if (donut != null)
             {
                 donut.color = hoverBorderColor;
