@@ -139,14 +139,100 @@ public class UIManager : MonoBehaviour
 
     // Boxes a set of board cells, with the line sitting in the gap around them.
     // Returns the outline's rect, or null if the cells could not be measured.
+    // Both shapes are built in code rather than referenced as assets. They are
+    // plain geometry, and a serialized reference has to survive every rename and
+    // scene reload to work - which is exactly how this silently drew nothing.
+    private static Sprite BuildRoundedRingSprite()
+    {
+        const int size = 160, ring = 15, radius = 34, border = 38;
+
+        Texture2D texture = new Texture2D(size, size, TextureFormat.RGBA32, false);
+        texture.filterMode = FilterMode.Bilinear;
+        texture.wrapMode = TextureWrapMode.Clamp;
+
+        float half = size * 0.5f;
+        Color[] pixels = new Color[size * size];
+
+        for (int y = 0; y < size; y++)
+        {
+            for (int x = 0; x < size; x++)
+            {
+                float px = x + 0.5f - half;
+                float py = y + 0.5f - half;
+
+                float outer = RoundedRectDistance(px, py, half, half, radius);
+                float inner = RoundedRectDistance(
+                    px, py, half - ring, half - ring, Mathf.Max(radius - ring, 1f));
+
+                float alpha = Mathf.Clamp01(0.5f - outer) * Mathf.Clamp01(0.5f + inner);
+                pixels[y * size + x] = new Color(1f, 1f, 1f, alpha);
+            }
+        }
+
+        texture.SetPixels(pixels);
+        texture.Apply();
+
+        return Sprite.Create(
+            texture, new Rect(0f, 0f, size, size), new Vector2(0.5f, 0.5f), 100f, 0,
+            SpriteMeshType.FullRect, new Vector4(border, border, border, border));
+    }
+
+    private static Sprite BuildDiscSprite()
+    {
+        const int size = 128;
+
+        Texture2D texture = new Texture2D(size, size, TextureFormat.RGBA32, false);
+        texture.filterMode = FilterMode.Bilinear;
+        texture.wrapMode = TextureWrapMode.Clamp;
+
+        float half = size * 0.5f;
+        float radius = half - 1.5f;
+        Color[] pixels = new Color[size * size];
+
+        for (int y = 0; y < size; y++)
+        {
+            for (int x = 0; x < size; x++)
+            {
+                float distance = Mathf.Sqrt(
+                    (x + 0.5f - half) * (x + 0.5f - half) +
+                    (y + 0.5f - half) * (y + 0.5f - half)) - radius;
+
+                pixels[y * size + x] = new Color(1f, 1f, 1f, Mathf.Clamp01(0.5f - distance));
+            }
+        }
+
+        texture.SetPixels(pixels);
+        texture.Apply();
+
+        return Sprite.Create(
+            texture, new Rect(0f, 0f, size, size), new Vector2(0.5f, 0.5f), 100f);
+    }
+
+    // Signed distance to a rounded rectangle centred on the origin.
+    private static float RoundedRectDistance(
+        float x, float y, float halfWidth, float halfHeight, float radius)
+    {
+        float qx = Mathf.Abs(x) - (halfWidth - radius);
+        float qy = Mathf.Abs(y) - (halfHeight - radius);
+
+        float outside = Mathf.Sqrt(
+            Mathf.Max(qx, 0f) * Mathf.Max(qx, 0f) +
+            Mathf.Max(qy, 0f) * Mathf.Max(qy, 0f));
+
+        return outside + Mathf.Min(Mathf.Max(qx, qy), 0f) - radius;
+    }
+
     private RectTransform PlaceOutline(
         ref GameObject outlineObject,
         string name,
         List<RectTransform> cells,
         Color colour)
     {
-        if (wordOutlineSprite == null || cells == null || cells.Count == 0)
+        if (cells == null || cells.Count == 0)
             return null;
+
+        if (wordOutlineSprite == null)
+            wordOutlineSprite = BuildRoundedRingSprite();
 
         RectTransform grid = null;
         Vector2 min = new Vector2(float.MaxValue, float.MaxValue);
@@ -323,7 +409,7 @@ public class UIManager : MonoBehaviour
     private void AttachScoreBadge(RectTransform outlineRect, int score)
     {
         if (scoreBadgeSprite == null)
-            return;
+            scoreBadgeSprite = BuildDiscSprite();
 
         if (playedScoreBadge == null)
         {
@@ -347,6 +433,11 @@ public class UIManager : MonoBehaviour
             playedScoreLabel.fontStyle = FontStyles.Bold;
             playedScoreLabel.color = Color.white;
             playedScoreLabel.raycastTarget = false;
+
+            // Borrow the round message's font if none was assigned, so the badge
+            // matches the rest of the UI without needing a wired reference.
+            if (scoreBadgeFont == null && roundMessageText != null)
+                scoreBadgeFont = roundMessageText.font;
 
             if (scoreBadgeFont != null)
                 playedScoreLabel.font = scoreBadgeFont;
