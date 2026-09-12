@@ -566,6 +566,10 @@ public class UIManager : MonoBehaviour
     {
         ClearRejectedWordHighlight();
 
+        // The tiles are leaving the board, so the box round them goes with them.
+        // ApplyWinningMove draws a fresh one for whichever word actually lands.
+        HidePlayedWordHighlight();
+
         List<PlacedTile> droppedTiles = Singleton.Instance.DropManager.GetTilesDroppedThisTurn();
 
         foreach (PlacedTile tile in droppedTiles)

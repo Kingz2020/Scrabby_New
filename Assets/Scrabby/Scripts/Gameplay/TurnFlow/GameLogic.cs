@@ -3268,6 +3268,16 @@ public class GameLogic : MonoBehaviour
         if (move == null || move.simulatedTiles == null || move.simulatedTiles.Count == 0)
             return cells;
 
+        // Works before the move is applied as well as after: overlaying the move's
+        // own tiles onto the board is a no-op once they are already there.
+        LetterInfo[,] board = (LetterInfo[,])validatedBoardTiles.Clone();
+
+        foreach (SimPlacedTile sim in move.simulatedTiles)
+        {
+            if (sim != null && sim.letterPosition != null)
+                board[sim.letterPosition.RowX, sim.letterPosition.ColY] = sim.letterInfo;
+        }
+
         TilePlacement orientation = InferMoveOrientationFromSimTiles(move.simulatedTiles);
 
         int row = move.simulatedTiles[0].letterPosition.RowX;
@@ -3275,16 +3285,16 @@ public class GameLogic : MonoBehaviour
 
         if (orientation == TilePlacement.Vertical)
         {
-            int first = GetFirstLetterIndex(TilePlacement.Vertical, validatedBoardTiles, row, col);
+            int first = GetFirstLetterIndex(TilePlacement.Vertical, board, row, col);
 
-            for (int r = first; r <= boardSizeX && validatedBoardTiles[r, col] != null; r++)
+            for (int r = first; r <= boardSizeX && board[r, col] != null; r++)
                 cells.Add(new LetterPosition(r, col));
         }
         else
         {
-            int first = GetFirstLetterIndex(TilePlacement.Horizontal, validatedBoardTiles, row, col);
+            int first = GetFirstLetterIndex(TilePlacement.Horizontal, board, row, col);
 
-            for (int c = first; c <= boardSizeY && validatedBoardTiles[row, c] != null; c++)
+            for (int c = first; c <= boardSizeY && board[row, c] != null; c++)
                 cells.Add(new LetterPosition(row, c));
         }
 
@@ -3381,35 +3391,6 @@ public class GameLogic : MonoBehaviour
         return bestTile.letterPosition;
     }
 
-
-    private LetterPosition GetPendingMoveAnchorPosition(RoundMove move)
-    {
-        if (move == null || move.simulatedTiles == null || move.simulatedTiles.Count == 0)
-        {
-            return null;
-        }
-
-        SimPlacedTile bestTile = move.simulatedTiles[0];
-        foreach (SimPlacedTile simTile in move.simulatedTiles)
-        {
-            if (simTile == null || simTile.letterPosition == null)
-                continue;
-
-            // Find bottom-rightmost tile
-            if (simTile.letterPosition.RowX > bestTile.letterPosition.RowX)
-            {
-                bestTile = simTile;
-            }
-            else if (simTile.letterPosition.RowX == bestTile.letterPosition.RowX)
-            {
-                if (simTile.letterPosition.ColY > bestTile.letterPosition.ColY)
-                {
-                    bestTile = simTile;
-                }
-            }
-        }
-        return bestTile.letterPosition;
-    }
 
     private int CountEmptySquaresLeft(
     int row,
@@ -4033,12 +4014,10 @@ public class GameLogic : MonoBehaviour
 
             if (move != null && move.isValid)
             {
-                LetterPosition popupAnchor = GetPendingMoveAnchorPosition(move);
-                if (popupAnchor != null &&
-                    Singleton.Instance != null &&
-                    Singleton.Instance.UIManager != null)
+                if (Singleton.Instance != null && Singleton.Instance.UIManager != null)
                 {
-                    Singleton.Instance.UIManager.ShowValidatedWordScore(popupAnchor, move.score, isWinningMove: false);
+                    Singleton.Instance.UIManager.HighlightPlayedWord(
+                        GetMainWordCells(move), move.score);
                 }
 
                 if (Singleton.Instance != null && Singleton.Instance.UIManager != null)
@@ -4089,12 +4068,12 @@ public class GameLogic : MonoBehaviour
 
         if (pendingPlayerMove != null && pendingPlayerMove.isValid)
         {
-            LetterPosition popupAnchor = GetPendingMoveAnchorPosition(pendingPlayerMove);
-            if (popupAnchor != null &&
-                Singleton.Instance != null &&
-                Singleton.Instance.UIManager != null)
+            // Confirms the word registered and what it is worth, at the moment the
+            // player commits it - not only if it goes on to win the round.
+            if (Singleton.Instance != null && Singleton.Instance.UIManager != null)
             {
-                Singleton.Instance.UIManager.ShowValidatedWordScore(popupAnchor, pendingPlayerMove.score, isWinningMove: false);
+                Singleton.Instance.UIManager.HighlightPlayedWord(
+                    GetMainWordCells(pendingPlayerMove), pendingPlayerMove.score);
             }
         }
 
