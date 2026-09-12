@@ -19861,6 +19861,9 @@ MonoBehaviour:
   gameBoard: {fileID: 49635656}
   handTileHolder: {fileID: 1190833017}
   basicTile: {fileID: 6356469288794072269, guid: 215f9d928367dc74996e86d1f41ab6ad, type: 3}
+  rejectedOutlineSprite: {fileID: 21300000, guid: a7f3c92e5d184b60ac2e71f3b8d45e07, type: 3}
+  rejectedOutlineColour: {r: 0.84, g: 0.15, b: 0.16, a: 1}
+  rejectedOutlineSeconds: 0.55
   wordlistDisplay: {fileID: 1591458274}
   worldlistTitleHolder: {fileID: 276232700}
   gameOverPanel: {fileID: 2021165567}

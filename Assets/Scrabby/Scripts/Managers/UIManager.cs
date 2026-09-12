@@ -11,6 +11,14 @@ public class UIManager : MonoBehaviour
     public GameObject gameBoard;
     public GameObject handTileHolder;
     public GameObject basicTile;
+
+    [Header("Invalid move feedback")]
+    [SerializeField] private Sprite rejectedOutlineSprite;
+    [SerializeField] private Color rejectedOutlineColour = new Color(0.84f, 0.15f, 0.16f, 1f);
+    [SerializeField] private float rejectedOutlineSeconds = 0.55f;
+    private GameObject rejectedOutline;
+    private Coroutine rejectedOutlineAnimation;
+
     public WordlistDisplay wordlistDisplay;
     public WorldlistTitleHolder worldlistTitleHolder;
     public GameObject gameOverPanel;
@@ -67,6 +75,8 @@ public class UIManager : MonoBehaviour
         if (word == null || word.Count == 0 || gameBoard == null)
             return;
 
+        List<TileScript> spelledIt = new List<TileScript>();
+
         foreach (TileScript tileScript in gameBoard.GetComponentsInChildren<TileScript>(true))
         {
             if (tileScript == null || tileScript.LetterInfo == null)
@@ -77,10 +87,119 @@ public class UIManager : MonoBehaviour
                 if (ReferenceEquals(letter, tileScript.LetterInfo))
                 {
                     tileScript.SetInvalidHighlight(true);
+                    spelledIt.Add(tileScript);
                     break;
                 }
             }
         }
+
+        DrawRejectedOutline(spelledIt);
+    }
+
+    // Boxes the word with a line that fills the gap between it and the cells
+    // around it. A word is always a straight run, so one rectangle covers it.
+    private void DrawRejectedOutline(List<TileScript> tiles)
+    {
+        if (rejectedOutlineSprite == null || tiles == null || tiles.Count == 0)
+            return;
+
+        RectTransform grid = null;
+        Vector2 min = new Vector2(float.MaxValue, float.MaxValue);
+        Vector2 max = new Vector2(float.MinValue, float.MinValue);
+
+        foreach (TileScript tile in tiles)
+        {
+            // A tile sits inside its board cell, and the cell is what the grid
+            // positions, so the cell is the thing with a reliable rect.
+            RectTransform cell = tile.transform.parent as RectTransform;
+
+            if (cell == null)
+                continue;
+
+            if (grid == null)
+                grid = cell.parent as RectTransform;
+
+            Vector2 centre = cell.localPosition;
+            Vector2 half = cell.rect.size * 0.5f;
+
+            min = Vector2.Min(min, centre - half);
+            max = Vector2.Max(max, centre + half);
+        }
+
+        if (grid == null)
+            return;
+
+        float gap = 15f;
+        GridLayoutGroup layout = grid.GetComponent<GridLayoutGroup>();
+
+        if (layout != null)
+            gap = Mathf.Max(layout.spacing.x, layout.spacing.y);
+
+        min -= new Vector2(gap, gap);
+        max += new Vector2(gap, gap);
+
+        if (rejectedOutline == null)
+        {
+            rejectedOutline = new GameObject(
+                "RejectedWordOutline",
+                typeof(RectTransform), typeof(CanvasRenderer),
+                typeof(Image), typeof(LayoutElement));
+
+            rejectedOutline.transform.SetParent(grid, false);
+
+            // Without this the grid would treat the outline as a 82nd cell.
+            rejectedOutline.GetComponent<LayoutElement>().ignoreLayout = true;
+
+            Image outline = rejectedOutline.GetComponent<Image>();
+            outline.sprite = rejectedOutlineSprite;
+            outline.type = Image.Type.Sliced;
+            outline.fillCenter = false;
+            outline.raycastTarget = false;
+        }
+
+        RectTransform rect = rejectedOutline.GetComponent<RectTransform>();
+        rect.anchorMin = new Vector2(0.5f, 0.5f);
+        rect.anchorMax = new Vector2(0.5f, 0.5f);
+        rect.pivot = new Vector2(0.5f, 0.5f);
+        rect.sizeDelta = max - min;
+        rect.anchoredPosition = (min + max) * 0.5f;
+        rect.SetAsLastSibling();
+
+        rejectedOutline.SetActive(true);
+
+        if (rejectedOutlineAnimation != null)
+            StopCoroutine(rejectedOutlineAnimation);
+
+        rejectedOutlineAnimation = StartCoroutine(
+            AnimateRejectedOutline(rect, rejectedOutline.GetComponent<Image>()));
+    }
+
+    private IEnumerator AnimateRejectedOutline(RectTransform rect, Image outline)
+    {
+        float elapsed = 0f;
+
+        while (elapsed < rejectedOutlineSeconds)
+        {
+            elapsed += Time.deltaTime;
+
+            float progress = Mathf.Clamp01(elapsed / rejectedOutlineSeconds);
+            float eased = 1f - Mathf.Pow(1f - progress, 3f);
+
+            outline.color = new Color(
+                rejectedOutlineColour.r,
+                rejectedOutlineColour.g,
+                rejectedOutlineColour.b,
+                eased);
+
+            float overshoot = Mathf.Lerp(1.05f, 1f, eased);
+            rect.localScale = new Vector3(overshoot, overshoot, 1f);
+
+            yield return null;
+        }
+
+        outline.color = rejectedOutlineColour;
+        rect.localScale = Vector3.one;
+        rejectedOutlineAnimation = null;
     }
 
     public void ClearRejectedWordHighlight()
@@ -88,6 +207,15 @@ public class UIManager : MonoBehaviour
         // Tiles move back to the hand after a failed turn, so clear both places.
         ClearHighlightsUnder(gameBoard);
         ClearHighlightsUnder(handTileHolder);
+
+        if (rejectedOutlineAnimation != null)
+        {
+            StopCoroutine(rejectedOutlineAnimation);
+            rejectedOutlineAnimation = null;
+        }
+
+        if (rejectedOutline != null)
+            rejectedOutline.SetActive(false);
     }
 
     private void ClearHighlightsUnder(GameObject root)
