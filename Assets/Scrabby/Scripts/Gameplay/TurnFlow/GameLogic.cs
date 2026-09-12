@@ -5721,6 +5721,11 @@ public class GameLogic : MonoBehaviour
 
         UIManager ui = Singleton.Instance.UIManager;
 
+        // The word markers are parented to the grid, not to the tiles, so
+        // clearing the board leaves the last round's box and score behind.
+        ui.HidePlayedWordHighlight();
+        ui.ClearRejectedWordHighlight();
+
         ui.ClearCommittedBoardTiles();
 
         if (validatedBoardTiles != null)
@@ -5824,6 +5829,9 @@ public class GameLogic : MonoBehaviour
         SetInputLocked(true);
 
         UIManager ui = Singleton.Instance.UIManager;
+
+        ui.HidePlayedWordHighlight();
+        ui.ClearRejectedWordHighlight();
 
         ui.ClearCommittedBoardTiles();
 
