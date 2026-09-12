@@ -606,6 +606,9 @@ MonoBehaviour:
   GhostGO: {fileID: 2642666204618927226, guid: a2d89b3ef8e9a06428fb605b8d5b3ff8, type: 3}
   RowX: 9
   RowY: 9
+  sidePadding: 0.022
+  topPadding: 0.012
+  cellGap: 0.0152
 --- !u!114 &49635662
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1450,8 +1453,8 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
-  m_AnchoredPosition: {x: 7.494, y: -561.986}
-  m_SizeDelta: {x: 196.637, y: 143.612}
+  m_AnchoredPosition: {x: 373, y: 654}
+  m_SizeDelta: {x: 196, y: 140}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &136636782
 MonoBehaviour:
@@ -3182,7 +3185,7 @@ MonoBehaviour:
   m_HandleRect: {fileID: 1080990187}
   m_Direction: 0
   m_Value: 0
-  m_Size: 0.99999994
+  m_Size: 1
   m_NumberOfSteps: 0
   m_OnValueChanged:
     m_PersistentCalls:
@@ -11025,16 +11028,16 @@ RectTransform:
   m_GameObject: {fileID: 885574056}
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 0.7061903, y: 0.74399006, z: 1.0088}
+  m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 1281643446}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 1, y: 0}
-  m_AnchorMax: {x: 1, y: 0}
-  m_AnchoredPosition: {x: -153, y: 276}
-  m_SizeDelta: {x: 160, y: 130}
-  m_Pivot: {x: 1, y: 0.5}
+  m_AnchorMin: {x: 0.5, y: 0.5}
+  m_AnchorMax: {x: 0.5, y: 0.5}
+  m_AnchoredPosition: {x: -140, y: -800}
+  m_SizeDelta: {x: 190, y: 140}
+  m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &885574058
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -11111,7 +11114,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_Sprite: {fileID: 21300000, guid: 729ba6d4ed3981d4f94974f3a2947b7c, type: 3}
+  m_Sprite: {fileID: 21300000, guid: 92d6f72a05de4764be874ac9fdf5d4b2, type: 3}
   m_Type: 0
   m_PreserveAspect: 0
   m_FillCenter: 1
@@ -14130,8 +14133,8 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 0}
   m_AnchorMax: {x: 0, y: 0}
-  m_AnchoredPosition: {x: 563.3, y: 158.232}
-  m_SizeDelta: {x: 938.61, y: 502.768}
+  m_AnchoredPosition: {x: 540, y: 470}
+  m_SizeDelta: {x: 1000, y: 180}
   m_Pivot: {x: 0.5, y: 0}
 --- !u!114 &1190833019
 MonoBehaviour:
@@ -14189,7 +14192,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_Sprite: {fileID: 21300000, guid: 97d9a01303a719648bf96c052c838bcf, type: 3}
+  m_Sprite: {fileID: 21300000, guid: ee5c574682274de79beb4e22bf100c9d, type: 3}
   m_Type: 0
   m_PreserveAspect: 0
   m_FillCenter: 1
@@ -14902,8 +14905,8 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
-  m_AnchoredPosition: {x: -336.92206, y: -550.6879}
-  m_SizeDelta: {x: 195.686, y: 116.342}
+  m_AnchoredPosition: {x: -350, y: -800}
+  m_SizeDelta: {x: 190, y: 140}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &1232677105
 MonoBehaviour:
@@ -16135,7 +16138,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
-  m_AnchoredPosition: {x: -268.11, y: -870.877}
+  m_AnchoredPosition: {x: 0, y: -960}
   m_SizeDelta: {x: 317.78, y: 73.754}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &1319486443
@@ -18641,8 +18644,8 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
-  m_AnchoredPosition: {x: 355.32, y: -557.66}
-  m_SizeDelta: {x: 189.35, y: 135.63}
+  m_AnchoredPosition: {x: 255, y: -800}
+  m_SizeDelta: {x: 380, y: 140}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &1535651932
 MonoBehaviour:
@@ -18720,7 +18723,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_Sprite: {fileID: 5145184000947586086, guid: e0e15f0000a2b1d45a01718e3ab12ead, type: 3}
+  m_Sprite: {fileID: 21300000, guid: b985f7d5524549d69192d36e452601d1, type: 3}
   m_Type: 0
   m_PreserveAspect: 0
   m_FillCenter: 1
@@ -19861,14 +19864,23 @@ MonoBehaviour:
   gameBoard: {fileID: 49635656}
   handTileHolder: {fileID: 1190833017}
   basicTile: {fileID: 6356469288794072269, guid: 215f9d928367dc74996e86d1f41ab6ad, type: 3}
-  wordOutlineSprite: {fileID: 21300000, guid: a7f3c92e5d184b60ac2e71f3b8d45e07, type: 3}
-  scoreBadgeSprite: {fileID: 21300000, guid: d5b81a04e7c34f92b6e05a173c8f2916, type: 3}
-  scoreBadgeFont: {fileID: 11400000, guid: 79307f501eb267b44be9d7ca808a3dfb, type: 2}
+  wordOutlineSprite: {fileID: 0}
+  scoreBadgeSprite: {fileID: 0}
+  scoreBadgeFont: {fileID: 0}
   rejectedOutlineColour: {r: 0.84, g: 0.15, b: 0.16, a: 1}
   playedOutlineColour: {r: 0.18, g: 0.64, b: 0.33, a: 1}
   rejectedOutlineSeconds: 0.55
   rejectedOutlineHoldSeconds: 1.2
   rejectedOutlineFadeOutSeconds: 0.45
+  replayTileStagger: 0.09
+  replayTileFall: 0.26
+  replayTileSettle: 0.22
+  replayLandedPause: 0.14
+  replayWordPunch: 0.42
+  replayPunchStagger: 0.045
+  replayWordHold: 1.1
+  replayTileExit: 0.32
+  replayExitStagger: 0.035
   wordlistDisplay: {fileID: 1591458274}
   worldlistTitleHolder: {fileID: 276232700}
   gameOverPanel: {fileID: 2021165567}
@@ -19883,7 +19895,6 @@ MonoBehaviour:
   roundListContainer: {fileID: 146377715}
   roundReplayRowPrefab: {fileID: 3007080502781839535, guid: 50cc945e9a7b3cb48ae2523e1c4a2044, type: 3}
   backToMatchButton: {fileID: 1775335555}
-  replayPreviewColor: {r: 1, g: 0.82, b: 0.18, a: 0.75}
 --- !u!1 &1639321709
 GameObject:
   m_ObjectHideFlags: 0
@@ -26234,6 +26245,9 @@ MonoBehaviour:
   GhostGO: {fileID: 2642666204618927226, guid: a2d89b3ef8e9a06428fb605b8d5b3ff8, type: 3}
   RowX: 7
   RowY: 1
+  sidePadding: 0.022
+  topPadding: 0.012
+  cellGap: 0.0152
 --- !u!114 &2070272769
 MonoBehaviour:
   m_ObjectHideFlags: 0
