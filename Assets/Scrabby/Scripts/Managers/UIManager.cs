@@ -58,8 +58,54 @@ public class UIManager : MonoBehaviour
         tempTile.GetComponent<TileScript>().InitTile(tileInfo);
     }
 
+    // The word's LetterInfo objects are the same instances the tiles carry, so
+    // matching by reference picks out exactly the tiles that spelled it.
+    public void HighlightRejectedWord(List<LetterInfo> word)
+    {
+        ClearRejectedWordHighlight();
+
+        if (word == null || word.Count == 0 || gameBoard == null)
+            return;
+
+        foreach (TileScript tileScript in gameBoard.GetComponentsInChildren<TileScript>(true))
+        {
+            if (tileScript == null || tileScript.LetterInfo == null)
+                continue;
+
+            foreach (LetterInfo letter in word)
+            {
+                if (ReferenceEquals(letter, tileScript.LetterInfo))
+                {
+                    tileScript.SetInvalidHighlight(true);
+                    break;
+                }
+            }
+        }
+    }
+
+    public void ClearRejectedWordHighlight()
+    {
+        // Tiles move back to the hand after a failed turn, so clear both places.
+        ClearHighlightsUnder(gameBoard);
+        ClearHighlightsUnder(handTileHolder);
+    }
+
+    private void ClearHighlightsUnder(GameObject root)
+    {
+        if (root == null)
+            return;
+
+        foreach (TileScript tileScript in root.GetComponentsInChildren<TileScript>(true))
+        {
+            if (tileScript != null)
+                tileScript.SetInvalidHighlight(false);
+        }
+    }
+
     public void ReturnTilesToHand()
     {
+        ClearRejectedWordHighlight();
+
         List<PlacedTile> droppedTiles = Singleton.Instance.DropManager.GetTilesDroppedThisTurn();
 
         foreach (PlacedTile tile in droppedTiles)

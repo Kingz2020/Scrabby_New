@@ -142,6 +142,10 @@ public class GameLogic : MonoBehaviour
         new List<RoundMove>(MaxAIDifficultyCandidates);
     private RoundMove bestAICandidate;
 
+    // The word the dictionary rejected on the player's last submission, kept so
+    // the reveal step can colour those tiles rather than only naming the failure.
+    private List<LetterInfo> rejectedPlayerWord;
+
     private void Awake()
     {
         //SetSoloDifficulty(SoloDifficulty.Medium);
@@ -1386,6 +1390,18 @@ public class GameLogic : MonoBehaviour
 
     public bool CheckWordValidity(List<List<LetterInfo>> inputWords)
     {
+        return CheckWordValidity(inputWords, out _);
+    }
+
+    // Reports the first word the dictionary rejected so the UI can point at it.
+    // One is enough: a move usually fails on a single word, and colouring every
+    // failure at once would just be noise.
+    public bool CheckWordValidity(
+        List<List<LetterInfo>> inputWords,
+        out List<LetterInfo> firstRejectedWord)
+    {
+        firstRejectedWord = null;
+
         foreach (var wordTiles in inputWords)
         {
             string word = string.Empty;
@@ -1395,7 +1411,10 @@ public class GameLogic : MonoBehaviour
             }
 
             if (scrabbleWordSet == null || !scrabbleWordSet.Contains(word.ToUpper()))
+            {
+                firstRejectedWord = wordTiles;
                 return false;
+            }
         }
 
         return true;
@@ -1745,9 +1764,15 @@ public class GameLogic : MonoBehaviour
                                 "You played " + pendingPlayerMove.word + " for " + pendingPlayerMove.score + " points. Press EndTurn."
                             );
                         else
+                        {
                             Singleton.Instance.UIManager.ShowRoundMessage(
                                 "Your move was invalid. Press EndTurn."
                             );
+
+                            Singleton.Instance.UIManager.HighlightRejectedWord(
+                                rejectedPlayerWord
+                            );
+                        }
                     }
 
                     roundRevealStep = 1;
@@ -3848,6 +3873,10 @@ public class GameLogic : MonoBehaviour
 
     private RoundMove EvaluatePlayerSubmission()
     {
+        // Only a dictionary rejection sets this; the placement failures below
+        // return early, so clear it here or a previous turn's word gets coloured.
+        rejectedPlayerWord = null;
+
         RoundMove move = new RoundMove();
         move.isHuman = true;
         move.timeUsed = GetCurrentTimeUsed();
@@ -3911,14 +3940,16 @@ public class GameLogic : MonoBehaviour
 
         List<List<LetterInfo>> words = CollectAllWords(orientation);
 
-        if (!CheckWordValidity(words))
+        if (!CheckWordValidity(words, out List<LetterInfo> rejectedWord))
         {
+            rejectedPlayerWord = rejectedWord;
             move.isValid = false;
             move.score = 0;
             move.word = "";
             return move;
         }
 
+        rejectedPlayerWord = null;
         move.isValid = true;
         move.score = 0;
         move.word = "";

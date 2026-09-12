@@ -23,6 +23,30 @@ public class TileScript : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDr
 
     [SerializeField] private bool isLockedOnBoard = false;
 
+    private static readonly Color InvalidWordColour = new Color(0.84f, 0.15f, 0.16f, 1f);
+    private Color normalLetterColour;
+    private Color normalPointsColour;
+    private bool normalColoursCaptured;
+
+    // Marks this tile as part of a word the dictionary rejected.
+    public void SetInvalidHighlight(bool invalid)
+    {
+        if (textLetter == null)
+            return;
+
+        if (!normalColoursCaptured)
+        {
+            normalLetterColour = textLetter.color;
+            normalPointsColour = textPoints != null ? textPoints.color : normalLetterColour;
+            normalColoursCaptured = true;
+        }
+
+        textLetter.color = invalid ? InvalidWordColour : normalLetterColour;
+
+        if (textPoints != null)
+            textPoints.color = invalid ? InvalidWordColour : normalPointsColour;
+    }
+
     private void Awake()
     {
         canvasGroup = GetComponent<CanvasGroup>();
