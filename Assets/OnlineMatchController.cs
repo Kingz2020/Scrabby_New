@@ -558,7 +558,7 @@ public class OnlineMatchController : MonoBehaviour
             summary +=
                 $"\nRound {round.roundNumber}: " +
                 $"{myWord} ({myScore}) vs " +
-                $"{opponentWord} ({opponentScore}) — " +
+                $"{opponentWord} ({opponentScore}) â€” " +
                 winnerLabel;
         }
 
@@ -783,11 +783,11 @@ public class OnlineMatchController : MonoBehaviour
                     if (transactionSnapshot == null ||
                         !transactionSnapshot.Exists)
                     {
-                        Debug.LogError("[OnlineMatchController] TRANSACTION RESULT INVALID — aborting resolution.");
+                        Debug.LogError("[OnlineMatchController] TRANSACTION RESULT INVALID â€” aborting resolution.");
                         return;
                     }
 
-                    Debug.Log("[OnlineMatchController] TRANSACTION CLAIM COMPLETED — beginning re-read.");
+                    Debug.Log("[OnlineMatchController] TRANSACTION CLAIM COMPLETED â€” beginning re-read.");
 
                     matchRef.GetValueAsync().ContinueWithOnMainThread(reReadTask =>
                     {
@@ -795,7 +795,7 @@ public class OnlineMatchController : MonoBehaviour
                             reReadTask.Result == null ||
                             !reReadTask.Result.Exists)
                         {
-                            Debug.LogWarning("[OnlineMatchController] TryResolveRound re-read FAILED — aborting resolve" +
+                            Debug.LogWarning("[OnlineMatchController] TryResolveRound re-read FAILED â€” aborting resolve" +
                                              " | matchId=" + matchId +
                                              " round=" + roundNumber);
                             return;
@@ -1149,12 +1149,12 @@ public class OnlineMatchController : MonoBehaviour
                   nextRound + " status=" + liveMatch.status +
                   " roundResolutionStatus=" + liveMatch.roundResolutionStatus);
 
-        // Guard: re-check right before writing — abort if someone already advanced this round
+        // Guard: re-check right before writing â€” abort if someone already advanced this round
         matchRef.GetValueAsync().ContinueWithOnMainThread(guardTask =>
         {
             if (guardTask.IsFaulted || guardTask.Result == null || !guardTask.Result.Exists)
             {
-                Debug.LogWarning("[OnlineMatchController] Resolve guard read failed — aborting write.");
+                Debug.LogWarning("[OnlineMatchController] Resolve guard read failed â€” aborting write.");
                 return;
             }
 
@@ -1169,7 +1169,7 @@ public class OnlineMatchController : MonoBehaviour
             if (freshCheck == null || freshCheck.currentRoundNumber != roundNumber)
             {
                 Debug.LogWarning("[OnlineMatchController] Round " + roundNumber +
-                    " resolution aborted at final write — match already advanced to " +
+                    " resolution aborted at final write â€” match already advanced to " +
                     (freshCheck != null
                         ? freshCheck.currentRoundNumber.ToString()
                         : "NULL") + ".");
@@ -1914,7 +1914,7 @@ ValueChangedEventArgs args)
         );
 
         uiManager.ShowRoundMessage(
-            "Replay — Round " + entry.roundNumber + ": " +
+            "Replay â€” Round " + entry.roundNumber + ": " +
             (entry.anyValidMove
                 ? entry.winnerWord + " (" +
                   entry.winnerScore + " points)"
@@ -1935,6 +1935,9 @@ ValueChangedEventArgs args)
                 entry.player2SimulatedTilesJson
             );
 
+        // The same cascade the solo replay plays. This used to drop a set of
+        // static ghost tiles onto the board and clear them a second and a half
+        // later, so an online replay had no animation at all.
         if (player1Tiles.Count > 0)
         {
             uiManager.ShowRoundMessage(
@@ -1946,13 +1949,13 @@ ValueChangedEventArgs args)
                 " points)"
             );
 
-            uiManager.ShowReplayPreviewTiles(
-                player1Tiles
+            yield return StartCoroutine(
+                uiManager.PlayMovePreview(
+                    player1Tiles,
+                    UIManager.ReplayFirstPlayerColour,
+                    entry.player1Score
+                )
             );
-
-            yield return new WaitForSeconds(1.5f);
-
-            uiManager.ClearReplayPreviewTiles();
         }
 
         if (player2Tiles.Count > 0)
@@ -1966,13 +1969,13 @@ ValueChangedEventArgs args)
                 " points)"
             );
 
-            uiManager.ShowReplayPreviewTiles(
-                player2Tiles
+            yield return StartCoroutine(
+                uiManager.PlayMovePreview(
+                    player2Tiles,
+                    UIManager.ReplaySecondPlayerColour,
+                    entry.player2Score
+                )
             );
-
-            yield return new WaitForSeconds(1.5f);
-
-            uiManager.ClearReplayPreviewTiles();
         }
 
         if (entry.anyValidMove)
@@ -1989,9 +1992,33 @@ ValueChangedEventArgs args)
                 " points!"
             );
 
-            gameLogic.ApplyReplayWinningTiles(
-                winningTilesJson
-            );
+            List<SimPlacedTileData> winnerTiles =
+                GetReplayTiles(winningTilesJson);
+
+            if (winnerTiles.Count > 0)
+            {
+                yield return StartCoroutine(
+                    uiManager.PlayMovePreview(
+                        winnerTiles,
+                        UIManager.ReplayWinnerColour,
+                        entry.winnerScore,
+                        true
+                    )
+                );
+
+                // The cascade left the winning tiles on the board, so this only
+                // catches the board model up with what is already on screen.
+                gameLogic.ApplyReplayWinningTiles(
+                    winningTilesJson,
+                    false
+                );
+            }
+            else
+            {
+                gameLogic.ApplyReplayWinningTiles(
+                    winningTilesJson
+                );
+            }
         }
         else
         {

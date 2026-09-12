@@ -5701,11 +5701,11 @@ public class GameLogic : MonoBehaviour
         }
     }
 
-    // Both replays animate through UIManager.PlayMovePreview with these colours,
-    // so solo and online look the same by construction rather than by agreement.
-    private static readonly Color ReplayFirstPlayerColour = new Color(0.25f, 0.65f, 1f, 1f);
-    private static readonly Color ReplaySecondPlayerColour = new Color(1f, 0.70f, 0.20f, 1f);
-    private static readonly Color ReplayWinnerColour = new Color(0.20f, 1f, 0.34f, 1f);
+    // The colours live on UIManager, next to the code that animates them, so
+    // every replay path reaches for the same three values.
+    private static Color ReplayFirstPlayerColour => UIManager.ReplayFirstPlayerColour;
+    private static Color ReplaySecondPlayerColour => UIManager.ReplaySecondPlayerColour;
+    private static Color ReplayWinnerColour => UIManager.ReplayWinnerColour;
 
     public IEnumerator ReplaySoloRound(RoundResult round)
     {
@@ -5752,7 +5752,8 @@ public class GameLogic : MonoBehaviour
                 $"You played {round.humanWord} ({round.humanScore} points)");
 
             yield return StartCoroutine(
-                ui.PlayMovePreview(round.humanTiles, ReplayFirstPlayerColour, 1.5f));
+                ui.PlayMovePreview(
+                    round.humanTiles, ReplayFirstPlayerColour, round.humanScore));
         }
 
         if (round.aiValid && round.aiTiles.Count > 0)
@@ -5761,7 +5762,8 @@ public class GameLogic : MonoBehaviour
                 $"Opponent played {round.aiWord} ({round.aiScore} points)");
 
             yield return StartCoroutine(
-                ui.PlayMovePreview(round.aiTiles, ReplaySecondPlayerColour, 1.5f));
+                ui.PlayMovePreview(
+                    round.aiTiles, ReplaySecondPlayerColour, round.aiScore));
         }
 
         if (round.winnerTiles.Count > 0)
@@ -5772,10 +5774,13 @@ public class GameLogic : MonoBehaviour
             ui.ShowRoundMessage(
                 $"{winnerWord} wins the round for {winnerScore} points!");
 
+            // The winning tiles stay exactly where they land, so the board is
+            // only written to here - it is not cleared and rebuilt underneath them.
             yield return StartCoroutine(
-                ui.PlayMovePreview(round.winnerTiles, ReplayWinnerColour, 2f));
+                ui.PlayMovePreview(
+                    round.winnerTiles, ReplayWinnerColour, winnerScore, true));
 
-            PlaceReplayTiles(round.winnerTiles);
+            PlaceReplayTiles(round.winnerTiles, false);
         }
         else
         {
@@ -5785,7 +5790,11 @@ public class GameLogic : MonoBehaviour
         SetInputLocked(false);
     }
 
-    private void PlaceReplayTiles(List<SimPlacedTileData> tiles)
+    // spawnVisuals is false when the tiles are already on the board because a
+    // replay just dropped them there, and only the model needs catching up.
+    private void PlaceReplayTiles(
+        List<SimPlacedTileData> tiles,
+        bool spawnVisuals = true)
     {
         if (tiles == null)
             return;
@@ -5802,7 +5811,9 @@ public class GameLogic : MonoBehaviour
 
             validatedBoardTiles[tile.row, tile.col] = letterInfo;
 
-            if (Singleton.Instance != null && Singleton.Instance.UIManager != null)
+            if (spawnVisuals &&
+                Singleton.Instance != null &&
+                Singleton.Instance.UIManager != null)
             {
                 Singleton.Instance.UIManager.PlaceAITileOnBoard(
                     letterInfo, new LetterPosition(tile.row, tile.col));
@@ -5811,7 +5822,9 @@ public class GameLogic : MonoBehaviour
     }
 
     public IEnumerator ReplayOnlineRound(
-    OnlineRoundHistoryEntry round)
+    OnlineRoundHistoryEntry round,
+    string player1Name = "Player 1",
+    string player2Name = "Player 2")
     {
         if (round == null)
         {
@@ -5865,11 +5878,15 @@ public class GameLogic : MonoBehaviour
             player1Move.tiles != null &&
             player1Move.tiles.Count > 0)
         {
+            ui.ShowRoundMessage(
+                player1Name + " played " + round.player1Word +
+                " (" + round.player1Score + " points)");
+
             yield return StartCoroutine(
                 ui.PlayMovePreview(
                     player1Move.tiles,
                     player1Color,
-                    1.5f
+                    round.player1Score
                 )
             );
         }
@@ -5879,11 +5896,15 @@ public class GameLogic : MonoBehaviour
             player2Move.tiles != null &&
             player2Move.tiles.Count > 0)
         {
+            ui.ShowRoundMessage(
+                player2Name + " played " + round.player2Word +
+                " (" + round.player2Score + " points)");
+
             yield return StartCoroutine(
                 ui.PlayMovePreview(
                     player2Move.tiles,
                     player2Color,
-                    1.5f
+                    round.player2Score
                 )
             );
         }
@@ -5905,14 +5926,23 @@ public class GameLogic : MonoBehaviour
                 winnerMove.tiles != null &&
                 winnerMove.tiles.Count > 0)
             {
+                ui.ShowRoundMessage(
+                    round.winnerWord + " wins the round for " +
+                    round.winnerScore + " points!");
+
                 yield return StartCoroutine(
                     ui.PlayMovePreview(
                         winnerMove.tiles,
                         winnerColor,
-                        2f
+                        round.winnerScore,
+                        true
                     )
                 );
             }
+        }
+        else
+        {
+            ui.ShowRoundMessage("No valid move this round.");
         }
 
         SetInputLocked(false);
@@ -6005,8 +6035,11 @@ public class GameLogic : MonoBehaviour
         }
     }
   
+    // spawnVisuals is false when a replay has already dropped these tiles onto
+    // the board and only the model needs catching up.
     public void ApplyReplayWinningTiles(
-    string simulatedTilesJson)
+    string simulatedTilesJson,
+    bool spawnVisuals = true)
     {
         if (string.IsNullOrEmpty(simulatedTilesJson))
         {
@@ -6076,7 +6109,8 @@ public class GameLogic : MonoBehaviour
 
             validatedBoardTiles[row, col] = letterInfo;
 
-            if (Singleton.Instance != null &&
+            if (spawnVisuals &&
+                Singleton.Instance != null &&
                 Singleton.Instance.UIManager != null)
             {
                 Singleton.Instance.UIManager.PlaceAITileOnBoard(

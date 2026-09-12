@@ -28,6 +28,29 @@ public class UIManager : MonoBehaviour
     private TextMeshProUGUI playedScoreLabel;
     private Coroutine playedOutlineAnimation;
 
+    // The box and badge are drawn in whatever colour the current word owns:
+    // the played-word green normally, a player's replay colour during a replay.
+    private Color activeOutlineColour;
+
+    // Solo and online replays animate through the same methods with the same
+    // colours, so they match by construction rather than by agreement.
+    public static readonly Color ReplayFirstPlayerColour = new Color(0.25f, 0.65f, 1f, 1f);
+    public static readonly Color ReplaySecondPlayerColour = new Color(1f, 0.70f, 0.20f, 1f);
+    public static readonly Color ReplayWinnerColour = new Color(0.20f, 1f, 0.34f, 1f);
+
+    [Header("Round replay cascade")]
+    // A word falls as one cascade rather than as n separate drops, so the tiles
+    // overlap: the next one is already on its way before the last has settled.
+    [SerializeField] private float replayTileStagger = 0.09f;
+    [SerializeField] private float replayTileFall = 0.26f;
+    [SerializeField] private float replayTileSettle = 0.22f;
+    [SerializeField] private float replayLandedPause = 0.14f;
+    [SerializeField] private float replayWordPunch = 0.42f;
+    [SerializeField] private float replayPunchStagger = 0.045f;
+    [SerializeField] private float replayWordHold = 1.1f;
+    [SerializeField] private float replayTileExit = 0.32f;
+    [SerializeField] private float replayExitStagger = 0.035f;
+
     public WordlistDisplay wordlistDisplay;
     public WorldlistTitleHolder worldlistTitleHolder;
     public GameObject gameOverPanel;
@@ -49,16 +72,7 @@ public class UIManager : MonoBehaviour
     private readonly List<RoundReplayRow> spawnedRoundRows =
         new List<RoundReplayRow>();
 
-    //[SerializeField] private GameObject replayPreviewTilePrefab;
-
-    private readonly List<GameObject> replayPreviewTiles =
-        new List<GameObject>();
-
     [SerializeField] private GameObject backToMatchButton;
-
-    [SerializeField]
-    private Color replayPreviewColor =
-        new Color(1f, 0.82f, 0.18f, 0.75f);
 
     public void SetTextReferences(TextMeshProUGUI human, TextMeshProUGUI ai, TextMeshProUGUI round)
     {
@@ -377,7 +391,16 @@ public class UIManager : MonoBehaviour
     // of that box, so the number belongs to a word instead of floating loose.
     public void HighlightPlayedWord(List<LetterPosition> cells, int score)
     {
+        HighlightPlayedWord(cells, score, playedOutlineColour);
+    }
+
+    // The replay reuses this to pin a move's score to the move, in that player's
+    // colour, so the number is never a loose figure floating over the board.
+    public void HighlightPlayedWord(List<LetterPosition> cells, int score, Color colour)
+    {
         HidePlayedWordHighlight();
+
+        activeOutlineColour = colour;
 
         if (cells == null || cells.Count == 0 || gameBoard == null)
             return;
@@ -393,7 +416,7 @@ public class UIManager : MonoBehaviour
         }
 
         RectTransform rect = PlaceOutline(
-            ref playedOutline, "PlayedWordOutline", cellRects, playedOutlineColour);
+            ref playedOutline, "PlayedWordOutline", cellRects, activeOutlineColour);
 
         if (rect == null)
             return;
@@ -463,7 +486,7 @@ public class UIManager : MonoBehaviour
         badgeRect.sizeDelta = new Vector2(diameter, diameter);
         badgeRect.localScale = Vector3.one;
 
-        playedScoreBadge.GetComponent<Image>().color = playedOutlineColour;
+        playedScoreBadge.GetComponent<Image>().color = activeOutlineColour;
 
         if (playedScoreLabel != null)
             playedScoreLabel.text = score.ToString();
@@ -486,12 +509,12 @@ public class UIManager : MonoBehaviour
             float eased = 1f - Mathf.Pow(1f - progress, 3f);
 
             outline.color = new Color(
-                playedOutlineColour.r, playedOutlineColour.g, playedOutlineColour.b, eased);
+                activeOutlineColour.r, activeOutlineColour.g, activeOutlineColour.b, eased);
 
             if (badge != null)
             {
                 badge.color = new Color(
-                    playedOutlineColour.r, playedOutlineColour.g, playedOutlineColour.b, eased);
+                    activeOutlineColour.r, activeOutlineColour.g, activeOutlineColour.b, eased);
 
                 if (playedScoreLabel != null)
                     playedScoreLabel.alpha = eased;
@@ -508,12 +531,12 @@ public class UIManager : MonoBehaviour
             yield return null;
         }
 
-        outline.color = playedOutlineColour;
+        outline.color = activeOutlineColour;
         rect.localScale = Vector3.one;
 
         if (badge != null)
         {
-            badge.color = playedOutlineColour;
+            badge.color = activeOutlineColour;
             playedScoreBadge.transform.localScale = Vector3.one;
 
             if (playedScoreLabel != null)
@@ -759,6 +782,11 @@ public class UIManager : MonoBehaviour
             tileScript.InitTile(new LetterInfo(tileInfo));
             tileScript.SetLockedOnBoard(true);
 
+            // Hidden from the moment it exists. Instantiating it visible and
+            // hiding it later is what made a whole word flash onto the board
+            // before any of it had animated.
+            tileScript.HideForReplayDrop();
+
             if (tileScript.PlacedTileData != null)
             {
                 tileScript.PlacedTileData.letterPosition =
@@ -779,15 +807,15 @@ public class UIManager : MonoBehaviour
         return null;
     }
 
-    public IEnumerator PlayMovePreview(
-    List<SimPlacedTileData> moveTiles,
-    Color highlightColor,
-    float totalDuration)
+    // A word is always a straight run, so reading order is left-to-right for a
+    // row and top-to-bottom for a column. Both replay paths animate in this
+    // order, which is the order a player would read the word in.
+    private static void SortIntoReadingOrder(List<SimPlacedTileData> tiles)
     {
-        if (moveTiles == null || moveTiles.Count == 0)
-            yield break;
+        if (tiles == null)
+            return;
 
-        moveTiles.Sort((a, b) =>
+        tiles.Sort((a, b) =>
         {
             if (a == null && b == null) return 0;
             if (a == null) return 1;
@@ -799,51 +827,172 @@ public class UIManager : MonoBehaviour
             if (a.col == b.col)
                 return a.row.CompareTo(b.row);
 
+            // Fallback for malformed, non-linear data.
             int rowCompare = a.row.CompareTo(b.row);
-            return rowCompare != 0
-                ? rowCompare
-                : a.col.CompareTo(b.col);
+            return rowCompare != 0 ? rowCompare : a.col.CompareTo(b.col);
         });
+    }
 
-        List<TileScript> previewTiles =
-            new List<TileScript>();
+    // The highlight colours are deliberately bright so they read against a tile
+    // face. The same value behind the white badge label is unreadable, so the
+    // box and badge take a darker shade of the player's colour.
+    private static Color OutlineShade(Color highlight)
+    {
+        return new Color(
+            highlight.r * 0.55f,
+            highlight.g * 0.55f,
+            highlight.b * 0.55f,
+            1f);
+    }
+
+    // Animates one player's move: the tiles cascade in, the finished word punches
+    // once as a whole, its score is pinned to it, and then it leaves.
+    //
+    // keepTiles is for the round's winner, whose tiles are the board from here
+    // on - they stay exactly where they landed instead of being destroyed and
+    // immediately respawned in the same cells.
+    public IEnumerator PlayMovePreview(
+        List<SimPlacedTileData> moveTiles,
+        Color highlightColour,
+        int score,
+        bool keepTiles = false)
+    {
+        if (moveTiles == null || moveTiles.Count == 0)
+            yield break;
+
+        SortIntoReadingOrder(moveTiles);
+
+        List<TileScript> previewTiles = new List<TileScript>();
+        List<LetterPosition> cells = new List<LetterPosition>();
 
         foreach (SimPlacedTileData simTile in moveTiles)
         {
             if (simTile == null)
                 continue;
 
+            LetterPosition position =
+                new LetterPosition(simTile.row, simTile.col);
+
             TileScript previewTile = CreateReplayPreviewTile(
                 new LetterInfo(simTile.letter, simTile.points),
-                new LetterPosition(simTile.row, simTile.col)
+                position
             );
 
-            if (previewTile != null)
-                previewTiles.Add(previewTile);
+            if (previewTile == null)
+                continue;
+
+            // Set once for the whole word, cleared once at the end. The colour is
+            // what says whose move this is, so it has to outlive the tile landing.
+            previewTile.SetReplayHighlight(highlightColour);
+
+            previewTiles.Add(previewTile);
+            cells.Add(position);
         }
 
         if (previewTiles.Count == 0)
             yield break;
 
-        float durationPerTile =
-            totalDuration / previewTiles.Count;
+        yield return StartCoroutine(CascadeTilesIn(previewTiles));
 
-        foreach (TileScript tile in previewTiles)
+        yield return new WaitForSecondsRealtime(replayLandedPause);
+
+        yield return StartCoroutine(PunchWord(previewTiles));
+
+        HighlightPlayedWord(cells, score, OutlineShade(highlightColour));
+
+        yield return new WaitForSecondsRealtime(replayWordHold);
+
+        if (keepTiles)
         {
-            if (tile == null)
-                continue;
+            // Dropping the highlight turns the preview into an ordinary committed
+            // tile. The box and its score stay up, so the board finishes the
+            // replay showing the winning word and what it was worth.
+            foreach (TileScript tile in previewTiles)
+            {
+                if (tile != null)
+                    tile.ClearReplayHighlight();
+            }
 
-            yield return StartCoroutine(
-                tile.PlayWinningReplayDrop(
-                    durationPerTile,
-                    highlightColor
-                )
-            );
+            previewTiles.Clear();
+            yield break;
         }
 
-        yield return new WaitForSecondsRealtime(0.5f);
+        yield return StartCoroutine(CascadeTilesOut(previewTiles));
 
+        HidePlayedWordHighlight();
         RemoveReplayPreviewTiles(previewTiles);
+    }
+
+    // Drops overlap: each tile is launched a stagger apart and left to finish in
+    // its own time, so the word arrives as one movement.
+    private IEnumerator CascadeTilesIn(List<TileScript> tiles)
+    {
+        int landed = 0;
+
+        for (int i = 0; i < tiles.Count; i++)
+        {
+            if (tiles[i] == null)
+            {
+                landed++;
+                continue;
+            }
+
+            StartCoroutine(DropTile(tiles[i], () => landed++));
+
+            if (i < tiles.Count - 1)
+                yield return new WaitForSecondsRealtime(replayTileStagger);
+        }
+
+        // Every drop reports back, including one whose tile was destroyed
+        // mid-fall, but a stuck cascade must not hang the whole replay.
+        float timeout = replayTileFall + replayTileSettle + 1f;
+        float waited = 0f;
+
+        while (landed < tiles.Count && waited < timeout)
+        {
+            waited += Time.unscaledDeltaTime;
+            yield return null;
+        }
+    }
+
+    private IEnumerator DropTile(TileScript tile, Action onLanded)
+    {
+        try
+        {
+            yield return tile.PlayReplayDrop(replayTileFall, replayTileSettle);
+        }
+        finally
+        {
+            onLanded();
+        }
+    }
+
+    private IEnumerator PunchWord(List<TileScript> tiles)
+    {
+        for (int i = 0; i < tiles.Count; i++)
+        {
+            if (tiles[i] != null)
+                StartCoroutine(tiles[i].PlayReplayPunch(replayWordPunch));
+
+            if (i < tiles.Count - 1)
+                yield return new WaitForSecondsRealtime(replayPunchStagger);
+        }
+
+        yield return new WaitForSecondsRealtime(replayWordPunch);
+    }
+
+    private IEnumerator CascadeTilesOut(List<TileScript> tiles)
+    {
+        for (int i = 0; i < tiles.Count; i++)
+        {
+            if (tiles[i] != null)
+                StartCoroutine(tiles[i].PlayReplayExit(replayTileExit));
+
+            if (i < tiles.Count - 1)
+                yield return new WaitForSecondsRealtime(replayExitStagger);
+        }
+
+        yield return new WaitForSecondsRealtime(replayTileExit);
     }
 
     public void RemoveReplayPreviewTiles(
@@ -1183,9 +1332,13 @@ public class UIManager : MonoBehaviour
             finalMessage + "\n\n" + roundSummary;
     }
 
+    // Replays last round's winning word over the tiles already committed to the
+    // board, at the top of a new online round. Same cascade as a round replay,
+    // but these tiles belong to the board, so they are highlighted and handed
+    // back rather than created and destroyed.
     public IEnumerator PlayWinningWordReplay(
         List<SimPlacedTileData> winningTiles,
-        float totalDuration)
+        float holdSeconds)
     {
         if (winningTiles == null || winningTiles.Count == 0)
             yield break;
@@ -1198,34 +1351,12 @@ public class UIManager : MonoBehaviour
             yield break;
         }
 
+        SortIntoReadingOrder(winningTiles);
+
         GhostTile[] ghosts =
             gameBoard.GetComponentsInChildren<GhostTile>(true);
 
         List<TileScript> tilesToAnimate = new List<TileScript>();
-
-        winningTiles.Sort((a, b) =>
-        {
-            if (a == null && b == null) return 0;
-            if (a == null) return 1;
-            if (b == null) return -1;
-
-            // Same row: horizontal word, animate from left to right.
-            if (a.row == b.row)
-                return a.col.CompareTo(b.col);
-
-            // Same column: vertical word, animate from top to bottom.
-            if (a.col == b.col)
-                return a.row.CompareTo(b.row);
-
-            // Fallback for malformed/non-linear data:
-            // process upper rows first, then left-to-right within each row.
-            int rowCompare = a.row.CompareTo(b.row);
-            return rowCompare != 0
-                ? rowCompare
-                : a.col.CompareTo(b.col);
-        });
-
-
 
         foreach (SimPlacedTileData replayTile in winningTiles)
         {
@@ -1259,22 +1390,31 @@ public class UIManager : MonoBehaviour
             yield break;
         }
 
-        Color winningGreen =
-            new Color(0.20f, 1f, 0.34f, 1f);
-
-        float perTileDuration =
-            totalDuration / tilesToAnimate.Count;
-
         foreach (TileScript tile in tilesToAnimate)
         {
-            yield return StartCoroutine(
-                tile.PlayWinningReplayDrop(
-                    perTileDuration,
-                    winningGreen
-                )
-            );
+            if (tile != null)
+            {
+                tile.SetReplayHighlight(ReplayWinnerColour);
+                tile.HideForReplayDrop();
+            }
+        }
+
+        yield return StartCoroutine(CascadeTilesIn(tilesToAnimate));
+
+        yield return new WaitForSecondsRealtime(replayLandedPause);
+
+        yield return StartCoroutine(PunchWord(tilesToAnimate));
+
+        yield return new WaitForSecondsRealtime(holdSeconds);
+
+        // Back to ordinary board tiles - they were never previews.
+        foreach (TileScript tile in tilesToAnimate)
+        {
+            if (tile != null)
+                tile.ClearReplayHighlight();
         }
     }
+
     public void ShowOnlineRoundReplayRows(
     List<OnlineRoundHistoryEntry> history,
     bool amPlayer1,
@@ -1414,133 +1554,4 @@ public class UIManager : MonoBehaviour
 
         spawnedRoundRows.Clear();
     }
-
-    public void ShowReplayPreviewTiles(
-    List<SimPlacedTileData> tiles)
-    {
-        ClearReplayPreviewTiles();
-
-        if (tiles == null ||
-            tiles.Count == 0)
-        {
-            return;
-        }
-
-        if (gameBoard == null)
-        {
-            Debug.LogWarning(
-                "[REPLAY] Cannot show preview: gameBoard is null."
-            );
-            return;
-        }
-
-        GhostTile[] allGhostTiles =
-            gameBoard.GetComponentsInChildren<GhostTile>(true);
-
-        foreach (SimPlacedTileData tile in tiles)
-        {
-            if (tile == null)
-                continue;
-
-            GhostTile matchingGhostTile = null;
-
-            foreach (GhostTile ghostTile in allGhostTiles)
-            {
-                if (ghostTile == null ||
-                    ghostTile.letterPosition == null)
-                {
-                    continue;
-                }
-
-                if (ghostTile.letterPosition.RowX == tile.row &&
-                    ghostTile.letterPosition.ColY == tile.col)
-                {
-                    matchingGhostTile = ghostTile;
-                    break;
-                }
-            }
-
-            if (matchingGhostTile == null)
-            {
-                Debug.LogWarning(
-                    "[REPLAY] Preview could not find GhostTile at row " +
-                    tile.row +
-                    ", col " +
-                    tile.col
-                );
-                continue;
-            }
-
-            GameObject preview =
-                Instantiate(basicTile);
-
-            preview.transform.SetParent(
-                matchingGhostTile.transform,
-                false
-            );
-
-            matchingGhostTile.FitChildToCell(preview.transform);
-
-            TileScript tileScript =
-                preview.GetComponent<TileScript>();
-
-            if (tileScript != null)
-            {
-                LetterInfo tileInfo =
-                    new LetterInfo(
-                        tile.letter,
-                        tile.points
-                    );
-
-                tileInfo.bonusUsed = true;
-
-                tileScript.InitTile(tileInfo);
-                tileScript.SetLockedOnBoard(true);
-
-                if (tileScript.PlacedTileData != null)
-                {
-                    tileScript.PlacedTileData.letterPosition =
-                        new LetterPosition(
-                            tile.row,
-                            tile.col
-                        );
-                }
-            }
-
-            Image[] images =
-                preview.GetComponentsInChildren<Image>(true);
-
-            foreach (Image image in images)
-            {
-                if (image != null)
-                {
-                    Color original = image.color;
-
-                    image.color = new Color(
-                        replayPreviewColor.r,
-                        replayPreviewColor.g,
-                        replayPreviewColor.b,
-                        original.a * replayPreviewColor.a
-                    );
-                }
-            }
-
-            replayPreviewTiles.Add(preview);
-        }
-    }
-
-    public void ClearReplayPreviewTiles()
-    {
-        foreach (GameObject preview in replayPreviewTiles)
-        {
-            if (preview != null)
-            {
-                Destroy(preview);
-            }
-        }
-
-        replayPreviewTiles.Clear();
-    }
-
-
 }

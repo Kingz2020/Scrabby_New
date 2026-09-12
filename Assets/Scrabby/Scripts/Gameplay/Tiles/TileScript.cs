@@ -26,7 +26,21 @@ public class TileScript : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDr
     private static readonly Color InvalidWordColour = new Color(0.84f, 0.15f, 0.16f, 1f);
     private Color normalLetterColour;
     private Color normalPointsColour;
+    private FontStyles normalFontStyle;
     private bool normalColoursCaptured;
+
+    // Both the rejected-word highlight and the replay highlight paint over the
+    // tile's normal look, so they share one record of what normal was.
+    private void CaptureNormalColours()
+    {
+        if (normalColoursCaptured || textLetter == null)
+            return;
+
+        normalLetterColour = textLetter.color;
+        normalPointsColour = textPoints != null ? textPoints.color : normalLetterColour;
+        normalFontStyle = textLetter.fontStyle;
+        normalColoursCaptured = true;
+    }
 
     // Marks this tile as part of a word the dictionary rejected.
     public void SetInvalidHighlight(bool invalid)
@@ -34,12 +48,7 @@ public class TileScript : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDr
         if (textLetter == null)
             return;
 
-        if (!normalColoursCaptured)
-        {
-            normalLetterColour = textLetter.color;
-            normalPointsColour = textPoints != null ? textPoints.color : normalLetterColour;
-            normalColoursCaptured = true;
-        }
+        CaptureNormalColours();
 
         textLetter.color = invalid ? InvalidWordColour : normalLetterColour;
 
@@ -165,57 +174,102 @@ public class TileScript : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDr
         Singleton.Instance.DropManager.AddLocation();
         Singleton.Instance.DropManager.ClearCurrentLocation(targetLocation);
     }
-    public IEnumerator PlayWinningReplayDrop(
-    float duration,
-    Color highlightColor,
-    float dropHeightMultiplier = 0.5f)
+    // ---- Round replay -----------------------------------------------------
+    // A tile knows how to fall, land, punch and leave. It deliberately does not
+    // know how long to wait between those, or when its highlight should go back
+    // to normal: the word owns that, so a colour can survive a whole word rather
+    // than reverting the moment each letter lands.
+
+    // Landing squash. Wider and shorter for an instant, then sprung back.
+    private static readonly Vector3 LandingSquash = new Vector3(1.12f, 0.84f, 1f);
+
+    private void EnsureCanvasGroup()
+    {
+        if (canvasGroup == null)
+            canvasGroup = GetComponent<CanvasGroup>();
+
+        if (canvasGroup == null)
+            canvasGroup = gameObject.AddComponent<CanvasGroup>();
+    }
+
+    // Overshoots 1 slightly before settling, which is what reads as springiness.
+    private static float EaseOutBack(float t)
+    {
+        const float c1 = 1.70158f;
+        const float c3 = c1 + 1f;
+
+        float p = t - 1f;
+        return 1f + c3 * p * p * p + c1 * p * p;
+    }
+
+    // Called the instant a replay tile is created, so it never flashes onto the
+    // board at full opacity before its drop begins.
+    public void HideForReplayDrop()
+    {
+        EnsureCanvasGroup();
+        canvasGroup.alpha = 0f;
+    }
+
+    public void SetReplayHighlight(Color highlightColour)
+    {
+        if (textLetter == null)
+            return;
+
+        CaptureNormalColours();
+
+        textLetter.color = highlightColour;
+        textLetter.fontStyle = FontStyles.Bold;
+    }
+
+    public void ClearReplayHighlight()
+    {
+        if (textLetter == null || !normalColoursCaptured)
+            return;
+
+        textLetter.color = normalLetterColour;
+        textLetter.fontStyle = normalFontStyle;
+    }
+
+    // Falls from above the cell and lands. Under gravity a tile is fastest when
+    // it lands, so the fall accelerates rather than easing out into place.
+    public IEnumerator PlayReplayDrop(
+        float fallSeconds,
+        float settleSeconds,
+        float dropHeightMultiplier = 0.75f)
     {
         if (this == null || gameObject == null)
             yield break;
 
-        if (canvasGroup == null)
-            canvasGroup = GetComponent<CanvasGroup>();
+        EnsureCanvasGroup();
 
         RectTransform rt = transform as RectTransform;
         float tileHeight = rt != null ? rt.rect.height : 90f;
         float dropHeight = tileHeight * dropHeightMultiplier;
 
-        Vector3 finalPosition = transform.localPosition;
-        Vector3 startPosition = finalPosition + Vector3.up * dropHeight;
-
-        Color originalLetterColor = textLetter != null
-            ? textLetter.color
-            : Color.white;
-
-        FontStyles originalFontStyle = textLetter != null
-            ? textLetter.fontStyle
-            : FontStyles.Normal;
-
-        if (textLetter != null)
-        {
-            textLetter.color = highlightColor;
-            textLetter.fontStyle = FontStyles.Bold;
-        }
+        Vector3 restPosition = transform.localPosition;
+        Vector3 startPosition = restPosition + Vector3.up * dropHeight;
 
         canvasGroup.alpha = 0f;
         transform.localPosition = startPosition;
+        transform.localScale = Vector3.one;
 
         float elapsed = 0f;
 
-        while (elapsed < duration)
+        while (elapsed < fallSeconds)
         {
             if (this == null || gameObject == null)
                 yield break;
 
             elapsed += Time.unscaledDeltaTime;
 
-            float t = Mathf.Clamp01(elapsed / duration);
-            float eased = 1f - Mathf.Pow(1f - t, 3f);
+            float t = Mathf.Clamp01(elapsed / fallSeconds);
 
             transform.localPosition =
-                Vector3.Lerp(startPosition, finalPosition, eased);
+                Vector3.Lerp(startPosition, restPosition, t * t);
 
-            canvasGroup.alpha = t;
+            // Up to full opacity well before impact, so the tile is legible as
+            // it falls instead of arriving and then appearing.
+            canvasGroup.alpha = Mathf.Clamp01(t * 2.2f);
 
             yield return null;
         }
@@ -223,18 +277,95 @@ public class TileScript : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDr
         if (this == null || gameObject == null)
             yield break;
 
-        transform.localPosition = finalPosition;
+        transform.localPosition = restPosition;
         canvasGroup.alpha = 1f;
 
-        yield return new WaitForSecondsRealtime(0.25f);
+        elapsed = 0f;
+
+        while (elapsed < settleSeconds)
+        {
+            if (this == null || gameObject == null)
+                yield break;
+
+            elapsed += Time.unscaledDeltaTime;
+
+            float t = Mathf.Clamp01(elapsed / settleSeconds);
+
+            transform.localScale =
+                Vector3.LerpUnclamped(LandingSquash, Vector3.one, EaseOutBack(t));
+
+            yield return null;
+        }
 
         if (this == null || gameObject == null)
             yield break;
 
-        if (textLetter != null)
+        transform.localScale = Vector3.one;
+    }
+
+    // One pulse, run across every tile of a finished word so the word reads as
+    // a word rather than as a row of separate letters.
+    public IEnumerator PlayReplayPunch(float seconds, float strength = 0.14f)
+    {
+        if (this == null || gameObject == null)
+            yield break;
+
+        float elapsed = 0f;
+
+        while (elapsed < seconds)
         {
-            textLetter.color = originalLetterColor;
-            textLetter.fontStyle = originalFontStyle;
+            if (this == null || gameObject == null)
+                yield break;
+
+            elapsed += Time.unscaledDeltaTime;
+
+            float t = Mathf.Clamp01(elapsed / seconds);
+            float scale = 1f + strength * Mathf.Sin(t * Mathf.PI);
+
+            transform.localScale = new Vector3(scale, scale, 1f);
+
+            yield return null;
         }
+
+        if (this == null || gameObject == null)
+            yield break;
+
+        transform.localScale = Vector3.one;
+    }
+
+    // Shrinks away instead of being destroyed mid-frame, so a word that is only
+    // being shown has a visible end rather than blinking out.
+    public IEnumerator PlayReplayExit(float seconds)
+    {
+        if (this == null || gameObject == null)
+            yield break;
+
+        EnsureCanvasGroup();
+
+        float startAlpha = canvasGroup.alpha;
+        float elapsed = 0f;
+
+        while (elapsed < seconds)
+        {
+            if (this == null || gameObject == null)
+                yield break;
+
+            elapsed += Time.unscaledDeltaTime;
+
+            float t = Mathf.Clamp01(elapsed / seconds);
+            float eased = t * t;
+
+            canvasGroup.alpha = Mathf.Lerp(startAlpha, 0f, eased);
+
+            float scale = Mathf.Lerp(1f, 0.72f, eased);
+            transform.localScale = new Vector3(scale, scale, 1f);
+
+            yield return null;
+        }
+
+        if (this == null || gameObject == null)
+            yield break;
+
+        canvasGroup.alpha = 0f;
     }
 }
