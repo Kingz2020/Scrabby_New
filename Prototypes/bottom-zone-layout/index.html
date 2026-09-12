@@ -1,0 +1,340 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>PROTOTYPE — bottom zone layout</title>
+<!--
+  THROWAWAY PROTOTYPE. Not shipped code. Double-click to run.
+
+  Question: how should the rack, shuffle, return-letter, check-word and new-game
+  be arranged so the bottom of the screen looks composed rather than assembled?
+
+  Four arrangements on one phone, switchable via ?variant=A|B|C|D and the bar at
+  the bottom. Variant A is what is in main_game.unity right now.
+
+  Every number is in Unity canvas units (1080 x 2280, origin at centre, y up), so
+  whatever wins can be typed straight into the Inspector - the panel on the right
+  prints the exact anchoredPosition and sizeDelta for each element.
+-->
+<style>
+  :root{
+    --ink:#e9edf5; --dim:#8a94a8; --panel:#1d2330; --bg:#141821;
+    --sky:#7fb4e8; --plate:#f2f4f7; --bevel:#9fadc0; --glyph:#2a2c30;
+    --accent:#5cc8ff;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+       font:14px/1.5 "Segoe UI",system-ui,sans-serif;
+       min-height:100vh;padding:22px 22px 110px;
+       display:flex;gap:26px;justify-content:center;align-items:flex-start;flex-wrap:wrap}
+  h1{font-size:15px;margin:0 0 2px}
+  .sub{color:var(--dim);font-size:12px;margin:0 0 16px}
+
+  /* ---------- phone ---------- */
+  #phone{position:relative;background:var(--sky);border-radius:26px;
+         box-shadow:0 20px 50px rgba(0,0,0,.5);overflow:hidden}
+  .el{position:absolute}
+  .board{background:rgba(255,255,255,.16);border-radius:10px}
+  .cell{position:absolute;background:#eef1f5;border-radius:3px;opacity:.92}
+  .plate{background:linear-gradient(#fdfdfe,#e9edf2);
+         border:2px solid var(--bevel);border-radius:9px;
+         box-shadow:0 2px 5px rgba(0,0,0,.22);
+         display:flex;align-items:center;justify-content:center;
+         color:var(--glyph);font-weight:800}
+  .rack{background:linear-gradient(#fdfdfe,#e9edf2);
+        border:2px solid var(--bevel);border-radius:11px;
+        box-shadow:0 3px 8px rgba(0,0,0,.25);
+        display:flex;align-items:center;justify-content:center;gap:2px}
+  .tile{background:linear-gradient(#f7e9c8,#e8d4a4);border-radius:4px;
+        box-shadow:0 1px 0 #b89f6d;color:#2a2118;font-weight:800;
+        display:flex;align-items:center;justify-content:center}
+  .slab{background:rgba(255,255,255,.22);border-radius:14px;
+        border:1px solid rgba(255,255,255,.35)}
+  .hdr{background:rgba(255,255,255,.14);border-radius:8px;color:#fff;
+       display:flex;align-items:center;justify-content:center;font-weight:700}
+  .ghost{outline:1px dashed rgba(255,255,255,.5);outline-offset:0}
+
+  /* ---------- panels ---------- */
+  .panel{width:360px;background:var(--panel);border-radius:14px;padding:15px 17px}
+  .panel + .panel{margin-top:13px}
+  .panel h2{font-size:12px;text-transform:uppercase;letter-spacing:.08em;
+            color:var(--dim);margin:0 0 9px}
+  .why{font-size:13px;margin:0 0 10px}
+  .why b{color:var(--accent)}
+  ul{margin:0;padding-left:17px;font-size:12.5px;color:#c3cede}
+  li{margin-bottom:5px}
+  table{width:100%;border-collapse:collapse;font:11.5px ui-monospace,Consolas,monospace}
+  th{text-align:left;color:var(--dim);font-weight:600;padding:3px 0}
+  td{padding:2px 0;color:#9fb0cc}
+  td.n{text-align:right;color:#dfe7f2}
+  .tag{display:inline-block;padding:1px 7px;border-radius:99px;font-size:10.5px;
+       font-weight:700;background:#2f3850;color:#9fb6d8;margin-left:6px}
+
+  /* ---------- switcher ---------- */
+  #switcher{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);z-index:99;
+    display:flex;align-items:center;gap:4px;background:#fff;color:#111;
+    border-radius:999px;padding:6px 8px;box-shadow:0 10px 32px rgba(0,0,0,.55);font-weight:700}
+  #switcher button{background:transparent;border:none;color:#111;font-size:18px;
+    padding:2px 12px;border-radius:999px;cursor:pointer;line-height:1}
+  #switcher button:hover{background:#eceff5}
+  #vlabel{padding:0 10px;font-size:13.5px;min-width:260px;text-align:center}
+  #vlabel small{display:block;font-weight:500;color:#667;font-size:11px}
+</style>
+</head>
+<body>
+
+<div>
+  <h1>Bottom zone — layout prototype</h1>
+  <p class="sub">1080 × 2280 canvas · <code>?variant=</code> or the bar below · ← → to switch</p>
+  <div id="phone"></div>
+</div>
+
+<div>
+  <div class="panel">
+    <h2 id="vtitle">Variant</h2>
+    <p class="why" id="vwhy"></p>
+    <ul id="vpoints"></ul>
+  </div>
+  <div class="panel">
+    <h2>Unity numbers <span class="tag">anchor: centre</span></h2>
+    <table id="nums"></table>
+  </div>
+</div>
+
+<div id="switcher">
+  <button id="prev" title="Previous (left arrow)">‹</button>
+  <div id="vlabel"></div>
+  <button id="next" title="Next (right arrow)">›</button>
+</div>
+
+<script>
+/* ===================================================================
+   Canvas is 1080 x 2280, origin at the centre, y up - same as Unity.
+   The board is fixed at (0, 32.8) 1000 x 980, so it spans y -457..523;
+   everything below -457 is the zone being designed.
+   =================================================================== */
+const CW = 1080, CH = 2280, SCALE = 0.30;
+const BOARD = {x:0, y:32.8, w:1000.5, h:980.4};
+
+const phone = document.getElementById('phone');
+phone.style.width = (CW*SCALE)+'px';
+phone.style.height = (CH*SCALE)+'px';
+
+function place(el, e){
+  el.style.left   = (CW/2 + e.x - e.w/2)*SCALE + 'px';
+  el.style.top    = (CH/2 - e.y - e.h/2)*SCALE + 'px';
+  el.style.width  = e.w*SCALE + 'px';
+  el.style.height = e.h*SCALE + 'px';
+}
+
+function drawBoard(){
+  const d = document.createElement('div');
+  d.className = 'el board';
+  place(d, BOARD);
+  phone.appendChild(d);
+  const pad = 14, n = 9;
+  const cell = (BOARD.w - pad*2 - 6*(n-1)) / n;
+  for (let r=0;r<n;r++) for (let c=0;c<n;c++){
+    const t = document.createElement('div');
+    t.className = 'cell';
+    t.style.left   = (pad + c*(cell+6))*SCALE + 'px';
+    t.style.top    = (pad + r*(cell+6))*SCALE + 'px';
+    t.style.width  = cell*SCALE + 'px';
+    t.style.height = cell*SCALE + 'px';
+    d.appendChild(t);
+  }
+}
+
+function drawRack(e){
+  const d = document.createElement('div');
+  d.className = 'el rack';
+  place(d, e);
+  const tile = 100*SCALE;
+  for (let i=0;i<7;i++){
+    const t = document.createElement('div');
+    t.className = 'tile';
+    t.style.width = tile+'px'; t.style.height = tile+'px';
+    t.style.fontSize = (tile*0.5)+'px';
+    t.textContent = 'SCRABBY'[i];
+    d.appendChild(t);
+  }
+  phone.appendChild(d);
+}
+
+function drawPlate(e){
+  const d = document.createElement('div');
+  d.className = 'el plate';
+  place(d, e);
+  d.style.fontSize = Math.min(e.w, e.h)*SCALE*0.46 + 'px';
+  d.style.borderRadius = (Math.min(e.w,e.h)*0.19*SCALE) + 'px';
+  d.textContent = e.glyph || '';
+  phone.appendChild(d);
+}
+
+function drawBox(e, cls){
+  const d = document.createElement('div');
+  d.className = 'el ' + cls;
+  place(d, e);
+  if (e.label){ d.textContent = e.label; d.style.fontSize = (e.h*SCALE*0.34)+'px'; }
+  phone.appendChild(d);
+}
+
+/* ===================================================================
+   VARIANTS - each is a whole composition, not a nudge of the last one.
+   =================================================================== */
+const V = {};
+
+V.A = {
+  name: 'As built now',
+  why: 'The current scene, for comparison. <b>Every element is its own island.</b> Three buttons float in a row, the rack floats below them, Back-to-Match sits off to one side, and new-game is alone in the far corner. Nothing shares an edge with anything else, so the eye has five separate things to place instead of two groups.',
+  points: [
+    'Gaps are even (27 / 21 / 19px) but nothing is grouped.',
+    'Back to Match hangs off the left with 232px of dead space under it.',
+    'The bottom third reads as leftover space rather than a designed zone.'
+  ],
+  els: [
+    {k:'plate', n:'newgame',        x:373, y:654,   w:196, h:140, glyph:'⟳'},
+    {k:'plate', n:'Return Letter',  x:-346,y:-553.5,w:196, h:140, glyph:'⌄⌄'},
+    {k:'plate', n:'ShuffleButton',  x:0,   y:-553.5,w:196, h:140, glyph:'⇄'},
+    {k:'plate', n:'Check Word',     x:346, y:-553.5,w:196, h:140, glyph:'▶'},
+    {k:'rack',  n:'TileHand',       x:0,   y:-730.4,w:811, h:170},
+    {k:'hdr',   n:'BackToMatch',    x:-268,y:-870.9,w:318, h:73.8, label:'Back to Match'}
+  ]
+};
+
+V.B = {
+  name: 'Built-in console',
+  why: 'One slab holds the rack and its controls, aligned to the board\'s own width so the two share a vertical edge. <b>The interior-design move is built-in cabinetry:</b> instead of furniture standing around a room, one unit that looks like it was made for the wall it sits against.',
+  points: [
+    'Console is 1000 wide — exactly the board\'s width, so edges line up.',
+    'Rack and buttons sit inside it, so the eye groups them as one object.',
+    'new-game and Back-to-Match move to the header: the bottom is play only.',
+    'Cost: a new panel sprite, and the console must be the buttons\' parent.'
+  ],
+  els: [
+    {k:'hdr',   n:'BackToMatch',   x:-430, y:814, w:180, h:86, label:'Back'},
+    {k:'plate', n:'newgame',       x:440,  y:814, w:120, h:86, glyph:'⟳'},
+    {k:'slab',  n:'ConsolePanel',  x:0,    y:-700, w:1000, h:400},
+    {k:'rack',  n:'TileHand',      x:0,    y:-617, w:760,  h:170},
+    {k:'plate', n:'Return Letter', x:-260, y:-812, w:200, h:130, glyph:'⌄⌄'},
+    {k:'plate', n:'ShuffleButton', x:0,    y:-812, w:200, h:130, glyph:'⇄'},
+    {k:'plate', n:'Check Word',    x:260,  y:-812, w:200, h:130, glyph:'▶'}
+  ]
+};
+
+V.C = {
+  name: 'Statement piece',
+  why: 'Deliberate asymmetry. Check Word becomes a wide primary control and the two rack tools sit beside it at normal size. <b>One large piece balanced by two small ones</b> — the sofa-and-armchairs arrangement, rather than three identical chairs in a row.',
+  points: [
+    'Rack runs the full board width: it is the work surface.',
+    'Check Word is 380 wide — it reads as the thing you are building toward.',
+    'Return and Shuffle stay 190: tools, not destinations.',
+    'Cheapest option: no new art, only positions and two size changes.'
+  ],
+  els: [
+    {k:'plate', n:'newgame',       x:373,  y:654, w:196, h:140, glyph:'⟳'},
+    {k:'rack',  n:'TileHand',      x:0,    y:-580, w:1000, h:180},
+    {k:'plate', n:'Check Word',    x:-280, y:-800, w:380, h:140, glyph:'▶'},
+    {k:'plate', n:'ShuffleButton', x:130,  y:-800, w:190, h:140, glyph:'⇄'},
+    {k:'plate', n:'Return Letter', x:340,  y:-800, w:190, h:140, glyph:'⌄⌄'},
+    {k:'hdr',   n:'BackToMatch',   x:-430, y:814, w:180, h:86, label:'Back'}
+  ]
+};
+
+V.D = {
+  name: 'Pedestal',
+  why: 'The rack is the focal point and everything else defers to it: it is the widest, tallest, most central object below the board. The tools shrink into a tight satellite row underneath. <b>Symmetry plus a clear hierarchy</b>, with the empty band at the bottom kept on purpose rather than filled.',
+  points: [
+    'Rack 900 × 200 — bigger than it needs to be, which is the point.',
+    'Tools drop to 160 × 120 and tighten to 200 apart: one cluster, not a row.',
+    'Nothing below y = −900: 240px of intentional breathing room.',
+    'Works well if the rack is where the game actually happens.'
+  ],
+  els: [
+    {k:'hdr',   n:'BackToMatch',   x:-430, y:814, w:180, h:86, label:'Back'},
+    {k:'plate', n:'newgame',       x:440,  y:814, w:120, h:86, glyph:'⟳'},
+    {k:'rack',  n:'TileHand',      x:0,    y:-620, w:900, h:200},
+    {k:'plate', n:'Return Letter', x:-200, y:-830, w:160, h:120, glyph:'⌄⌄'},
+    {k:'plate', n:'ShuffleButton', x:0,    y:-830, w:160, h:120, glyph:'⇄'},
+    {k:'plate', n:'Check Word',    x:200,  y:-830, w:160, h:120, glyph:'▶'}
+  ]
+};
+
+V.E = {
+  name: 'Statement piece, primary right',
+  why: 'C mirrored. The two rack tools cluster on the left with only 20px between them, then a 110px gap, then Check Word on the right at 380 wide. <b>The gap does the grouping</b> — two things that belong together, one that does not, and no dividing line needed to say so.',
+  points: [
+    'Primary control sits bottom-right: easiest reach for a right-handed thumb.',
+    'Left-to-right reading now ends on the commit action rather than starting with it.',
+    'Row spans −445..445 — symmetric about the centre, 55px inside the board edge.',
+    'Return and Shuffle keep the order they already have, so nothing is relearned.'
+  ],
+  els: [
+    {k:'plate', n:'newgame',       x:373,  y:654, w:196, h:140, glyph:'⟳'},
+    {k:'rack',  n:'TileHand',      x:0,    y:-580, w:1000, h:180},
+    {k:'plate', n:'Return Letter', x:-350, y:-800, w:190, h:140, glyph:'⌄⌄'},
+    {k:'plate', n:'ShuffleButton', x:-140, y:-800, w:190, h:140, glyph:'⇄'},
+    {k:'plate', n:'Check Word',    x:255,  y:-800, w:380, h:140, glyph:'▶'},
+    {k:'hdr',   n:'BackToMatch',   x:-430, y:814, w:180, h:86, label:'Back'}
+  ]
+};
+
+const ORDER = ['A','B','C','D','E'];
+let CURRENT = (function(){
+  let v='A';
+  try{ v=(new URLSearchParams(location.search).get('variant')||'A').toUpperCase(); }catch(e){}
+  return ORDER.indexOf(v)>=0 ? v : 'A';
+})();
+
+function render(){
+  const v = V[CURRENT];
+  phone.innerHTML = '';
+  drawBoard();
+  for (const e of v.els){
+    if (e.k === 'rack') drawRack(e);
+    else if (e.k === 'plate') drawPlate(e);
+    else drawBox(e, e.k);
+  }
+
+  document.getElementById('vtitle').textContent = 'Variant ' + CURRENT + ' — ' + v.name;
+  document.getElementById('vwhy').innerHTML = v.why;
+  document.getElementById('vpoints').innerHTML =
+    v.points.map(p => '<li>' + p + '</li>').join('');
+  document.getElementById('vlabel').innerHTML =
+    CURRENT + ' — ' + v.name +
+    '<small>variant ' + (ORDER.indexOf(CURRENT)+1) + ' of ' + ORDER.length + '</small>';
+
+  const rows = ['<tr><th>element</th><th style="text-align:right">position</th>' +
+                '<th style="text-align:right">size</th></tr>'];
+  for (const e of v.els){
+    rows.push('<tr><td>' + e.n + '</td>' +
+              '<td class="n">' + e.x + ', ' + e.y + '</td>' +
+              '<td class="n">' + e.w + ' × ' + e.h + '</td></tr>');
+  }
+  document.getElementById('nums').innerHTML = rows.join('');
+
+  try{
+    const u = new URL(location.href);
+    u.searchParams.set('variant', CURRENT);
+    history.replaceState(null, '', u);
+  }catch(e){}
+}
+
+function cycle(step){
+  CURRENT = ORDER[(ORDER.indexOf(CURRENT) + step + ORDER.length) % ORDER.length];
+  render();
+}
+document.getElementById('prev').onclick = () => cycle(-1);
+document.getElementById('next').onclick = () => cycle(1);
+addEventListener('keydown', e => {
+  const t = (document.activeElement && document.activeElement.tagName || '').toLowerCase();
+  if (t === 'input' || t === 'textarea') return;
+  if (e.key === 'ArrowLeft') cycle(-1);
+  if (e.key === 'ArrowRight') cycle(1);
+});
+
+render();
+</script>
+</body>
+</html>
