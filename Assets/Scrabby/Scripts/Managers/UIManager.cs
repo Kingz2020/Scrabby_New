@@ -1372,17 +1372,20 @@ public class UIManager : MonoBehaviour
             string winnerText;
 
             if (!round.humanValid && !round.aiValid)
-                winnerText = "No valid move";
+                winnerText = "<color=#D8E6F2>no play</color>";
             else if (round.humanWasWinner)
-                winnerText = "You won";
+                winnerText = "<b><color=#8CE99A>YOU</color></b>";
             else
-                winnerText = "Opponent won";
+                winnerText = "<b><color=#FFD8A8>AI</color></b>";
 
+            // Kept to one line: the label auto-shrinks rather than wrapping, so
+            // the verdict has to be short enough to stay legible next to the words.
             string rowText =
-                $"Round {round.roundNumber}: " +
-                $"{(round.humanValid ? round.humanWord : "-")} ({round.humanScore}) vs " +
-                $"{(round.aiValid ? round.aiWord : "-")} ({round.aiScore}) — " +
-                winnerText;
+                $"<b>R{round.roundNumber}</b>   " +
+                $"{(round.humanValid ? round.humanWord : "—")} <b>{round.humanScore}</b>" +
+                $"   <color=#BBD5EA>v</color>   " +
+                $"{(round.aiValid ? round.aiWord : "—")} <b>{round.aiScore}</b>" +
+                $"   {winnerText}";
 
             RoundResult captured = round;
 
