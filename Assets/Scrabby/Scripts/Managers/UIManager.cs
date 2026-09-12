@@ -16,6 +16,8 @@ public class UIManager : MonoBehaviour
     [SerializeField] private Sprite rejectedOutlineSprite;
     [SerializeField] private Color rejectedOutlineColour = new Color(0.84f, 0.15f, 0.16f, 1f);
     [SerializeField] private float rejectedOutlineSeconds = 0.55f;
+    [SerializeField] private float rejectedOutlineHoldSeconds = 1.2f;
+    [SerializeField] private float rejectedOutlineFadeOutSeconds = 0.45f;
     private GameObject rejectedOutline;
     private Coroutine rejectedOutlineAnimation;
 
@@ -70,7 +72,9 @@ public class UIManager : MonoBehaviour
     // matching by reference picks out exactly the tiles that spelled it.
     public void HighlightRejectedWord(List<LetterInfo> word)
     {
-        ClearRejectedWordHighlight();
+        ClearHighlightsUnder(gameBoard);
+        ClearHighlightsUnder(handTileHolder);
+        HideRejectedOutlineNow();
 
         if (word == null || word.Count == 0 || gameBoard == null)
             return;
@@ -208,6 +212,47 @@ public class UIManager : MonoBehaviour
         ClearHighlightsUnder(gameBoard);
         ClearHighlightsUnder(handTileHolder);
 
+        if (rejectedOutline == null || !rejectedOutline.activeSelf)
+            return;
+
+        // The tiles leave straight away, but snapping the box off with them reads
+        // as a glitch. Let it sit on the empty cells a moment, then fade.
+        if (rejectedOutlineAnimation != null)
+            StopCoroutine(rejectedOutlineAnimation);
+
+        rejectedOutlineAnimation = StartCoroutine(FadeRejectedOutlineOut());
+    }
+
+    private IEnumerator FadeRejectedOutlineOut()
+    {
+        Image outline = rejectedOutline.GetComponent<Image>();
+        outline.color = rejectedOutlineColour;
+
+        yield return new WaitForSeconds(rejectedOutlineHoldSeconds);
+
+        float elapsed = 0f;
+
+        while (elapsed < rejectedOutlineFadeOutSeconds)
+        {
+            elapsed += Time.deltaTime;
+
+            float progress = Mathf.Clamp01(elapsed / rejectedOutlineFadeOutSeconds);
+
+            outline.color = new Color(
+                rejectedOutlineColour.r,
+                rejectedOutlineColour.g,
+                rejectedOutlineColour.b,
+                1f - progress);
+
+            yield return null;
+        }
+
+        rejectedOutline.SetActive(false);
+        rejectedOutlineAnimation = null;
+    }
+
+    private void HideRejectedOutlineNow()
+    {
         if (rejectedOutlineAnimation != null)
         {
             StopCoroutine(rejectedOutlineAnimation);
