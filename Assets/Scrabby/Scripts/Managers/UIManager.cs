@@ -137,8 +137,6 @@ public class UIManager : MonoBehaviour
             AnimateRejectedOutline(rect, rejectedOutline.GetComponent<Image>()));
     }
 
-    // Boxes a set of board cells, with the line sitting in the gap around them.
-    // Returns the outline's rect, or null if the cells could not be measured.
     // Both shapes are built in code rather than referenced as assets. They are
     // plain geometry, and a serialized reference has to survive every rename and
     // scene reload to work - which is exactly how this silently drew nothing.
@@ -222,6 +220,8 @@ public class UIManager : MonoBehaviour
         return outside + Mathf.Min(Mathf.Max(qx, qy), 0f) - radius;
     }
 
+    // Boxes a set of board cells, with the line sitting in the gap around them.
+    // Returns the outline's rect, or null if the cells could not be measured.
     private RectTransform PlaceOutline(
         ref GameObject outlineObject,
         string name,
@@ -1281,7 +1281,7 @@ public class UIManager : MonoBehaviour
     string opponentName,
     Action<OnlineRoundHistoryEntry> onReplay)
     {
-        ClearOnlineRoundReplayRows();
+        ClearRoundReplayRows();
 
         if (roundListContainer == null ||
             roundReplayRowPrefab == null ||
@@ -1335,18 +1335,69 @@ public class UIManager : MonoBehaviour
                 $"{opponentWord} ({opponentScore}) — " +
                 winnerText;
 
+            OnlineRoundHistoryEntry captured = round;
+
             RoundReplayRow row = Instantiate(
                 roundReplayRowPrefab,
                 roundListContainer
             );
 
-            row.Setup(round, rowText, onReplay);
+            row.Setup(rowText, () => onReplay?.Invoke(captured));
 
             spawnedRoundRows.Add(row);
         }
     }
 
-    public void ClearOnlineRoundReplayRows()
+    public void ShowSoloRoundReplayRows(
+        List<RoundResult> history,
+        Action<RoundResult> onReplay)
+    {
+        ClearRoundReplayRows();
+
+        if (roundListContainer == null ||
+            roundReplayRowPrefab == null ||
+            history == null)
+        {
+            Debug.LogWarning(
+                "[UIManager] Cannot create solo round replay rows: missing setup."
+            );
+            return;
+        }
+
+        foreach (RoundResult round in history)
+        {
+            if (round == null)
+                continue;
+
+            string winnerText;
+
+            if (!round.humanValid && !round.aiValid)
+                winnerText = "No valid move";
+            else if (round.humanWasWinner)
+                winnerText = "You won";
+            else
+                winnerText = "Opponent won";
+
+            string rowText =
+                $"Round {round.roundNumber}: " +
+                $"{(round.humanValid ? round.humanWord : "-")} ({round.humanScore}) vs " +
+                $"{(round.aiValid ? round.aiWord : "-")} ({round.aiScore}) — " +
+                winnerText;
+
+            RoundResult captured = round;
+
+            RoundReplayRow row = Instantiate(
+                roundReplayRowPrefab,
+                roundListContainer
+            );
+
+            row.Setup(rowText, () => onReplay?.Invoke(captured));
+
+            spawnedRoundRows.Add(row);
+        }
+    }
+
+    public void ClearRoundReplayRows()
     {
         foreach (RoundReplayRow row in spawnedRoundRows)
         {

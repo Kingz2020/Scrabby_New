@@ -2641,6 +2641,30 @@ public class GameLogic : MonoBehaviour
             Singleton.Instance.UIManager.UpdateTotalScores(humanTotalScore, aiTotalScore);
     }
 
+    private static List<SimPlacedTileData> ToReplayTiles(RoundMove move)
+    {
+        List<SimPlacedTileData> tiles = new List<SimPlacedTileData>();
+
+        if (move == null || !move.isValid || move.simulatedTiles == null)
+            return tiles;
+
+        foreach (SimPlacedTile sim in move.simulatedTiles)
+        {
+            if (sim == null || sim.letterInfo == null || sim.letterPosition == null)
+                continue;
+
+            tiles.Add(new SimPlacedTileData
+            {
+                letter = sim.letterInfo.letter,
+                points = sim.letterInfo.points,
+                row = sim.letterPosition.RowX,
+                col = sim.letterPosition.ColY
+            });
+        }
+
+        return tiles;
+    }
+
     private void RecordRoundResult()
     {
         RoundResult result = new RoundResult
@@ -2652,7 +2676,11 @@ public class GameLogic : MonoBehaviour
             aiWord = (pendingAIMove != null && pendingAIMove.isValid) ? pendingAIMove.word : "",
             humanValid = pendingPlayerMove != null && pendingPlayerMove.isValid,
             aiValid = pendingAIMove != null && pendingAIMove.isValid,
-            humanWasWinner = pendingWinningMove != null && pendingWinningMove.isHuman
+            humanWasWinner = pendingWinningMove != null && pendingWinningMove.isHuman,
+
+            humanTiles = ToReplayTiles(pendingPlayerMove),
+            aiTiles = ToReplayTiles(pendingAIMove),
+            winnerTiles = ToReplayTiles(pendingWinningMove)
         };
 
         roundHistory.Add(result);
@@ -2713,6 +2741,28 @@ public class GameLogic : MonoBehaviour
         }
 
         Singleton.Instance.UIManager.ShowGameOverPanel(finalMessage, roundSummary);
+
+        Singleton.Instance.UIManager.ShowSoloRoundReplayRows(
+            roundHistory,
+            round => StartCoroutine(PlaySoloReplayFromGameOver(round)));
+    }
+
+    // The panel covers the board, so it steps aside for the replay and comes
+    // back afterwards with the summary intact.
+    private IEnumerator PlaySoloReplayFromGameOver(RoundResult round)
+    {
+        UIManager ui = Singleton.Instance != null ? Singleton.Instance.UIManager : null;
+
+        if (ui == null)
+            yield break;
+
+        if (ui.gameOverPanel != null)
+            ui.gameOverPanel.SetActive(false);
+
+        yield return StartCoroutine(ReplaySoloRound(round));
+
+        if (ui.gameOverPanel != null)
+            ui.gameOverPanel.SetActive(true);
     }
 
     public int GetCurrentRound()
@@ -5601,6 +5651,107 @@ public class GameLogic : MonoBehaviour
         }
     }
 
+    // Both replays animate through UIManager.PlayMovePreview with these colours,
+    // so solo and online look the same by construction rather than by agreement.
+    private static readonly Color ReplayFirstPlayerColour = new Color(0.25f, 0.65f, 1f, 1f);
+    private static readonly Color ReplaySecondPlayerColour = new Color(1f, 0.70f, 0.20f, 1f);
+    private static readonly Color ReplayWinnerColour = new Color(0.20f, 1f, 0.34f, 1f);
+
+    public IEnumerator ReplaySoloRound(RoundResult round)
+    {
+        if (round == null ||
+            Singleton.Instance == null ||
+            Singleton.Instance.UIManager == null)
+        {
+            Debug.LogWarning("[REPLAY] Cannot replay solo round.");
+            yield break;
+        }
+
+        SetInputLocked(true);
+
+        UIManager ui = Singleton.Instance.UIManager;
+
+        ui.ClearCommittedBoardTiles();
+
+        if (validatedBoardTiles != null)
+            System.Array.Clear(validatedBoardTiles, 0, validatedBoardTiles.Length);
+
+        // No stored board snapshot is needed: replaying the earlier rounds'
+        // winners in order reproduces exactly the board this round was played on.
+        foreach (RoundResult earlier in roundHistory)
+        {
+            if (earlier == null || earlier.roundNumber >= round.roundNumber)
+                continue;
+
+            PlaceReplayTiles(earlier.winnerTiles);
+        }
+
+        yield return new WaitForSecondsRealtime(0.5f);
+
+        if (round.humanValid && round.humanTiles.Count > 0)
+        {
+            ui.ShowRoundMessage(
+                $"You played {round.humanWord} ({round.humanScore} points)");
+
+            yield return StartCoroutine(
+                ui.PlayMovePreview(round.humanTiles, ReplayFirstPlayerColour, 1.5f));
+        }
+
+        if (round.aiValid && round.aiTiles.Count > 0)
+        {
+            ui.ShowRoundMessage(
+                $"Opponent played {round.aiWord} ({round.aiScore} points)");
+
+            yield return StartCoroutine(
+                ui.PlayMovePreview(round.aiTiles, ReplaySecondPlayerColour, 1.5f));
+        }
+
+        if (round.winnerTiles.Count > 0)
+        {
+            string winnerWord = round.humanWasWinner ? round.humanWord : round.aiWord;
+            int winnerScore = round.humanWasWinner ? round.humanScore : round.aiScore;
+
+            ui.ShowRoundMessage(
+                $"{winnerWord} wins the round for {winnerScore} points!");
+
+            yield return StartCoroutine(
+                ui.PlayMovePreview(round.winnerTiles, ReplayWinnerColour, 2f));
+
+            PlaceReplayTiles(round.winnerTiles);
+        }
+        else
+        {
+            ui.ShowRoundMessage("No valid move this round.");
+        }
+
+        SetInputLocked(false);
+    }
+
+    private void PlaceReplayTiles(List<SimPlacedTileData> tiles)
+    {
+        if (tiles == null)
+            return;
+
+        foreach (SimPlacedTileData tile in tiles)
+        {
+            if (tile == null ||
+                tile.row < 1 || tile.row > boardSizeX ||
+                tile.col < 1 || tile.col > boardSizeY)
+                continue;
+
+            LetterInfo letterInfo = new LetterInfo(tile.letter, tile.points);
+            letterInfo.bonusUsed = true;
+
+            validatedBoardTiles[tile.row, tile.col] = letterInfo;
+
+            if (Singleton.Instance != null && Singleton.Instance.UIManager != null)
+            {
+                Singleton.Instance.UIManager.PlaceAITileOnBoard(
+                    letterInfo, new LetterPosition(tile.row, tile.col));
+            }
+        }
+    }
+
     public IEnumerator ReplayOnlineRound(
     OnlineRoundHistoryEntry round)
     {
@@ -5644,14 +5795,9 @@ public class GameLogic : MonoBehaviour
                 round.player2SimulatedTilesJson
             );
 
-        Color player1Color =
-            new Color(0.25f, 0.65f, 1f, 1f);
-
-        Color player2Color =
-            new Color(1f, 0.70f, 0.20f, 1f);
-
-        Color winnerColor =
-            new Color(0.20f, 1f, 0.34f, 1f);
+        Color player1Color = ReplayFirstPlayerColour;
+        Color player2Color = ReplaySecondPlayerColour;
+        Color winnerColor = ReplayWinnerColour;
 
         if (round.player1Valid &&
             player1Move != null &&

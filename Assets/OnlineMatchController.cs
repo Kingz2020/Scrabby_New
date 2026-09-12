@@ -1841,7 +1841,7 @@ ValueChangedEventArgs args)
 
             if (uiManager != null)
             {
-                uiManager.ClearOnlineRoundReplayRows();
+                uiManager.ClearRoundReplayRows();
             }
 
             return;
@@ -1869,7 +1869,7 @@ ValueChangedEventArgs args)
 
             if (uiManager != null)
             {
-                uiManager.ClearOnlineRoundReplayRows();
+                uiManager.ClearRoundReplayRows();
             }
 
             return;
