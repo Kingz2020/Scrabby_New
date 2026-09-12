@@ -1,0 +1,799 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>PROTOTYPE — Scrabby round replay animation</title>
+<!--
+  THROWAWAY PROTOTYPE. Not shipped code. Double-click to run.
+
+  Question: "What should the round replay look like, in solo and in multiplayer?"
+
+  Four variants of the round-replay choreography on one board, switchable via
+  ?variant=A|B|C|D and the floating bottom bar. Variant A is the animation the
+  Unity build plays today (UIManager.PlayMovePreview + TileScript.PlayWinningReplayDrop),
+  reproduced warts and all so the others have something to be judged against.
+
+  The Solo / Multiplayer toggle mirrors the real split: GameLogic.ReplaySoloRound
+  narrates each beat through UIManager.ShowRoundMessage, GameLogic.ReplayOnlineRound
+  plays the same tiles with no narration at all.
+-->
+<style>
+  :root{
+    --cell: 52px;
+    --gap: 4px;
+    --p1: #40A6FF;   /* ReplayFirstPlayerColour  (0.25,0.65,1)  */
+    --p2: #FFB333;   /* ReplaySecondPlayerColour (1,0.70,0.20)  */
+    --win:#33FF57;   /* ReplayWinnerColour       (0.20,1,0.34)  */
+    --bg:  #141821;
+    --panel:#1d2330;
+    --ink: #e9edf5;
+    --dim: #8a94a8;
+    --board:#2a3142;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font:14px/1.45 "Segoe UI",system-ui,sans-serif;
+    min-height:100vh; padding:24px 24px 120px;
+    display:flex; gap:28px; align-items:flex-start; justify-content:center; flex-wrap:wrap;
+  }
+  h1{font-size:15px;margin:0 0 2px;letter-spacing:.02em}
+  .sub{color:var(--dim);font-size:12px;margin:0 0 18px}
+
+  /* ---------- board ---------- */
+  .stage{position:relative}
+  #board{
+    display:grid;
+    grid-template-columns:repeat(7,var(--cell));
+    grid-auto-rows:var(--cell);
+    gap:var(--gap);
+    padding:10px; border-radius:14px;
+    background:var(--board);
+    box-shadow:0 18px 40px rgba(0,0,0,.45);
+    transition:filter .35s ease;
+    position:relative;
+  }
+  #board.dimmed{filter:brightness(.45) saturate(.5)}
+  .cell{
+    position:relative; border-radius:7px;
+    background:#333c51; display:flex; align-items:center; justify-content:center;
+    font-size:9px; font-weight:700; letter-spacing:.04em; color:#7e8ba5;
+  }
+  .cell.dl{background:#2f4a63;color:#9ec8ea}
+  .cell.tl{background:#2a5c58;color:#93dcd2}
+  .cell.dw{background:#5e3550;color:#e8a8cf}
+  .cell.tw{background:#6b3630;color:#f0ab9c}
+
+  .tile{
+    position:absolute; inset:0; border-radius:7px;
+    background:linear-gradient(#f7e9c8,#e8d4a4);
+    color:#2a2118; display:flex; align-items:center; justify-content:center;
+    font-size:22px; font-weight:800; text-transform:uppercase;
+    box-shadow:0 2px 0 #b89f6d, 0 4px 10px rgba(0,0,0,.35);
+    will-change:transform,opacity,filter;
+  }
+  .tile .pts{position:absolute;right:4px;bottom:2px;font-size:9px;font-weight:700;opacity:.65}
+  .tile.locked{background:linear-gradient(#efe2c4,#ddc99b);filter:saturate(.75) brightness(.93)}
+  .tile.p1{box-shadow:0 0 0 2px var(--p1), 0 4px 14px rgba(64,166,255,.45)}
+  .tile.p2{box-shadow:0 0 0 2px var(--p2), 0 4px 14px rgba(255,179,51,.45)}
+  .tile.win{box-shadow:0 0 0 2px var(--win), 0 4px 18px rgba(51,255,87,.5)}
+  .tile.p1 .ltr{color:#0d4b80}
+  .tile.p2 .ltr{color:#7a4c00}
+  .tile.win .ltr{color:#0c5a1d}
+
+  /* score chip that flies off a finished word */
+  .chip{
+    position:absolute; z-index:20; transform:translate(-50%,-50%);
+    padding:5px 11px; border-radius:999px; font-weight:800; font-size:15px;
+    background:#0e1420; border:2px solid currentColor; white-space:nowrap;
+    pointer-events:none;
+  }
+  /* sweep bar used by variant C */
+  .sweep{position:absolute;z-index:15;border-radius:4px;pointer-events:none;opacity:.9}
+  .underline{position:absolute;z-index:14;border-radius:2px;background:currentColor;pointer-events:none}
+  /* shockwave used by variant D */
+  .wave{position:absolute;z-index:12;border-radius:50%;border:3px solid currentColor;pointer-events:none}
+
+  /* ---------- narration ---------- */
+  #message{
+    min-height:30px; margin-top:14px; font-size:17px; font-weight:600;
+    text-align:center; letter-spacing:.01em;
+  }
+  #message.empty{color:#4d566a;font-weight:400;font-style:italic;font-size:13px}
+
+  /* ---------- side panel ---------- */
+  .panel{width:330px;background:var(--panel);border-radius:14px;padding:16px 18px}
+  .panel h2{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--dim);margin:0 0 10px}
+  .panel + .panel{margin-top:14px}
+  .row{display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap}
+  button{
+    font:inherit;font-weight:600;color:var(--ink);background:#2f3850;
+    border:1px solid #414d69;border-radius:8px;padding:7px 13px;cursor:pointer;
+  }
+  button:hover{background:#3a4560}
+  button.on{background:var(--p1);border-color:var(--p1);color:#08243d}
+  input[type=range]{flex:1}
+  .blurb{color:var(--dim);font-size:12.5px;margin:0 0 12px}
+  #log{
+    font:11.5px/1.7 ui-monospace,Consolas,monospace; color:#9fb0cc;
+    background:#11151f;border-radius:9px;padding:10px 12px;height:210px;overflow:auto;
+    white-space:pre-wrap;
+  }
+  #log b{color:#fff}
+  .legend{display:flex;gap:14px;font-size:11.5px;color:var(--dim);margin-top:8px;flex-wrap:wrap}
+  .legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px}
+
+  /* ---------- floating variant switcher ---------- */
+  #switcher{
+    position:fixed;left:50%;bottom:22px;transform:translateX(-50%);z-index:999;
+    display:flex;align-items:center;gap:4px;
+    background:#fff;color:#111;border-radius:999px;padding:6px 8px;
+    box-shadow:0 10px 34px rgba(0,0,0,.55);font-weight:700;
+  }
+  #switcher button{
+    background:transparent;border:none;color:#111;font-size:18px;
+    padding:2px 12px;border-radius:999px;cursor:pointer;line-height:1
+  }
+  #switcher button:hover{background:#eceff5}
+  #vlabel{padding:0 10px;font-size:13.5px;min-width:230px;text-align:center}
+  #vlabel small{display:block;font-weight:500;color:#667;font-size:11px}
+</style>
+</head>
+<body>
+
+<div>
+  <h1>Round replay — animation prototype</h1>
+  <p class="sub">Round 3 of 3 · <span id="modeLabel">Solo</span> · <code>?variant=</code> in the URL, or the bar at the bottom · space = play</p>
+  <div class="stage">
+    <div id="board"></div>
+  </div>
+  <div id="message" class="empty">narration appears here</div>
+  <div class="legend">
+    <span><i style="background:var(--p1)"></i>Player 1 / You</span>
+    <span><i style="background:var(--p2)"></i>Player 2 / Opponent</span>
+    <span><i style="background:var(--win)"></i>Round winner</span>
+    <span><i style="background:#5e3550"></i>DW</span>
+    <span><i style="background:#2f4a63"></i>DL</span>
+    <span><i style="background:#2a5c58"></i>TL</span>
+  </div>
+</div>
+
+<div>
+  <div class="panel">
+    <h2 id="vtitle">Variant</h2>
+    <p class="blurb" id="vblurb"></p>
+    <div class="row">
+      <button id="play">▶ Play replay</button>
+      <button id="stop">■ Stop</button>
+    </div>
+    <div class="row">
+      <button class="mode on" data-mode="solo">Solo</button>
+      <button class="mode" data-mode="online">Multiplayer</button>
+    </div>
+    <div class="row">
+      <span style="color:var(--dim);font-size:12px">Speed</span>
+      <input id="speed" type="range" min="0.25" max="2" step="0.25" value="1">
+      <span id="speedv" style="width:34px;text-align:right">1×</span>
+    </div>
+  </div>
+  <div class="panel">
+    <h2>State</h2>
+    <div id="log"></div>
+  </div>
+</div>
+
+<div id="switcher">
+  <button id="prev" title="Previous variant (left arrow)">‹</button>
+  <div id="vlabel"></div>
+  <button id="next" title="Next variant (right arrow)">›</button>
+</div>
+
+<script>
+/* =====================================================================
+   Fixture — round 3 of a 7x7 match, shaped like RoundResult /
+   OnlineRoundHistoryEntry: each side plays one word, higher score wins,
+   only the winner's tiles stay on the board.
+   ===================================================================== */
+const SIZE = 7;
+
+function t(r,c,letter,points){ return {r:r,c:c,letter:letter,points:points}; }
+
+const BONUS = {
+  "2,3":"dl", "6,3":"tl", "5,5":"dw", "3,5":"dl",
+  "4,4":"dw", "2,6":"tw", "7,2":"dl", "6,6":"tl"
+};
+
+// Winners of rounds 1 and 2 — replayed back onto the board before round 3,
+// exactly like ReplaySoloRound walking roundHistory.
+const EARLIER = [
+  { round:1, word:"RAIN", tiles:[ t(4,2,"R",1), t(4,3,"A",1), t(4,4,"I",1), t(4,5,"N",1) ] },
+  { round:2, word:"ROBE", tiles:[ t(5,2,"O",1), t(6,2,"B",3), t(7,2,"E",1) ] }
+];
+
+const ROUND = {
+  number:3,
+  human:{ name:"You",  word:"GRAIN", score:14, valid:true,
+          tiles:[ t(2,3,"G",2), t(3,3,"R",1), t(5,3,"I",1), t(6,3,"N",1) ] },
+  ai:   { name:"Ravi", word:"SNAIL", score:11, valid:true,
+          tiles:[ t(3,5,"S",1), t(5,5,"A",1), t(6,5,"I",1), t(7,5,"L",1) ] },
+  humanWasWinner:true
+};
+function winnerMove(){ return ROUND.humanWasWinner ? ROUND.human : ROUND.ai; }
+
+/* =====================================================================
+   Board plumbing
+   ===================================================================== */
+const boardEl = document.getElementById("board");
+const msgEl   = document.getElementById("message");
+const logEl   = document.getElementById("log");
+const cells   = {};
+
+for (let r=1; r<=SIZE; r++){
+  for (let c=1; c<=SIZE; c++){
+    const d = document.createElement("div");
+    const b = BONUS[r+","+c];
+    d.className = "cell" + (b ? " "+b : "");
+    if (b) d.textContent = b.toUpperCase();
+    boardEl.appendChild(d);
+    cells[r+","+c] = d;
+  }
+}
+
+function spawnTile(tile, cls){
+  const el = document.createElement("div");
+  el.className = "tile " + (cls || "");
+  el.innerHTML = '<span class="ltr">'+tile.letter+'</span><span class="pts">'+tile.points+'</span>';
+  cells[tile.r+","+tile.c].appendChild(el);
+  return el;
+}
+function clearBoardTiles(){
+  document.querySelectorAll(".tile,.chip,.sweep,.underline,.wave").forEach(function(e){ e.remove(); });
+  boardEl.classList.remove("dimmed");
+}
+function placeLocked(tiles){ tiles.forEach(function(x){ spawnTile(x,"locked"); }); }
+
+function say(text){
+  msgEl.textContent = text || "narration appears here";
+  msgEl.classList.toggle("empty", !text);
+}
+function log(line, strong){
+  logEl.insertAdjacentHTML("beforeend", (strong ? "<b>"+line+"</b>" : line)+"\n");
+  logEl.scrollTop = logEl.scrollHeight;
+}
+function resetLog(){ logEl.textContent=""; }
+
+// geometry helpers for overlays drawn on top of the board
+function rectOf(tile){
+  const cell = cells[tile.r+","+tile.c];
+  const b = boardEl.getBoundingClientRect(), k = cell.getBoundingClientRect();
+  return { x:k.left-b.left, y:k.top-b.top, w:k.width, h:k.height };
+}
+function spanOf(tiles){
+  const rs = tiles.map(rectOf);
+  const x1 = Math.min.apply(null, rs.map(function(r){return r.x;}));
+  const y1 = Math.min.apply(null, rs.map(function(r){return r.y;}));
+  const x2 = Math.max.apply(null, rs.map(function(r){return r.x+r.w;}));
+  const y2 = Math.max.apply(null, rs.map(function(r){return r.y+r.h;}));
+  return { x:x1, y:y1, w:x2-x1, h:y2-y1, cx:(x1+x2)/2, cy:(y1+y2)/2,
+           vertical: (y2-y1) > (x2-x1) };
+}
+
+/* =====================================================================
+   Run control — one cancellable coroutine at a time, like the
+   StartCoroutine chain the Unity side runs.
+   ===================================================================== */
+const CANCEL = { cancelled:true };
+let runId = 0;
+let SPEED = 1;
+
+class Run {
+  constructor(){ this.id = ++runId; }
+  get stale(){ return this.id !== runId; }
+  check(){ if (this.stale) throw CANCEL; }
+  sleep(ms){
+    const self = this;
+    return new Promise(function(res,rej){
+      setTimeout(function(){ self.stale ? rej(CANCEL) : res(); }, ms/SPEED);
+    });
+  }
+  // element.animate, awaited, cancellable
+  anim(el, frames, opts){
+    opts = opts || {};
+    const self = this;
+    const a = el.animate(frames, {
+      fill: opts.fill || "forwards",
+      easing: opts.easing || "ease",
+      delay: (opts.delay || 0),
+      duration: (opts.duration || 300)/SPEED
+    });
+    return a.finished.then(function(){ if (self.stale){ throw CANCEL; } },
+                           function(){ /* cancelled by the DOM */ });
+  }
+  // fire-and-forget
+  fx(el, frames, opts){
+    opts = opts || {};
+    el.animate(frames, {
+      fill: opts.fill || "forwards",
+      easing: opts.easing || "ease",
+      delay: (opts.delay || 0),
+      duration: (opts.duration || 300)/SPEED
+    });
+  }
+}
+
+/* small reusable bits ------------------------------------------------ */
+const EASE_FALL   = "cubic-bezier(.55,.06,.68,.19)";  // accelerate, gravity-ish
+const EASE_SETTLE = "cubic-bezier(.18,1.5,.42,1)";    // land with overshoot
+
+async function flyScore(run, tiles, colorVar, text){
+  const s = spanOf(tiles);
+  const chip = document.createElement("div");
+  chip.className = "chip";
+  chip.style.color = "var("+colorVar+")";
+  chip.style.left = s.cx+"px";
+  chip.style.top  = s.cy+"px";
+  chip.textContent = text;
+  boardEl.appendChild(chip);
+  await run.anim(chip,
+    [{transform:"translate(-50%,-50%) scale(.5)",opacity:0},
+     {transform:"translate(-50%,-92%) scale(1.12)",opacity:1,offset:.35},
+     {transform:"translate(-50%,-118%) scale(1)",opacity:1,offset:.72},
+     {transform:"translate(-50%,-165%) scale(.95)",opacity:0}],
+    {duration:1100, easing:"ease-out"});
+  chip.remove();
+}
+
+async function fadeOutTiles(run, els){
+  await Promise.all(els.map(function(el,i){
+    return run.anim(el,
+      [{transform:"scale(1)",opacity:1},{transform:"scale(.72)",opacity:0}],
+      {duration:320, delay:i*35/SPEED, easing:"ease-in"});
+  }));
+  els.forEach(function(e){ e.remove(); });
+}
+
+/* =====================================================================
+   VARIANTS
+   Each owns the whole round choreography, not just the per-tile motion,
+   because the round structure is part of what is being judged.
+   ===================================================================== */
+const VARIANTS = {};
+
+/* ---------- A — today's build (control) ---------- */
+VARIANTS.A = {
+  name:"As shipped today",
+  blurb:"Exactly what the Unity build plays now: tiles are instantiated at full opacity (so the whole word pops in before it animates), then each one is hidden and dropped in turn with a 0.25s hold, the highlight colour reverts per tile, and the word is destroyed with no exit. Here as the control.",
+  async playWord(run, move, colorClass, colorVar){
+    // CreateReplayPreviewTile instantiates every tile visible up front.
+    const els = move.tiles.map(function(x){ return spawnTile(x); });
+    log("  spawn x"+els.length+"  (all visible at once — the pop-in)");
+    const per = (colorVar === "--win" ? 2000 : 1500) / els.length;
+    for (const el of els){
+      run.check();
+      el.classList.add(colorClass);
+      el.style.opacity = 0;
+      await run.anim(el,
+        [{transform:"translateY(-26px)",opacity:0},{transform:"translateY(0)",opacity:1}],
+        {duration:per, easing:"cubic-bezier(.22,.61,.36,1)"});  // 1-(1-t)^3
+      el.style.opacity = 1;
+      await run.sleep(250);                 // WaitForSecondsRealtime(0.25f)
+      el.classList.remove(colorClass);      // colour reverts immediately
+    }
+    log("  per-tile "+Math.round(per)+"ms + 250ms hold = "+
+        Math.round((per+250)*els.length)+"ms for a \""+(colorVar==="--win"?2000:1500)+"ms\" word");
+    await run.sleep(500);
+    els.forEach(function(e){ e.remove(); }); // destroyed, no exit animation
+    log("  destroy x"+els.length+"  (instant)");
+  },
+  async run(run, ctx){
+    await ctx.rebuild(run);
+    if (ROUND.human.valid){
+      ctx.narrate("You played "+ROUND.human.word+" ("+ROUND.human.score+" points)");
+      log("PlayMovePreview — player 1", true);
+      await this.playWord(run, ROUND.human, "p1", "--p1");
+    }
+    if (ROUND.ai.valid){
+      ctx.narrate("Opponent played "+ROUND.ai.word+" ("+ROUND.ai.score+" points)");
+      log("PlayMovePreview — player 2", true);
+      await this.playWord(run, ROUND.ai, "p2", "--p2");
+    }
+    const w = winnerMove();
+    ctx.narrate(w.word+" wins the round for "+w.score+" points!");
+    log("PlayMovePreview — winner", true);
+    await this.playWord(run, w, "win", "--win");
+    placeLocked(w.tiles);
+    log("PlaceReplayTiles — winner locked in", true);
+  }
+};
+
+/* ---------- B — cascade & settle ---------- */
+VARIANTS.B = {
+  name:"Cascade & settle",
+  blurb:"Same beat order, rebuilt motion. Tiles spawn hidden, fall under gravity easing with an overshoot landing, and overlap so the word reads as one cascade instead of five separate drops. The player colour stays on for the whole word, the finished word punches once as a unit, the score flies off it, and the tiles shrink away instead of vanishing.",
+  async playWord(run, move, colorClass, colorVar, label){
+    const els = move.tiles.map(function(x){
+      const e = spawnTile(x, colorClass); e.style.opacity = 0; return e;
+    });
+    log("  cascade x"+els.length+"  stagger 90ms, fall 260ms, overlapping");
+    await Promise.all(els.map(function(el,i){
+      return (async function(){
+        await run.sleep(i*90);
+        await run.anim(el,
+          [{transform:"translateY(-54px) scale(1.06)",opacity:0},
+           {transform:"translateY(0) scale(1)",opacity:1}],
+          {duration:260, easing:EASE_FALL});
+        run.fx(el,[{transform:"scaleY(.86) scaleX(1.1)"},{transform:"scale(1)"}],
+                  {duration:220, easing:EASE_SETTLE});   // squash on landing
+      })();
+    }));
+    run.check();
+    await run.sleep(140);
+    log("  word punch + score chip", true);
+    els.forEach(function(el,i){
+      run.fx(el,[{transform:"scale(1)"},{transform:"scale(1.14)",offset:.4},{transform:"scale(1)"}],
+                {duration:420, delay:i*45/SPEED, easing:"ease-out"});
+    });
+    await flyScore(run, move.tiles, colorVar, label+" +"+move.score);
+    await run.sleep(160);
+    await fadeOutTiles(run, els);
+    log("  fade out x"+els.length);
+  },
+  async run(run, ctx){
+    await ctx.rebuild(run);
+    if (ROUND.human.valid){
+      ctx.narrate(ROUND.human.name+" played "+ROUND.human.word);
+      log("cascade — player 1", true);
+      await this.playWord(run, ROUND.human, "p1", "--p1", ROUND.human.word);
+    }
+    if (ROUND.ai.valid){
+      ctx.narrate(ROUND.ai.name+" played "+ROUND.ai.word);
+      log("cascade — player 2", true);
+      await this.playWord(run, ROUND.ai, "p2", "--p2", ROUND.ai.word);
+    }
+    const w = winnerMove();
+    ctx.narrate(w.word+" takes round "+ROUND.number+" — "+w.score+" points");
+    log("cascade — winner", true);
+    const els = w.tiles.map(function(x){
+      const e = spawnTile(x,"win"); e.style.opacity = 0; return e;
+    });
+    await Promise.all(els.map(function(el,i){
+      return (async function(){
+        await run.sleep(i*80);
+        await run.anim(el,[{transform:"translateY(-60px) scale(1.08)",opacity:0},
+                           {transform:"translateY(0) scale(1)",opacity:1}],
+                          {duration:240, easing:EASE_FALL});
+        run.fx(el,[{transform:"scaleY(.84) scaleX(1.12)"},{transform:"scale(1)"}],
+                  {duration:240, easing:EASE_SETTLE});
+      })();
+    }));
+    run.check();
+    await flyScore(run, w.tiles, "--win", "+"+w.score);
+    // winner stays put — it is the board from here on, so it is never re-spawned
+    els.forEach(function(e){ e.classList.remove("win"); e.classList.add("locked"); });
+    log("winner locked in place (no re-spawn)", true);
+  }
+};
+
+/* ---------- C — spotlight sweep ---------- */
+VARIANTS.C = {
+  name:"Spotlight sweep",
+  blurb:"No falling at all. The board dims and a light sweep runs along the word in reading order — each tile scales up in place as the light crosses it, then a bar underlines the word and the score counts up beside it. Emphasis moves from 'tiles arrive' to 'read this word'. Quieter, and it never hides the board behind motion.",
+  async playWord(run, move, colorClass, colorVar, label){
+    boardEl.classList.add("dimmed");
+    const s = spanOf(move.tiles);
+    const els = move.tiles.map(function(x){
+      const e = spawnTile(x, colorClass); e.style.opacity = 0; return e;
+    });
+
+    const sweep = document.createElement("div");
+    sweep.className = "sweep";
+    if (s.vertical){
+      sweep.style.left = s.x+"px"; sweep.style.width = s.w+"px";
+      sweep.style.height = "26px"; sweep.style.top = s.y+"px";
+      sweep.style.background = "linear-gradient(180deg,transparent,var("+colorVar+"),transparent)";
+    } else {
+      sweep.style.top = s.y+"px"; sweep.style.height = s.h+"px";
+      sweep.style.width = "26px"; sweep.style.left = s.x+"px";
+      sweep.style.background = "linear-gradient(90deg,transparent,var("+colorVar+"),transparent)";
+    }
+    boardEl.appendChild(sweep);
+    log("  sweep along "+(s.vertical?"column":"row")+"  700ms");
+
+    const travel = s.vertical ? s.h : s.w;
+    run.fx(sweep, s.vertical
+      ? [{transform:"translateY(-26px)",opacity:0},{opacity:.85,offset:.15},
+         {opacity:.85,offset:.85},{transform:"translateY("+travel+"px)",opacity:0}]
+      : [{transform:"translateX(-26px)",opacity:0},{opacity:.85,offset:.15},
+         {opacity:.85,offset:.85},{transform:"translateX("+travel+"px)",opacity:0}],
+      {duration:700, easing:"linear"});
+
+    const step = els.length > 1 ? 560/(els.length-1) : 0;
+    await Promise.all(els.map(function(el,i){
+      return (async function(){
+        await run.sleep(90 + i*step);
+        await run.anim(el,[{transform:"scale(.55)",opacity:0,filter:"brightness(2.2)"},
+                           {transform:"scale(1.1)",opacity:1,filter:"brightness(1.6)",offset:.55},
+                           {transform:"scale(1)",opacity:1,filter:"brightness(1)"}],
+                          {duration:340, easing:"ease-out"});
+      })();
+    }));
+    run.check();
+    sweep.remove();
+
+    const ul = document.createElement("div");
+    ul.className = "underline";
+    ul.style.color = "var("+colorVar+")";
+    if (s.vertical){
+      ul.style.left=(s.x-8)+"px"; ul.style.top=s.y+"px";
+      ul.style.width="4px"; ul.style.height=s.h+"px"; ul.style.transformOrigin="top";
+    } else {
+      ul.style.left=s.x+"px"; ul.style.top=(s.y+s.h+4)+"px";
+      ul.style.width=s.w+"px"; ul.style.height="4px"; ul.style.transformOrigin="left";
+    }
+    boardEl.appendChild(ul);
+    run.fx(ul, s.vertical ? [{transform:"scaleY(0)"},{transform:"scaleY(1)"}]
+                          : [{transform:"scaleX(0)"},{transform:"scaleX(1)"}],
+              {duration:320, easing:"ease-out"});
+
+    const chip = document.createElement("div");
+    chip.className = "chip";
+    chip.style.color = "var("+colorVar+")";
+    chip.style.left = (s.vertical ? s.x - 52 : s.cx) + "px";
+    chip.style.top  = (s.vertical ? s.cy : s.y + s.h + 28) + "px";
+    boardEl.appendChild(chip);
+    log("  count up to "+move.score);
+    for (let n=0; n<=move.score; n++){
+      chip.textContent = label+" "+n;
+      await run.sleep(420/Math.max(1,move.score));
+    }
+    await run.sleep(520);
+    await Promise.all([
+      run.anim(chip,[{opacity:1},{opacity:0}],{duration:260}),
+      run.anim(ul,[{opacity:1},{opacity:0}],{duration:260}),
+      fadeOutTiles(run, els)
+    ]);
+    chip.remove(); ul.remove();
+    boardEl.classList.remove("dimmed");
+  },
+  async run(run, ctx){
+    await ctx.rebuild(run);
+    if (ROUND.human.valid){
+      ctx.narrate(ROUND.human.name+" — "+ROUND.human.word);
+      log("spotlight — player 1", true);
+      await this.playWord(run, ROUND.human, "p1", "--p1", ROUND.human.word);
+    }
+    if (ROUND.ai.valid){
+      ctx.narrate(ROUND.ai.name+" — "+ROUND.ai.word);
+      log("spotlight — player 2", true);
+      await this.playWord(run, ROUND.ai, "p2", "--p2", ROUND.ai.word);
+    }
+    const w = winnerMove();
+    ctx.narrate(w.word+" wins round "+ROUND.number);
+    log("spotlight — winner", true);
+    await this.playWord(run, w, "win", "--win", "WINNER");
+    placeLocked(w.tiles);
+    log("winner locked in", true);
+  }
+};
+
+/* ---------- D — head to head ---------- */
+VARIANTS.D = {
+  name:"Head to head",
+  blurb:"Changes the sequence, not just the motion. Both moves land at the same time in their own colours so the round reads as one comparison, the two scores pop side by side, then the loser desaturates and drops off the board while the winner slams down with a shockwave. Three sequential beats collapse into one — far shorter, and it answers 'who won and by how much' in a single frame.",
+  async run(run, ctx){
+    await ctx.rebuild(run);
+    ctx.narrate("Round "+ROUND.number+" — "+ROUND.human.name+" vs "+ROUND.ai.name);
+    log("both moves land together", true);
+
+    function mk(move, cls){
+      return move.tiles.map(function(x){
+        const e = spawnTile(x, cls); e.style.opacity = 0; return e;
+      });
+    }
+    const hEls = ROUND.human.valid ? mk(ROUND.human,"p1") : [];
+    const aEls = ROUND.ai.valid    ? mk(ROUND.ai,   "p2") : [];
+
+    function drop(els){
+      return Promise.all(els.map(function(el,i){
+        return (async function(){
+          await run.sleep(i*85);
+          await run.anim(el,[{transform:"translateY(-58px) scale(1.07)",opacity:0},
+                             {transform:"translateY(0) scale(1)",opacity:1}],
+                            {duration:250, easing:EASE_FALL});
+          run.fx(el,[{transform:"scaleY(.85) scaleX(1.1)"},{transform:"scale(1)"}],
+                    {duration:230, easing:EASE_SETTLE});
+        })();
+      }));
+    }
+
+    await Promise.all([drop(hEls), drop(aEls)]);
+    run.check();
+    await run.sleep(220);
+
+    log("scores side by side", true);
+    const chips = [];
+    if (ROUND.human.valid) chips.push(flyScore(run, ROUND.human.tiles, "--p1", ROUND.human.word+" "+ROUND.human.score));
+    if (ROUND.ai.valid)    chips.push(flyScore(run, ROUND.ai.tiles,    "--p2", ROUND.ai.word+" "+ROUND.ai.score));
+    await Promise.all(chips);
+    await run.sleep(260);
+
+    const winIsHuman = ROUND.humanWasWinner;
+    const winEls  = winIsHuman ? hEls : aEls;
+    const loseEls = winIsHuman ? aEls : hEls;
+    const loser   = winIsHuman ? ROUND.ai : ROUND.human;
+    const w       = winnerMove();
+
+    ctx.narrate(w.word+" beats "+loser.word+" by "+Math.abs(w.score-loser.score));
+    log("loser falls away, winner slams", true);
+
+    loseEls.forEach(function(e){ e.classList.remove("p1","p2"); });
+    const loserOut = Promise.all(loseEls.map(function(el,i){
+      return run.anim(el,
+        [{transform:"translateY(0) rotate(0deg)",opacity:1,filter:"grayscale(0)"},
+         {transform:"translateY(46px) rotate(8deg)",opacity:0,filter:"grayscale(1)"}],
+        {duration:460, delay:i*50/SPEED, easing:"ease-in"});
+    }));
+
+    winEls.forEach(function(e){ e.classList.remove("p1","p2"); e.classList.add("win"); });
+    await run.sleep(180);
+    await Promise.all(winEls.map(function(el){
+      return run.anim(el,[{transform:"translateY(0) scale(1)"},
+                          {transform:"translateY(-16px) scale(1.08)"}],
+                         {duration:200, easing:"ease-out"});
+    }));
+    run.check();
+    await Promise.all(winEls.map(function(el){
+      return run.anim(el,[{transform:"translateY(-16px) scale(1.08)"},
+                          {transform:"translateY(0) scale(1)"}],
+                         {duration:130, easing:"cubic-bezier(.7,0,.9,.3)"});
+    }));
+    run.check();
+
+    const s = spanOf(w.tiles);
+    const wave = document.createElement("div");
+    wave.className = "wave";
+    wave.style.color = "var(--win)";
+    wave.style.left=(s.cx-10)+"px"; wave.style.top=(s.cy-10)+"px";
+    wave.style.width="20px"; wave.style.height="20px";
+    boardEl.appendChild(wave);
+    run.fx(wave,[{transform:"scale(1)",opacity:.9},{transform:"scale(16)",opacity:0}],
+                {duration:620, easing:"ease-out"});
+    winEls.forEach(function(el,i){
+      run.fx(el,[{transform:"scale(1)"},{transform:"scale(1.16)",offset:.35},{transform:"scale(1)"}],
+                {duration:400, delay:i*40/SPEED, easing:"ease-out"});
+    });
+    boardEl.animate([{transform:"translate(0,0)"},{transform:"translate(3px,4px)"},
+                     {transform:"translate(-3px,-2px)"},{transform:"translate(0,0)"}],
+                    {duration:200/SPEED});
+
+    await flyScore(run, w.tiles, "--win", "+"+w.score);
+    await loserOut;
+    loseEls.forEach(function(e){ e.remove(); });
+    wave.remove();
+    winEls.forEach(function(e){ e.classList.remove("win"); e.classList.add("locked"); });
+    log("winner locked in place", true);
+  }
+};
+
+const ORDER = ["A","B","C","D"];
+
+/* =====================================================================
+   Harness
+   ===================================================================== */
+let MODE = "solo";
+
+const ctx = {
+  narrate: function(text){
+    // ReplaySoloRound narrates every beat; ReplayOnlineRound narrates none.
+    if (MODE === "solo"){ say(text); log("  ShowRoundMessage: \""+text+"\""); }
+    else { say(""); log("  (multiplayer path shows no message here)"); }
+  },
+  rebuild: async function(run){
+    clearBoardTiles();
+    say("");
+    log("ClearCommittedBoardTiles", true);
+    if (MODE === "online"){
+      // OnlineMatchController.ApplyReplayTilesAfterBoardBuild pushes the pre-round
+      // board state in one lump; the solo path replays each earlier winner in turn.
+      log("ApplyBoardStateToScene — pre-round snapshot (instant)");
+      EARLIER.forEach(function(e){ placeLocked(e.tiles); });
+    } else {
+      for (const e of EARLIER){
+        log("PlaceReplayTiles — round "+e.round+" winner "+e.word);
+        placeLocked(e.tiles);
+        await run.sleep(140);
+      }
+    }
+    log("RestoreBonusBoard — squares as they were this round");
+    await run.sleep(500);      // WaitForSecondsRealtime(0.5f)
+  }
+};
+
+async function play(){
+  const run = new Run();
+  const key = current();
+  const v = VARIANTS[key];
+  resetLog();
+  log("play variant "+key+" — "+v.name+"  ["+MODE+"]", true);
+  const t0 = performance.now();
+  try {
+    await v.run(run, ctx);
+    log("done in "+((performance.now()-t0)/1000).toFixed(1)+"s (at "+SPEED+"x)", true);
+  } catch(e){
+    if (e !== CANCEL) throw e;
+    log("stopped", true);
+  }
+}
+function stop(){ runId++; }
+
+/* ---- variant switcher ---- */
+// The URL is the source of truth where it can be, but file:// and data: pages
+// do not always allow replaceState, so an in-memory copy keeps the bar working.
+let CURRENT = (function(){
+  let v = "A";
+  try { v = (new URLSearchParams(location.search).get("variant")||"A").toUpperCase(); } catch(e){}
+  return ORDER.indexOf(v) >= 0 ? v : "A";
+})();
+
+function current(){ return CURRENT; }
+
+function setVariant(v){
+  CURRENT = v;
+  try {
+    const u = new URL(location.href);
+    u.searchParams.set("variant", v);
+    history.replaceState(null,"",u);
+  } catch(e){ /* unwritable URL — the in-memory copy carries it */ }
+  render();
+  stop();
+  clearBoardTiles();
+  say("");
+  resetLog();
+  log("variant "+v+" — "+VARIANTS[v].name, true);
+  log("press Play (or space). Left/right arrows switch variants.");
+  EARLIER.forEach(function(e){ placeLocked(e.tiles); });
+}
+function cycle(step){
+  const i = ORDER.indexOf(current());
+  setVariant(ORDER[(i+step+ORDER.length)%ORDER.length]);
+}
+function render(){
+  const v = current();
+  document.getElementById("vlabel").innerHTML =
+    v+" — "+VARIANTS[v].name+"<small>variant "+(ORDER.indexOf(v)+1)+" of "+ORDER.length+"</small>";
+  document.getElementById("vtitle").textContent = "Variant "+v+" — "+VARIANTS[v].name;
+  document.getElementById("vblurb").textContent = VARIANTS[v].blurb;
+}
+
+document.getElementById("prev").onclick = function(){ cycle(-1); };
+document.getElementById("next").onclick = function(){ cycle(1); };
+document.getElementById("play").onclick = play;
+document.getElementById("stop").onclick = stop;
+document.getElementById("speed").oninput = function(e){
+  SPEED = parseFloat(e.target.value);
+  document.getElementById("speedv").textContent = SPEED+"x";
+};
+document.querySelectorAll(".mode").forEach(function(b){
+  b.onclick = function(){
+    MODE = b.dataset.mode;
+    document.querySelectorAll(".mode").forEach(function(x){ x.classList.toggle("on", x===b); });
+    document.getElementById("modeLabel").textContent = MODE==="solo" ? "Solo" : "Multiplayer";
+    stop(); clearBoardTiles(); say("");
+    EARLIER.forEach(function(e){ placeLocked(e.tiles); });
+    resetLog(); log("mode: "+MODE, true);
+  };
+});
+addEventListener("keydown", function(e){
+  const ae = document.activeElement;
+  const tag = (ae && ae.tagName ? ae.tagName : "").toLowerCase();
+  if (tag==="input" || tag==="textarea" || (ae && ae.isContentEditable)) return;
+  if (e.key==="ArrowLeft") cycle(-1);
+  if (e.key==="ArrowRight") cycle(1);
+  if (e.key===" "){ e.preventDefault(); play(); }
+});
+
+setVariant(current());
+</script>
+</body>
+</html>
