@@ -2641,6 +2641,58 @@ public class GameLogic : MonoBehaviour
             Singleton.Instance.UIManager.UpdateTotalScores(humanTotalScore, aiTotalScore);
     }
 
+    private List<BonusCellSnapshot> SnapshotBonusBoard()
+    {
+        List<BonusCellSnapshot> snapshot = new List<BonusCellSnapshot>();
+
+        if (boardBonusTiles == null)
+            return snapshot;
+
+        for (int x = 0; x < boardBonusTiles.GetLength(0); x++)
+        {
+            for (int y = 0; y < boardBonusTiles.GetLength(1); y++)
+            {
+                BonusTile bonus = boardBonusTiles[x, y];
+
+                if (bonus == null)
+                    continue;
+
+                snapshot.Add(new BonusCellSnapshot
+                {
+                    x = x,
+                    y = y,
+                    bonusType = bonus.bonusType
+                });
+            }
+        }
+
+        return snapshot;
+    }
+
+    private void RestoreBonusBoard(List<BonusCellSnapshot> snapshot)
+    {
+        if (boardBonusTiles == null)
+            return;
+
+        System.Array.Clear(boardBonusTiles, 0, boardBonusTiles.Length);
+
+        if (snapshot != null)
+        {
+            foreach (BonusCellSnapshot cell in snapshot)
+            {
+                if (cell == null ||
+                    cell.x < 0 || cell.x >= boardBonusTiles.GetLength(0) ||
+                    cell.y < 0 || cell.y >= boardBonusTiles.GetLength(1))
+                    continue;
+
+                boardBonusTiles[cell.x, cell.y] = new BonusTile(cell.bonusType);
+            }
+        }
+
+        if (bonusBoardView != null)
+            bonusBoardView.DrawBonusTilesImmediately();
+    }
+
     private static List<SimPlacedTileData> ToReplayTiles(RoundMove move)
     {
         List<SimPlacedTileData> tiles = new List<SimPlacedTileData>();
@@ -2680,7 +2732,8 @@ public class GameLogic : MonoBehaviour
 
             humanTiles = ToReplayTiles(pendingPlayerMove),
             aiTiles = ToReplayTiles(pendingAIMove),
-            winnerTiles = ToReplayTiles(pendingWinningMove)
+            winnerTiles = ToReplayTiles(pendingWinningMove),
+            bonusBoard = SnapshotBonusBoard()
         };
 
         roundHistory.Add(result);
@@ -2726,13 +2779,10 @@ public class GameLogic : MonoBehaviour
                     $"Final score: {humanTotalScore} - AI {aiTotalScore} " +
                     $"(played {roundHistory.Count} rounds)";
 
+        // The per-round breakdown lives on the replay rows below, so repeating it
+        // in the summary text just prints every score twice.
         foreach (var r in roundHistory)
         {
-            roundSummary +=
-                $"\nRound {r.roundNumber}: " +
-                $"{r.humanWord} ({r.humanScore}) vs " +
-                $"{r.aiWord} ({r.aiScore})";
-
             Debug.Log(
                 $"Round {r.roundNumber}: " +
                 $"{r.humanWord}({r.humanScore}) vs " +
@@ -5685,6 +5735,9 @@ public class GameLogic : MonoBehaviour
 
             PlaceReplayTiles(earlier.winnerTiles);
         }
+
+        // The squares as they were scattered for this round, not as they stand now.
+        RestoreBonusBoard(round.bonusBoard);
 
         yield return new WaitForSecondsRealtime(0.5f);
 

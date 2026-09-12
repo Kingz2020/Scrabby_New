@@ -20,4 +20,16 @@ public class RoundResult
     public List<SimPlacedTileData> humanTiles = new List<SimPlacedTileData>();
     public List<SimPlacedTileData> aiTiles = new List<SimPlacedTileData>();
     public List<SimPlacedTileData> winnerTiles = new List<SimPlacedTileData>();
+
+    // Bonus squares are re-scattered every round, so a replay that does not
+    // restore them shows the wrong board and the wrong reason for the score.
+    public List<BonusCellSnapshot> bonusBoard = new List<BonusCellSnapshot>();
+}
+
+[System.Serializable]
+public class BonusCellSnapshot
+{
+    public int x;
+    public int y;
+    public BonusType bonusType;
 }
