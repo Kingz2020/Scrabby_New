@@ -19,9 +19,14 @@ public class TileBag: MonoBehaviour {
     }
 
     public LetterInfo DrawLetterTileFromBag() {
+        // Callers treat null as "bag is empty"; without this an empty bag indexes
+        // element 0 of an empty list and throws instead.
+        if (letters.Count == 0)
+            return null;
+
         int index = Random.Range(0, letters.Count);
         LetterInfo returnTile = letters[index];
-        letters.Remove(returnTile);
+        letters.RemoveAt(index);
         return returnTile;
     }
     

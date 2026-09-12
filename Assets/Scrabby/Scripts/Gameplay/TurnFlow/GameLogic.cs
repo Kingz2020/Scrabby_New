@@ -841,6 +841,12 @@ public class GameLogic : MonoBehaviour
         if (bonusTileBag != null && bonusBag != null)
             bonusTileBag.ResetBonusBag(bonusBag);
 
+        // Every route into a solo game lands here, which is the only place the
+        // refill is guaranteed to happen. Doing it in the callers meant the New
+        // Game button drew from whatever the previous games had left behind.
+        if (_tileBag != null && letterBag != null)
+            _tileBag.ResetLetterBag(letterBag);
+
         humanTotalScore = 0;
         aiTotalScore = 0;
         currentRoundNumber = 1;
@@ -5935,12 +5941,6 @@ public class GameLogic : MonoBehaviour
     public void InitSoloGameForDifficulty(int handSize, int boardX, int boardY)
     {
         Debug.Log($"[INIT] InitSoloGameForDifficulty: hand={handSize} board={boardX}x{boardY}");
-
-        if (_tileBag != null)
-        {
-            _tileBag.ResetLetterBag(letterBag);
-            Debug.Log("[INIT] Tile bag reset.");
-        }
 
         InitGame(handSize, boardX, boardY, GameInitMode.Solo);
     }
