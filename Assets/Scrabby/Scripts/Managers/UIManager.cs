@@ -1371,12 +1371,14 @@ public class UIManager : MonoBehaviour
 
             string winnerText;
 
+            // A tinted word is lost against the sky blue. A filled chip is not,
+            // and it matches the bonus squares already on the board.
             if (!round.humanValid && !round.aiValid)
                 winnerText = "<color=#D8E6F2>no play</color>";
             else if (round.humanWasWinner)
-                winnerText = "<b><color=#8CE99A>YOU</color></b>";
+                winnerText = "<mark=#127A32FF><b><color=#FFFFFF>  YOU  </color></b></mark>";
             else
-                winnerText = "<b><color=#FFD8A8>AI</color></b>";
+                winnerText = "<mark=#C0392BFF><b><color=#FFFFFF>  AI  </color></b></mark>";
 
             // Kept to one line: the label auto-shrinks rather than wrapping, so
             // the verdict has to be short enough to stay legible next to the words.
