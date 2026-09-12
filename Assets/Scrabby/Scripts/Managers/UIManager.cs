@@ -1371,14 +1371,16 @@ public class UIManager : MonoBehaviour
 
             string winnerText;
 
-            // A tinted word is lost against the sky blue. A filled chip is not,
-            // and it matches the bonus squares already on the board.
+            // The panel is a light blue that even the white row text only clears
+            // at 2.62:1, so going lighter washes out and a filled chip just adds
+            // clutter. Dark and saturated reads harder than anything around it:
+            // these sit at 3.57:1 and 3.42:1.
             if (!round.humanValid && !round.aiValid)
                 winnerText = "<color=#D8E6F2>no play</color>";
             else if (round.humanWasWinner)
-                winnerText = "<mark=#127A32FF><b><color=#FFFFFF>  YOU  </color></b></mark>";
+                winnerText = "<b><color=#0B5222>YOU</color></b>";
             else
-                winnerText = "<mark=#C0392BFF><b><color=#FFFFFF>  AI  </color></b></mark>";
+                winnerText = "<b><color=#8C2118>AI</color></b>";
 
             // Kept to one line: the label auto-shrinks rather than wrapping, so
             // the verdict has to be short enough to stay legible next to the words.
