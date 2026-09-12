@@ -140,6 +140,7 @@ public class GameLogic : MonoBehaviour
     private const int MaxAIDifficultyCandidates = 300;
     private readonly List<RoundMove> aiDifficultyCandidates =
         new List<RoundMove>(MaxAIDifficultyCandidates);
+    private RoundMove bestAICandidate;
 
     private void Awake()
     {
@@ -1174,56 +1175,39 @@ public class GameLogic : MonoBehaviour
         return CheckConnectedToTiles();
     }
 
-    private void GetDifficultyRankRange(
+    // How strong a move each difficulty plays, as a fraction of the best move
+    // available this turn. Ranking by position in the candidate list does not
+    // work: move scores are heavily top-skewed, so everything past roughly the
+    // top fifth sits in a flat tail where rank 25% and rank 60% score almost the
+    // same. Banding on score is what the player actually feels.
+    private void GetDifficultyScoreBand(
                                             SoloDifficulty difficulty,
-                                            int moveCount,
-                                            out int firstIndex,
-                                            out int lastIndexInclusive)
+                                            out float minimumFraction,
+                                            out float maximumFraction)
     {
-        if (moveCount <= 1)
-        {
-            firstIndex = 0;
-            lastIndexInclusive = 0;
-            return;
-        }
-
-        float minimumPercentile;
-        float maximumPercentileExclusive;
-
         switch (difficulty)
         {
             case SoloDifficulty.Easy:
-                minimumPercentile = 0.50f;
-                maximumPercentileExclusive = 0.75f;
+                minimumFraction = 0.20f;
+                maximumFraction = 0.40f;
                 break;
 
             case SoloDifficulty.Medium:
-                minimumPercentile = 0.20f;
-                maximumPercentileExclusive = 0.45f;
+                minimumFraction = 0.45f;
+                maximumFraction = 0.65f;
                 break;
 
             case SoloDifficulty.Hard:
-                minimumPercentile = 0.05f;
-                maximumPercentileExclusive = 0.20f;
+                minimumFraction = 0.75f;
+                maximumFraction = 0.95f;
                 break;
 
             case SoloDifficulty.Expert:
             default:
-                minimumPercentile = 0.00f;
-                maximumPercentileExclusive = 0.05f;
+                minimumFraction = 1.00f;
+                maximumFraction = 1.00f;
                 break;
         }
-
-        firstIndex = Mathf.FloorToInt(moveCount * minimumPercentile);
-
-        int endExclusive = Mathf.CeilToInt(
-            moveCount * maximumPercentileExclusive);
-
-        endExclusive = Mathf.Clamp(endExclusive, 1, moveCount);
-
-        firstIndex = Mathf.Clamp(firstIndex, 0, endExclusive - 1);
-
-        lastIndexInclusive = endExclusive - 1;
     }
 
 
@@ -2323,6 +2307,7 @@ public class GameLogic : MonoBehaviour
             int maxWordsToTest = Mathf.Min(words.Count, 30);
 
             aiDifficultyCandidates.Clear();
+            bestAICandidate = null;
 
             using (TestPlacementsMarker.Auto())
             {
@@ -3117,6 +3102,7 @@ public class GameLogic : MonoBehaviour
             using (EvaluateAIMoveMarker.Auto())
             {
                 aiDifficultyCandidates.Clear();
+                bestAICandidate = null;
 
                 if (currentRoundSnapshot == null)
                 {
@@ -5853,15 +5839,61 @@ public class GameLogic : MonoBehaviour
         if (candidates == null || candidates.Count == 0)
             return null;
 
+        // Put the strongest move back if the sample cap dropped it, so the band
+        // is measured against the real best available and not the best sampled.
+        if (bestAICandidate != null && !candidates.Contains(bestAICandidate))
+            candidates.Add(bestAICandidate);
+
         // Sort best first using your existing comparison.
         candidates.Sort((a, b) =>
             IsBetterAIMove(a, b) ? -1 : (IsBetterAIMove(b, a) ? 1 : 0));
 
-        GetDifficultyRankRange(
+        int bestScore = candidates[0].score;
+
+        GetDifficultyScoreBand(
             currentSoloDifficulty,
-            candidates.Count,
-            out int firstIndex,
-            out int lastIndexInclusive);
+            out float minimumFraction,
+            out float maximumFraction);
+
+        float lowestWanted = bestScore * minimumFraction;
+        float highestWanted = bestScore * maximumFraction;
+
+        // Sorted best first, so the band is a contiguous run.
+        int firstIndex = -1;
+        int lastIndexInclusive = -1;
+
+        for (int i = 0; i < candidates.Count; i++)
+        {
+            float score = candidates[i].score;
+
+            if (score > highestWanted || score < lowestWanted)
+                continue;
+
+            if (firstIndex < 0)
+                firstIndex = i;
+
+            lastIndexInclusive = i;
+        }
+
+        // Nothing landed in the band - a short candidate list can skip straight
+        // over it - so fall back to whichever move sits closest to its middle.
+        if (firstIndex < 0)
+        {
+            float wanted = (lowestWanted + highestWanted) * 0.5f;
+            float closestGap = float.MaxValue;
+
+            for (int i = 0; i < candidates.Count; i++)
+            {
+                float gap = Mathf.Abs(candidates[i].score - wanted);
+
+                if (gap < closestGap)
+                {
+                    closestGap = gap;
+                    firstIndex = i;
+                    lastIndexInclusive = i;
+                }
+            }
+        }
 
         int chosenIndex = UnityEngine.Random.Range(
             firstIndex,
@@ -5872,9 +5904,12 @@ public class GameLogic : MonoBehaviour
         Debug.Log(
             $"[AI] Difficulty={currentSoloDifficulty} | " +
             $"candidates={candidates.Count:N0} | " +
-            $"bestWord={candidates[0]?.word ?? "NONE"} | " +
+            $"bestWord={candidates[0]?.word ?? "NONE"} ({bestScore}) | " +
+            $"band={minimumFraction:P0}-{maximumFraction:P0} " +
+            $"({lowestWanted:F0}-{highestWanted:F0}) | " +
             $"chosenRank={chosenIndex + 1}/{candidates.Count} | " +
-            $"chosenWord={chosen?.word ?? "NONE"}");
+            $"chosenWord={chosen?.word ?? "NONE"} ({chosen?.score}) | " +
+            $"strength={(bestScore > 0 ? (float)chosen.score / bestScore : 1f):P0}");
 
         return chosen;
     }
@@ -5882,6 +5917,14 @@ public class GameLogic : MonoBehaviour
     {
         if (candidate == null || !candidate.isValid)
             return;
+
+        // The capped list is a rough sample of everything playable, which is what
+        // the lower difficulties need to find a weak-but-sane move in. The single
+        // strongest move has to survive the cap separately, or on a busy board
+        // Expert ends up picking the best of whatever the search happened to
+        // reach first.
+        if (bestAICandidate == null || IsBetterAIMove(candidate, bestAICandidate))
+            bestAICandidate = candidate;
 
         if (aiDifficultyCandidates.Count >= MaxAIDifficultyCandidates)
             return;
