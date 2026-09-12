@@ -19861,8 +19861,11 @@ MonoBehaviour:
   gameBoard: {fileID: 49635656}
   handTileHolder: {fileID: 1190833017}
   basicTile: {fileID: 6356469288794072269, guid: 215f9d928367dc74996e86d1f41ab6ad, type: 3}
-  rejectedOutlineSprite: {fileID: 21300000, guid: a7f3c92e5d184b60ac2e71f3b8d45e07, type: 3}
+  wordOutlineSprite: {fileID: 21300000, guid: a7f3c92e5d184b60ac2e71f3b8d45e07, type: 3}
+  scoreBadgeSprite: {fileID: 21300000, guid: d5b81a04e7c34f92b6e05a173c8f2916, type: 3}
+  scoreBadgeFont: {fileID: 11400000, guid: 79307f501eb267b44be9d7ca808a3dfb, type: 2}
   rejectedOutlineColour: {r: 0.84, g: 0.15, b: 0.16, a: 1}
+  playedOutlineColour: {r: 0.18, g: 0.64, b: 0.33, a: 1}
   rejectedOutlineSeconds: 0.55
   rejectedOutlineHoldSeconds: 1.2
   rejectedOutlineFadeOutSeconds: 0.45

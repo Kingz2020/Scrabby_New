@@ -12,14 +12,21 @@ public class UIManager : MonoBehaviour
     public GameObject handTileHolder;
     public GameObject basicTile;
 
-    [Header("Invalid move feedback")]
-    [SerializeField] private Sprite rejectedOutlineSprite;
+    [Header("Word outlines")]
+    [SerializeField] private Sprite wordOutlineSprite;
+    [SerializeField] private Sprite scoreBadgeSprite;
+    [SerializeField] private TMP_FontAsset scoreBadgeFont;
     [SerializeField] private Color rejectedOutlineColour = new Color(0.84f, 0.15f, 0.16f, 1f);
+    [SerializeField] private Color playedOutlineColour = new Color(0.18f, 0.64f, 0.33f, 1f);
     [SerializeField] private float rejectedOutlineSeconds = 0.55f;
     [SerializeField] private float rejectedOutlineHoldSeconds = 1.2f;
     [SerializeField] private float rejectedOutlineFadeOutSeconds = 0.45f;
     private GameObject rejectedOutline;
     private Coroutine rejectedOutlineAnimation;
+    private GameObject playedOutline;
+    private GameObject playedScoreBadge;
+    private TextMeshProUGUI playedScoreLabel;
+    private Coroutine playedOutlineAnimation;
 
     public WordlistDisplay wordlistDisplay;
     public WorldlistTitleHolder worldlistTitleHolder;
@@ -104,19 +111,50 @@ public class UIManager : MonoBehaviour
     // around it. A word is always a straight run, so one rectangle covers it.
     private void DrawRejectedOutline(List<TileScript> tiles)
     {
-        if (rejectedOutlineSprite == null || tiles == null || tiles.Count == 0)
+        if (tiles == null || tiles.Count == 0)
             return;
 
-        RectTransform grid = null;
-        Vector2 min = new Vector2(float.MaxValue, float.MaxValue);
-        Vector2 max = new Vector2(float.MinValue, float.MinValue);
+        List<RectTransform> cells = new List<RectTransform>();
 
         foreach (TileScript tile in tiles)
         {
             // A tile sits inside its board cell, and the cell is what the grid
             // positions, so the cell is the thing with a reliable rect.
-            RectTransform cell = tile.transform.parent as RectTransform;
+            if (tile != null)
+                cells.Add(tile.transform.parent as RectTransform);
+        }
 
+        RectTransform rect = PlaceOutline(
+            ref rejectedOutline, "RejectedWordOutline", cells, rejectedOutlineColour);
+
+        if (rect == null)
+            return;
+
+        if (rejectedOutlineAnimation != null)
+            StopCoroutine(rejectedOutlineAnimation);
+
+        rejectedOutlineAnimation = StartCoroutine(
+            AnimateRejectedOutline(rect, rejectedOutline.GetComponent<Image>()));
+    }
+
+    // Boxes a set of board cells, with the line sitting in the gap around them.
+    // Returns the outline's rect, or null if the cells could not be measured.
+    private RectTransform PlaceOutline(
+        ref GameObject outlineObject,
+        string name,
+        List<RectTransform> cells,
+        Color colour)
+    {
+        if (wordOutlineSprite == null || cells == null || cells.Count == 0)
+            return null;
+
+        RectTransform grid = null;
+        Vector2 min = new Vector2(float.MaxValue, float.MaxValue);
+        Vector2 max = new Vector2(float.MinValue, float.MinValue);
+        bool measured = false;
+
+        foreach (RectTransform cell in cells)
+        {
             if (cell == null)
                 continue;
 
@@ -128,10 +166,11 @@ public class UIManager : MonoBehaviour
 
             min = Vector2.Min(min, centre - half);
             max = Vector2.Max(max, centre + half);
+            measured = true;
         }
 
-        if (grid == null)
-            return;
+        if (!measured || grid == null)
+            return null;
 
         float gap = 15f;
         GridLayoutGroup layout = grid.GetComponent<GridLayoutGroup>();
@@ -142,26 +181,26 @@ public class UIManager : MonoBehaviour
         min -= new Vector2(gap, gap);
         max += new Vector2(gap, gap);
 
-        if (rejectedOutline == null)
+        if (outlineObject == null)
         {
-            rejectedOutline = new GameObject(
-                "RejectedWordOutline",
+            outlineObject = new GameObject(
+                name,
                 typeof(RectTransform), typeof(CanvasRenderer),
                 typeof(Image), typeof(LayoutElement));
 
-            rejectedOutline.transform.SetParent(grid, false);
+            outlineObject.transform.SetParent(grid, false);
 
-            // Without this the grid would treat the outline as a 82nd cell.
-            rejectedOutline.GetComponent<LayoutElement>().ignoreLayout = true;
+            // Without this the grid would treat the outline as an 82nd cell.
+            outlineObject.GetComponent<LayoutElement>().ignoreLayout = true;
 
-            Image outline = rejectedOutline.GetComponent<Image>();
-            outline.sprite = rejectedOutlineSprite;
-            outline.type = Image.Type.Sliced;
-            outline.fillCenter = false;
-            outline.raycastTarget = false;
+            Image created = outlineObject.GetComponent<Image>();
+            created.sprite = wordOutlineSprite;
+            created.type = Image.Type.Sliced;
+            created.fillCenter = false;
+            created.raycastTarget = false;
         }
 
-        RectTransform rect = rejectedOutline.GetComponent<RectTransform>();
+        RectTransform rect = outlineObject.GetComponent<RectTransform>();
         rect.anchorMin = new Vector2(0.5f, 0.5f);
         rect.anchorMax = new Vector2(0.5f, 0.5f);
         rect.pivot = new Vector2(0.5f, 0.5f);
@@ -169,13 +208,10 @@ public class UIManager : MonoBehaviour
         rect.anchoredPosition = (min + max) * 0.5f;
         rect.SetAsLastSibling();
 
-        rejectedOutline.SetActive(true);
+        outlineObject.GetComponent<Image>().color = colour;
+        outlineObject.SetActive(true);
 
-        if (rejectedOutlineAnimation != null)
-            StopCoroutine(rejectedOutlineAnimation);
-
-        rejectedOutlineAnimation = StartCoroutine(
-            AnimateRejectedOutline(rect, rejectedOutline.GetComponent<Image>()));
+        return rect;
     }
 
     private IEnumerator AnimateRejectedOutline(RectTransform rect, Image outline)
@@ -249,6 +285,166 @@ public class UIManager : MonoBehaviour
 
         rejectedOutline.SetActive(false);
         rejectedOutlineAnimation = null;
+    }
+
+    // Boxes the word that was actually played and pins its score to the corner
+    // of that box, so the number belongs to a word instead of floating loose.
+    public void HighlightPlayedWord(List<LetterPosition> cells, int score)
+    {
+        HidePlayedWordHighlight();
+
+        if (cells == null || cells.Count == 0 || gameBoard == null)
+            return;
+
+        List<RectTransform> cellRects = new List<RectTransform>();
+
+        foreach (LetterPosition position in cells)
+        {
+            GhostTile cell = FindGhostTileByLetterPosition(position);
+
+            if (cell != null)
+                cellRects.Add(cell.transform as RectTransform);
+        }
+
+        RectTransform rect = PlaceOutline(
+            ref playedOutline, "PlayedWordOutline", cellRects, playedOutlineColour);
+
+        if (rect == null)
+            return;
+
+        AttachScoreBadge(rect, score);
+
+        if (playedOutlineAnimation != null)
+            StopCoroutine(playedOutlineAnimation);
+
+        playedOutlineAnimation = StartCoroutine(AnimatePlayedOutline(rect));
+    }
+
+    private void AttachScoreBadge(RectTransform outlineRect, int score)
+    {
+        if (scoreBadgeSprite == null)
+            return;
+
+        if (playedScoreBadge == null)
+        {
+            playedScoreBadge = new GameObject(
+                "PlayedWordScore",
+                typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+
+            Image badge = playedScoreBadge.GetComponent<Image>();
+            badge.sprite = scoreBadgeSprite;
+            badge.raycastTarget = false;
+
+            GameObject label = new GameObject(
+                "Score", typeof(RectTransform), typeof(CanvasRenderer));
+            label.transform.SetParent(playedScoreBadge.transform, false);
+
+            playedScoreLabel = label.AddComponent<TextMeshProUGUI>();
+            playedScoreLabel.alignment = TextAlignmentOptions.Center;
+            playedScoreLabel.enableAutoSizing = true;
+            playedScoreLabel.fontSizeMin = 8f;
+            playedScoreLabel.fontSizeMax = 40f;
+            playedScoreLabel.fontStyle = FontStyles.Bold;
+            playedScoreLabel.color = Color.white;
+            playedScoreLabel.raycastTarget = false;
+
+            if (scoreBadgeFont != null)
+                playedScoreLabel.font = scoreBadgeFont;
+
+            RectTransform labelRect = label.GetComponent<RectTransform>();
+            labelRect.anchorMin = Vector2.zero;
+            labelRect.anchorMax = Vector2.one;
+            labelRect.offsetMin = new Vector2(6f, 6f);
+            labelRect.offsetMax = new Vector2(-6f, -6f);
+        }
+
+        // Parented to the outline so it travels with the box rather than being
+        // positioned against the board separately.
+        playedScoreBadge.transform.SetParent(outlineRect, false);
+
+        float diameter = Mathf.Min(outlineRect.rect.width, outlineRect.rect.height) * 0.62f;
+
+        RectTransform badgeRect = playedScoreBadge.GetComponent<RectTransform>();
+        badgeRect.anchorMin = new Vector2(1f, 0f);      // bottom-right, the end of the word
+        badgeRect.anchorMax = new Vector2(1f, 0f);
+        badgeRect.pivot = new Vector2(0.5f, 0.5f);
+        badgeRect.anchoredPosition = Vector2.zero;      // centred on the corner of the line
+        badgeRect.sizeDelta = new Vector2(diameter, diameter);
+        badgeRect.localScale = Vector3.one;
+
+        playedScoreBadge.GetComponent<Image>().color = playedOutlineColour;
+
+        if (playedScoreLabel != null)
+            playedScoreLabel.text = score.ToString();
+
+        playedScoreBadge.SetActive(true);
+    }
+
+    private IEnumerator AnimatePlayedOutline(RectTransform rect)
+    {
+        Image outline = playedOutline.GetComponent<Image>();
+        Image badge = playedScoreBadge != null ? playedScoreBadge.GetComponent<Image>() : null;
+
+        float elapsed = 0f;
+
+        while (elapsed < rejectedOutlineSeconds)
+        {
+            elapsed += Time.deltaTime;
+
+            float progress = Mathf.Clamp01(elapsed / rejectedOutlineSeconds);
+            float eased = 1f - Mathf.Pow(1f - progress, 3f);
+
+            outline.color = new Color(
+                playedOutlineColour.r, playedOutlineColour.g, playedOutlineColour.b, eased);
+
+            if (badge != null)
+            {
+                badge.color = new Color(
+                    playedOutlineColour.r, playedOutlineColour.g, playedOutlineColour.b, eased);
+
+                if (playedScoreLabel != null)
+                    playedScoreLabel.alpha = eased;
+
+                // The badge lands a beat after the box it hangs off.
+                float pop = Mathf.Clamp01((progress - 0.35f) / 0.65f);
+                float settle = Mathf.Lerp(0.4f, 1f, 1f - Mathf.Pow(1f - pop, 3f));
+                playedScoreBadge.transform.localScale = new Vector3(settle, settle, 1f);
+            }
+
+            float overshoot = Mathf.Lerp(1.05f, 1f, eased);
+            rect.localScale = new Vector3(overshoot, overshoot, 1f);
+
+            yield return null;
+        }
+
+        outline.color = playedOutlineColour;
+        rect.localScale = Vector3.one;
+
+        if (badge != null)
+        {
+            badge.color = playedOutlineColour;
+            playedScoreBadge.transform.localScale = Vector3.one;
+
+            if (playedScoreLabel != null)
+                playedScoreLabel.alpha = 1f;
+        }
+
+        playedOutlineAnimation = null;
+    }
+
+    public void HidePlayedWordHighlight()
+    {
+        if (playedOutlineAnimation != null)
+        {
+            StopCoroutine(playedOutlineAnimation);
+            playedOutlineAnimation = null;
+        }
+
+        if (playedScoreBadge != null)
+            playedScoreBadge.SetActive(false);
+
+        if (playedOutline != null)
+            playedOutline.SetActive(false);
     }
 
     private void HideRejectedOutlineNow()

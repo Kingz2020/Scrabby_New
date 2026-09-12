@@ -898,6 +898,11 @@ public class GameLogic : MonoBehaviour
     {
         Debug.Log("[ONLINE-CHECK] StartRound START. isOnlineMatch=" + isOnlineMatch);
 
+        // Last round's word keeps its box through the reveal; it goes when the
+        // next round actually begins.
+        if (Singleton.Instance != null && Singleton.Instance.UIManager != null)
+            Singleton.Instance.UIManager.HidePlayedWordHighlight();
+
         // SOLO-only safeguard: ensure bag is populated before first round
         /*if (currentInitMode == GameInitMode.Solo)
         {
@@ -2064,7 +2069,8 @@ public class GameLogic : MonoBehaviour
                 ", score=" + winningMove.score
             );
 
-            Singleton.Instance.UIManager.ShowValidatedWordScore(popupAnchor, winningMove.score);
+            Singleton.Instance.UIManager.HighlightPlayedWord(
+                GetMainWordCells(winningMove), winningMove.score);
         }
         else
         {
@@ -3250,6 +3256,43 @@ public class GameLogic : MonoBehaviour
             $"valid={move.isValid}, word='{move.word}', score={move.score}, " +
             $"isHuman={move.isHuman}, timeUsed={move.timeUsed}, " +
             $"simTiles={simCount}, placedTiles={placedCount}";
+    }
+
+    // Every cell of the word the move laid down, walked out along the placement
+    // direction through whatever was already on the board, so the outline boxes
+    // the whole word rather than only the tiles the player contributed.
+    private List<LetterPosition> GetMainWordCells(RoundMove move)
+    {
+        List<LetterPosition> cells = new List<LetterPosition>();
+
+        if (move == null || move.simulatedTiles == null || move.simulatedTiles.Count == 0)
+            return cells;
+
+        TilePlacement orientation = InferMoveOrientationFromSimTiles(move.simulatedTiles);
+
+        int row = move.simulatedTiles[0].letterPosition.RowX;
+        int col = move.simulatedTiles[0].letterPosition.ColY;
+
+        if (orientation == TilePlacement.Vertical)
+        {
+            int first = GetFirstLetterIndex(TilePlacement.Vertical, validatedBoardTiles, row, col);
+
+            for (int r = first; r <= boardSizeX && validatedBoardTiles[r, col] != null; r++)
+                cells.Add(new LetterPosition(r, col));
+        }
+        else
+        {
+            int first = GetFirstLetterIndex(TilePlacement.Horizontal, validatedBoardTiles, row, col);
+
+            for (int c = first; c <= boardSizeY && validatedBoardTiles[row, c] != null; c++)
+                cells.Add(new LetterPosition(row, c));
+        }
+
+        // A single tile that formed no run still deserves its own box.
+        if (cells.Count == 0)
+            cells.Add(new LetterPosition(row, col));
+
+        return cells;
     }
 
     private LetterPosition GetPopupAnchorPosition(RoundMove move)
