@@ -17,6 +17,35 @@ public class PreGamePanel : MonoBehaviour
     [SerializeField] private TMP_InputField displayNameInput;
     [SerializeField] private TMP_InputField roomCodeInput;
 
+    [Header("Panel states")]
+    // The two halves of the panel. Exactly one is ever shown: the sign-in card
+    // when signed out, the play card when signed in. Leave them unassigned and
+    // the panel falls back to toggling the individual controls instead, so this
+    // keeps working until the new layout is built.
+    [SerializeField] private GameObject signedOutRoot;
+    [SerializeField] private GameObject signedInRoot;
+    [SerializeField] private GameObject signedInBanner;
+
+    [Header("Sign in / Create account tabs")]
+    [SerializeField] private Button signInTabButton;
+    [SerializeField] private Button createAccountTabButton;
+    // The existing Login and Register buttons, kept as they are so their wired
+    // onClick handlers survive. The tabs just decide which one is on screen.
+    [SerializeField] private Button signInActionButton;
+    [SerializeField] private Button createAccountActionButton;
+    [SerializeField] private Sprite tabSelectedSprite;
+    [SerializeField] private Sprite tabIdleSprite;
+    [SerializeField] private Color tabSelectedTextColour = new Color(0.23f, 0.17f, 0.09f);
+    [SerializeField] private Color tabIdleTextColour = new Color(1f, 1f, 1f, 0.82f);
+    // The sprite alone was not enough: both tabs are cream in the scene, so the
+    // idle one kept a cream face behind white text and became unreadable.
+    [SerializeField] private Color tabSelectedColour = new Color(0.945f, 0.878f, 0.733f, 1f);
+    [SerializeField] private Color tabIdleColour = new Color(0.039f, 0.149f, 0.267f, 0.45f);
+
+    // Which tab the signed-out card is showing. Sign in is the common case, so
+    // it is the one that opens.
+    private bool creatingAccount;
+
     [Header("UI")]
     //[SerializeField] private GameObject authSection;
     //[SerializeField] private GameObject lobbySection;
@@ -239,14 +268,14 @@ public class PreGamePanel : MonoBehaviour
                     ? user.Email
                     : user.DisplayName;
 
-                displayNameInput.SetTextWithoutNotify(shownName);
-                displayNameInput.ForceLabelUpdate();
-
-                emailInput.SetTextWithoutNotify(user.Email ?? "");
-                emailInput.ForceLabelUpdate();
-
-                passwordInput.SetTextWithoutNotify("*****");
-                passwordInput.ForceLabelUpdate();
+                // Leave the form alone - it belongs to signing in, and signing
+                // in is over. Only the password is cleared, so no value is left
+                // sitting in a password box.
+                if (passwordInput != null)
+                {
+                    passwordInput.SetTextWithoutNotify("");
+                    passwordInput.ForceLabelUpdate();
+                }
 
                 SetStatus("Signed in.");
                 signedInAsText.text = "Signed in as: " + shownName;
@@ -518,9 +547,6 @@ public class PreGamePanel : MonoBehaviour
                 string shownName = string.IsNullOrWhiteSpace(signedInUser.DisplayName)
                     ? signedInUser.Email
                     : signedInUser.DisplayName;
-
-                displayNameInput.SetTextWithoutNotify(shownName);
-                displayNameInput.ForceLabelUpdate();
 
                 SetStatus("Login successful.");
                 if (signedInAsText != null)
@@ -976,6 +1002,16 @@ public class PreGamePanel : MonoBehaviour
             Singleton.Instance.OnlineMatchController.StopWatchingCurrentMatch();
 
         auth.SignOut();
+
+        // Back to the tab most people want next.
+        creatingAccount = false;
+
+        if (passwordInput != null)
+        {
+            passwordInput.SetTextWithoutNotify("");
+            passwordInput.ForceLabelUpdate();
+        }
+
         SetStatus("Logged out.");
         RefreshUI();
         RefreshStartButton();
@@ -1018,24 +1054,143 @@ public class PreGamePanel : MonoBehaviour
         if (!string.IsNullOrWhiteSpace(auth.CurrentUser.DisplayName))
             return auth.CurrentUser.DisplayName;
 
-        if (!string.IsNullOrWhiteSpace(displayNameInput.text))
-            return displayNameInput.text.Trim(); 
+        if (displayNameInput != null &&
+            !string.IsNullOrWhiteSpace(displayNameInput.text))
+        {
+            return displayNameInput.text.Trim();
+        }
+
         return auth.CurrentUser.Email;
     }
 
+    // Every path that changes auth state already calls this, so making it the
+    // one place that decides what is visible fixes all of them at once. It used
+    // to switch everything on unconditionally, which is why Login, Register and
+    // Log Out were all on screen while the status line said "Signed in".
     private void RefreshUI()
     {
-        if (emailInput != null)
-            emailInput.gameObject.SetActive(true);
+        bool signedIn = IsSignedIn();
+
+        if (signedOutRoot != null || signedInRoot != null)
+        {
+            if (signedOutRoot != null)
+                signedOutRoot.SetActive(!signedIn);
+
+            if (signedInRoot != null)
+                signedInRoot.SetActive(signedIn);
+        }
+        else
+        {
+            // Card layout not built yet: fall back to the individual controls,
+            // still one state at a time.
+            SetVisible(emailInput, !signedIn);
+            SetVisible(passwordInput, !signedIn);
+            SetVisible(displayNameInput, !signedIn);
+            SetVisible(startGameButton, signedIn);
+        }
+
+        if (signedInBanner != null)
+            signedInBanner.SetActive(signedIn);
+
+        if (signedIn)
+        {
+            if (signedInAsText != null)
+                signedInAsText.text = "Signed in as: " + GetBestDisplayName();
+        }
+        else
+        {
+            ApplyTab();
+        }
+    }
+
+    // Sign in needs an email and a password. Creating an account also needs an
+    // alias, so the alias only appears on the tab that actually uses it.
+    private void ApplyTab()
+    {
+        // Only hide the alias if there is a tab to bring it back with. Until the
+        // tabs are wired there is no way to reach the create-account side, so
+        // hiding it would make registering impossible.
+        bool canSwitchTabs =
+            signInTabButton != null || createAccountTabButton != null;
+
+        SetVisible(displayNameInput, creatingAccount || !canSwitchTabs);
+
+        if (canSwitchTabs)
+        {
+            SetVisible(signInActionButton, !creatingAccount);
+            SetVisible(createAccountActionButton, creatingAccount);
+        }
+
+        // Choosing a password is easier when you can see it; typing one you
+        // already know is safer when you cannot.
+        if (passwordInput != null)
+        {
+            passwordInput.contentType = creatingAccount
+                ? TMP_InputField.ContentType.Standard
+                : TMP_InputField.ContentType.Password;
+
+            passwordInput.ForceLabelUpdate();
+        }
+
+        PaintTab(signInTabButton, !creatingAccount);
+        PaintTab(createAccountTabButton, creatingAccount);
+    }
+
+    // The selected tab is a letter tile; the other is left as glass.
+    private void PaintTab(Button tab, bool selected)
+    {
+        if (tab == null)
+            return;
+
+        if (tab.image != null)
+        {
+            if (tabSelectedSprite != null && tabIdleSprite != null)
+                tab.image.sprite = selected ? tabSelectedSprite : tabIdleSprite;
+
+            tab.image.color = selected ? tabSelectedColour : tabIdleColour;
+        }
+
+        TextMeshProUGUI label = tab.GetComponentInChildren<TextMeshProUGUI>(true);
+
+        if (label != null)
+            label.color = selected ? tabSelectedTextColour : tabIdleTextColour;
+    }
+
+    public void ShowSignInTab()
+    {
+        SwitchTab(false);
+    }
+
+    public void ShowCreateAccountTab()
+    {
+        SwitchTab(true);
+    }
+
+    // The two tabs are different jobs, not two views of one. Carrying a
+    // half-typed password across - and revealing it when the tab changes - or
+    // leaving the last attempt's error sitting above the other form, both read
+    // as the panel having lost track of what you are doing.
+    private void SwitchTab(bool createAccount)
+    {
+        if (creatingAccount == createAccount)
+            return;
+
+        creatingAccount = createAccount;
 
         if (passwordInput != null)
-            passwordInput.gameObject.SetActive(true);
+        {
+            passwordInput.SetTextWithoutNotify("");
+            passwordInput.ForceLabelUpdate();
+        }
 
-        if (displayNameInput != null)
-            displayNameInput.gameObject.SetActive(true);
+        SetStatus("");
+        RefreshUI();
+    }
 
-        if (startGameButton != null)
-            startGameButton.gameObject.SetActive(true);
+    private static void SetVisible(Component control, bool visible)
+    {
+        if (control != null)
+            control.gameObject.SetActive(visible);
     }
 
     private void RefreshStartButton()
