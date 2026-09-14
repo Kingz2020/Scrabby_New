@@ -56,10 +56,45 @@ public class MatchStatusPanel : MonoBehaviour
     [SerializeField] private TMP_InputField inviteInput;
     [SerializeField] private Button inviteButton;
 
+    [Header("One-card flow")]
+    // Arriving here to resume a match and arriving to start one are different
+    // tasks, so they are different tabs. Leave these unassigned and the panel
+    // keeps its old three-list layout.
+    [SerializeField] private Button matchesTabButton;
+    [SerializeField] private Button newMatchTabButton;
+    [SerializeField] private GameObject matchesSection;
+    [SerializeField] private GameObject newMatchSection;
+
+    // Login, Logout and Switch user duplicate the pregame card, and this panel
+    // can only be reached signed in. They are switched off rather than deleted,
+    // so the references stay valid.
+    [SerializeField] private GameObject[] identityControls;
+
+    [Header("Tab look")]
+    [SerializeField] private Sprite tabSelectedSprite;
+    [SerializeField] private Sprite tabIdleSprite;
+    [SerializeField] private Color tabSelectedColour = new Color(0.945f, 0.878f, 0.733f, 1f);
+    [SerializeField] private Color tabIdleColour = new Color(0.039f, 0.149f, 0.267f, 0.30f);
+    [SerializeField] private Color tabSelectedTextColour = new Color(0.227f, 0.173f, 0.094f, 1f);
+    [SerializeField] private Color tabIdleTextColour = new Color(1f, 1f, 1f, 0.85f);
+
+    private bool showingNewMatch;
+
+    private bool OneCard
+    {
+        get { return matchesTabButton != null || newMatchTabButton != null; }
+    }
+
     //[SerializeField] private OnlineMatchController onlineMatchController;
 
     private void Awake()
     {
+        if (matchesTabButton != null)
+            matchesTabButton.onClick.AddListener(ShowMatchesTab);
+
+        if (newMatchTabButton != null)
+            newMatchTabButton.onClick.AddListener(ShowNewMatchTab);
+
         Debug.Log("[WIRING CHECK] loginButton=" + (loginButton != null ? loginButton.name : "NULL") +
                " | logoutbutton=" + (logoutbutton != null ? logoutbutton.name : "NULL"));
 
@@ -121,6 +156,9 @@ public class MatchStatusPanel : MonoBehaviour
 
     private void OnEnable()
     {
+        HideIdentityControls();
+        ShowMatchesTab();
+
         ShowStatus("Checking for active matches...");
         UpdateLoginNameDisplay();
 
@@ -633,7 +671,6 @@ public class MatchStatusPanel : MonoBehaviour
             else
                 activeItems.Add(itemData);
         }
-        BuildMatchList(activeItems, completedItems);
         //
         // INVITES
         //
@@ -670,7 +707,8 @@ public class MatchStatusPanel : MonoBehaviour
                 inviteItems.Add(new MatchListItemData
                 {
                     roomCode = invite.roomCode,
-                    opponentDisplayName = invite.fromDisplayName
+                    opponentDisplayName = invite.fromDisplayName,
+                    isInvite = true
                 });
             }
         }
@@ -680,8 +718,7 @@ public class MatchStatusPanel : MonoBehaviour
                       (invitesTask.IsFaulted ? invitesTask.Exception?.ToString() : "none"));
         }
         */
-        //BuildMatchList(activeItems, completedItems);
-        BuildInviteRows(inviteItems);
+        BuildMatchList(activeItems, completedItems, inviteItems);
 
         int total = activeItems.Count + completedItems.Count + inviteItems.Count;
 
@@ -844,7 +881,8 @@ public class MatchStatusPanel : MonoBehaviour
 
     private void BuildMatchList(
     List<MatchListItemData> activeItems,
-    List<MatchListItemData> completedItems)
+    List<MatchListItemData> completedItems,
+    List<MatchListItemData> inviteItems = null)
     {
         Debug.Log(
             "[MATCH LIST BUILD]"
@@ -858,6 +896,13 @@ public class MatchStatusPanel : MonoBehaviour
         );
 
         ClearRows();
+        ClearInviteRows();
+
+        if (OneCard)
+        {
+            BuildOneList(activeItems, completedItems, inviteItems);
+            return;
+        }
 
         foreach (var item in activeItems)
         {
@@ -873,8 +918,126 @@ public class MatchStatusPanel : MonoBehaviour
         foreach (var item in completedItems)
             CreateRow(item, true);
 
-        int total = activeItems.Count + completedItems.Count;
+        if (inviteItems != null)
+            BuildInviteRows(inviteItems);
+
+        int total = activeItems.Count + completedItems.Count
+                    + (inviteItems != null ? inviteItems.Count : 0);
         ShowStatus(total == 0 ? "No active games." : total + " games found");
+    }
+
+    // An invite is a match you have not accepted and a finished game is one you
+    // cannot act on, so all three belong in the same list. The order is what
+    // needs you first: your move, then theirs, then invites, then done.
+    private void BuildOneList(
+        List<MatchListItemData> activeItems,
+        List<MatchListItemData> completedItems,
+        List<MatchListItemData> inviteItems)
+    {
+        int waiting = 0;
+
+        foreach (var item in activeItems)
+        {
+            if (!item.hasSubmittedThisRound)
+                CreateRow(item, false, contentParent);
+            else
+                waiting++;
+        }
+
+        if (waiting > 0)
+        {
+            foreach (var item in activeItems)
+            {
+                if (item.hasSubmittedThisRound)
+                    CreateRow(item, false, contentParent);
+            }
+        }
+
+        if (inviteItems != null)
+        {
+            foreach (var item in inviteItems)
+                CreateRow(item, false, contentParent);
+        }
+
+        foreach (var item in completedItems)
+            CreateRow(item, true, contentParent);
+
+        int total = activeItems.Count + completedItems.Count
+                    + (inviteItems != null ? inviteItems.Count : 0);
+
+        ShowStatus(total == 0
+            ? "No games yet."
+            : (activeItems.Count - waiting) + " waiting on you, " + total + " in all");
+    }
+
+    private void ClearInviteRows()
+    {
+        foreach (var row in inviteRows)
+            if (row != null)
+                Destroy(row.gameObject);
+
+        inviteRows.Clear();
+    }
+
+    // ------------------------------------------------------------- tabs --
+    public void ShowMatchesTab()
+    {
+        showingNewMatch = false;
+        ApplyTab();
+    }
+
+    public void ShowNewMatchTab()
+    {
+        showingNewMatch = true;
+        ApplyTab();
+    }
+
+    private void ApplyTab()
+    {
+        if (!OneCard)
+            return;
+
+        if (matchesSection != null)
+            matchesSection.SetActive(!showingNewMatch);
+
+        if (newMatchSection != null)
+            newMatchSection.SetActive(showingNewMatch);
+
+        PaintTab(matchesTabButton, !showingNewMatch);
+        PaintTab(newMatchTabButton, showingNewMatch);
+    }
+
+    private void PaintTab(Button tab, bool selected)
+    {
+        if (tab == null)
+            return;
+
+        if (tab.image != null)
+        {
+            if (tabSelectedSprite != null && tabIdleSprite != null)
+                tab.image.sprite = selected ? tabSelectedSprite : tabIdleSprite;
+
+            tab.image.color = selected ? tabSelectedColour : tabIdleColour;
+        }
+
+        TMP_Text label = tab.GetComponentInChildren<TMP_Text>(true);
+
+        if (label != null)
+            label.color = selected ? tabSelectedTextColour : tabIdleTextColour;
+    }
+
+    // Signing in and out belongs to the pregame card; this panel is only
+    // reachable once that is done.
+    private void HideIdentityControls()
+    {
+        if (!OneCard || identityControls == null)
+            return;
+
+        foreach (GameObject control in identityControls)
+        {
+            if (control != null)
+                control.SetActive(false);
+        }
     }
 
     private void CreateRow(MatchListItemData data, bool isCompleted)
