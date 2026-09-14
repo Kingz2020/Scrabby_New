@@ -694,6 +694,8 @@ public class GameLogic : MonoBehaviour
         if (Singleton.Instance != null && Singleton.Instance.UIManager != null)
         {
             Singleton.Instance.UIManager.ClearRoundMessage();
+            Singleton.Instance.UIManager.ShowTurnState(
+                "Your turn", UIManager.TurnTone.Yours);
         }
     }
     public void InitGame(
@@ -775,6 +777,8 @@ public class GameLogic : MonoBehaviour
         if (Singleton.Instance != null && Singleton.Instance.UIManager != null)
         {
             Singleton.Instance.UIManager.ClearRoundMessage();
+            Singleton.Instance.UIManager.ShowTurnState(
+                "Your turn", UIManager.TurnTone.Yours);
             Singleton.Instance.UIManager.RemoveAllHandTiles();
             Singleton.Instance.UIManager.ClearCommittedBoardTiles();
         }
@@ -863,6 +867,8 @@ public class GameLogic : MonoBehaviour
             Singleton.Instance.UIManager.UpdateRoundText(currentRoundNumber, maxRounds);
             Singleton.Instance.UIManager.UpdateTotalScores(humanTotalScore, aiTotalScore);
             Singleton.Instance.UIManager.ClearRoundMessage();
+            Singleton.Instance.UIManager.ShowTurnState(
+                "Your turn", UIManager.TurnTone.Yours);
         }
     }
 
@@ -878,6 +884,8 @@ public class GameLogic : MonoBehaviour
             Singleton.Instance.UIManager.RemoveAllHandTiles();
             Singleton.Instance.UIManager.ClearCommittedBoardTiles();
             Singleton.Instance.UIManager.ClearRoundMessage();
+            Singleton.Instance.UIManager.ShowTurnState(
+                "Your turn", UIManager.TurnTone.Yours);
         }
 
         if (Singleton.Instance != null && Singleton.Instance.DropManager != null)
@@ -979,6 +987,8 @@ public class GameLogic : MonoBehaviour
 
         if (Singleton.Instance != null && Singleton.Instance.UIManager != null)
             Singleton.Instance.UIManager.ClearRoundMessage();
+            Singleton.Instance.UIManager.ShowTurnState(
+                "Your turn", UIManager.TurnTone.Yours);
 
         yield return new WaitForSeconds(1.5f);
 
@@ -1752,6 +1762,33 @@ public class GameLogic : MonoBehaviour
         return boardBonusTiles;
     }
 
+    // Whoever the opponent is, this is the moment they take over. Said once,
+    // from both the request and the waiting step, because a fast local AI can
+    // finish before the waiting step is ever reached.
+    private void ShowOpponentThinking()
+    {
+        if (Singleton.Instance == null || Singleton.Instance.UIManager == null)
+            return;
+
+        switch (gameMode)
+        {
+            case GameMode.HumanVsAI:
+                Singleton.Instance.UIManager.ShowTurnState(
+                    "AI is thinking", UIManager.TurnTone.Busy);
+                break;
+
+            case GameMode.HumanVsHumanLocal:
+                Singleton.Instance.UIManager.ShowTurnState(
+                    "Waiting for Player 2", UIManager.TurnTone.Busy);
+                break;
+
+            case GameMode.HumanVsHumanOnline:
+                Singleton.Instance.UIManager.ShowTurnState(
+                    "Waiting for opponent", UIManager.TurnTone.Busy);
+                break;
+        }
+    }
+
     private void AdvanceRoundReveal()
     {
         using (AdvanceRoundRevealMarker.Auto())
@@ -1764,15 +1801,11 @@ public class GameLogic : MonoBehaviour
                 case 0:
                     if (Singleton.Instance != null && Singleton.Instance.UIManager != null)
                     {
-                        if (pendingPlayerMove != null && pendingPlayerMove.isValid)
-                            Singleton.Instance.UIManager.ShowRoundMessage(
-                                "You played " + pendingPlayerMove.word + " for " + pendingPlayerMove.score + " points. Press EndTurn."
-                            );
-                        else
+                        // A valid word needs nothing said: it is boxed on the board
+                        // with its score attached.
+                        if (pendingPlayerMove == null || !pendingPlayerMove.isValid)
                         {
-                            Singleton.Instance.UIManager.ShowRoundMessage(
-                                "Your move was invalid. Press EndTurn."
-                            );
+                            Singleton.Instance.UIManager.ShowTurnState("Not a word", UIManager.TurnTone.Bad);
 
                             Singleton.Instance.UIManager.HighlightRejectedWord(
                                 rejectedPlayerWord
@@ -1791,6 +1824,8 @@ public class GameLogic : MonoBehaviour
                         if (Singleton.Instance != null && Singleton.Instance.UIManager != null)
                             Singleton.Instance.UIManager.ReturnTilesToHand();
 
+                        ShowOpponentThinking();
+
                         RequestOpponentMove();
                         return;
                     }
@@ -1799,24 +1834,7 @@ public class GameLogic : MonoBehaviour
                     {
                         Debug.Log("FLOW Waiting for opponent move...");
 
-                        if (Singleton.Instance != null && Singleton.Instance.UIManager != null)
-                        {
-                            switch (gameMode)
-                            {
-                                case GameMode.HumanVsAI:
-                                    Singleton.Instance.UIManager.ShowRoundMessage("AI is thinking...");
-                                    break;
-
-                                case GameMode.HumanVsHumanLocal:
-                                    Singleton.Instance.UIManager.ShowRoundMessage("Waiting for Player 2 move...");
-                                    break;
-
-                                case GameMode.HumanVsHumanOnline:
-                                    Singleton.Instance.UIManager.ShowRoundMessage("Waiting for online opponent move...");
-                                    break;
-                            }
-                        }
-
+                        ShowOpponentThinking();
                         return;
                     }
 
@@ -1824,14 +1842,9 @@ public class GameLogic : MonoBehaviour
 
                     if (Singleton.Instance != null && Singleton.Instance.UIManager != null)
                     {
-                        if (pendingAIMove != null && pendingAIMove.isValid)
-                            Singleton.Instance.UIManager.ShowRoundMessage(
-                                "Opponent played " + pendingAIMove.word + " for " + pendingAIMove.score + " points. Press EndTurn."
-                            );
-                        else
-                            Singleton.Instance.UIManager.ShowRoundMessage(
-                                "Opponent could not make a valid move. Press EndTurn."
-                            );
+                        // Boxed on the board, the same as the human move.
+                        if (pendingAIMove == null || !pendingAIMove.isValid)
+                            Singleton.Instance.UIManager.ShowTurnState("Opponent had no move", UIManager.TurnTone.Busy);
                     }
 
                     roundRevealStep = 2;
@@ -1860,31 +1873,14 @@ public class GameLogic : MonoBehaviour
 
                     if (Singleton.Instance != null && Singleton.Instance.UIManager != null)
                     {
-                        if (sameWord)
+                        // A decided round says so on the board: the winning word stays
+                        // put and the header totals move. Only an undecided one needs
+                        // a word, because nothing visible changed.
+                        if (!sameWord &&
+                            !sameScore &&
+                            (pendingWinningMove == null || !pendingWinningMove.isValid))
                         {
-                            Singleton.Instance.UIManager.ShowRoundMessage(
-                                "Both found " + pendingPlayerMove.word + " for " + pendingPlayerMove.score +
-                                " points. Human wins the tie against AI. Press EndTurn."
-                            );
-                        }
-                        else if (sameScore)
-                        {
-                            Singleton.Instance.UIManager.ShowRoundMessage(
-                                "Tie on score. Human wins the tie against AI. Press EndTurn."
-                            );
-                        }
-                        else if (pendingWinningMove != null && pendingWinningMove.isValid)
-                        {
-                            Singleton.Instance.UIManager.ShowRoundMessage(
-                                (pendingWinningMove.isHuman ? "You win with " : "AI wins with ") +
-                                pendingWinningMove.word + " (" + pendingWinningMove.score + " pts). Press EndTurn."
-                            );
-                        }
-                        else
-                        {
-                            Singleton.Instance.UIManager.ShowRoundMessage(
-                                "No valid move won the round. Press EndTurn."
-                            );
+                            Singleton.Instance.UIManager.ShowTurnState("No word this round", UIManager.TurnTone.Busy);
                         }
                     }
 
@@ -2228,6 +2224,8 @@ public class GameLogic : MonoBehaviour
         {
             Singleton.Instance.UIManager.UpdateRoundText(currentRoundNumber, maxRounds);
             Singleton.Instance.UIManager.ClearRoundMessage();
+            Singleton.Instance.UIManager.ShowTurnState(
+                "Your turn", UIManager.TurnTone.Yours);
         }
 
         yield return new WaitForSeconds(1.5f);
@@ -2697,7 +2695,9 @@ public class GameLogic : MonoBehaviour
     {
         List<SimPlacedTileData> tiles = new List<SimPlacedTileData>();
 
-        if (move == null || !move.isValid || move.simulatedTiles == null)
+        // Validity is recorded separately, so a rejected move keeps its tiles:
+        // a replay that silently skips the turn is not a replay of the round.
+        if (move == null || move.simulatedTiles == null)
             return tiles;
 
         foreach (SimPlacedTile sim in move.simulatedTiles)
@@ -2724,8 +2724,10 @@ public class GameLogic : MonoBehaviour
             roundNumber = currentRoundNumber,
             humanScore = (pendingPlayerMove != null && pendingPlayerMove.isValid) ? pendingPlayerMove.score : 0,
             aiScore = (pendingAIMove != null && pendingAIMove.isValid) ? pendingAIMove.score : 0,
-            humanWord = (pendingPlayerMove != null && pendingPlayerMove.isValid) ? pendingPlayerMove.word : "",
-            aiWord = (pendingAIMove != null && pendingAIMove.isValid) ? pendingAIMove.word : "",
+            // The word is kept even when it was turned down, so the replay can
+            // name what was tried. The score stays nil: it did not score.
+            humanWord = pendingPlayerMove != null ? pendingPlayerMove.word : "",
+            aiWord = pendingAIMove != null ? pendingAIMove.word : "",
             humanValid = pendingPlayerMove != null && pendingPlayerMove.isValid,
             aiValid = pendingAIMove != null && pendingAIMove.isValid,
             humanWasWinner = pendingWinningMove != null && pendingWinningMove.isHuman,
@@ -4121,12 +4123,12 @@ public class GameLogic : MonoBehaviour
                 }
 
                 if (Singleton.Instance != null && Singleton.Instance.UIManager != null)
-                    Singleton.Instance.UIManager.ShowRoundMessage("Submitting move...");
+                    Singleton.Instance.UIManager.ShowTurnState("Submitting", UIManager.TurnTone.Busy);
             }
             else
             {
                 if (Singleton.Instance != null && Singleton.Instance.UIManager != null)
-                    Singleton.Instance.UIManager.ShowRoundMessage("Invalid move. Try again.");
+                    Singleton.Instance.UIManager.ShowTurnState("Not a word", UIManager.TurnTone.Bad);
 
                 currentState = TurnState.PlayerTurn;
 
@@ -4178,7 +4180,7 @@ public class GameLogic : MonoBehaviour
         }
 
         if (Singleton.Instance != null && Singleton.Instance.UIManager != null)
-            Singleton.Instance.UIManager.ShowRoundMessage("Checking your word...");
+            Singleton.Instance.UIManager.ShowTurnState("Checking word", UIManager.TurnTone.Busy);
 
         StartCoroutine(AutoAdvanceRoundFlow());
     }
@@ -5224,14 +5226,14 @@ public class GameLogic : MonoBehaviour
     {
         currentState = TurnState.PlayerTurn;
         if (Singleton.Instance != null && Singleton.Instance.UIManager != null)
-            Singleton.Instance.UIManager.ShowRoundMessage("Player 2: build your word, then press EndTurn.");
+            Singleton.Instance.UIManager.ShowTurnState("Player 2's turn", UIManager.TurnTone.Yours);
     }
 
     private void RequestOnlineOpponentMove()
     {
         currentState = TurnState.Busy;
         if (Singleton.Instance != null && Singleton.Instance.UIManager != null)
-            Singleton.Instance.UIManager.ShowRoundMessage("Waiting for opponent move...");
+            Singleton.Instance.UIManager.ShowTurnState("Waiting for opponent", UIManager.TurnTone.Busy);
     }
 
     private void OnOpponentMoveReady(RoundMove move)
@@ -5257,14 +5259,9 @@ public class GameLogic : MonoBehaviour
 
         if (Singleton.Instance != null && Singleton.Instance.UIManager != null)
         {
-            if (move != null && move.isValid)
-                Singleton.Instance.UIManager.ShowRoundMessage(
-                    "Player 2 submitted " + move.word + " for " + move.score + " points. Press EndTurn."
-                );
-            else
-                Singleton.Instance.UIManager.ShowRoundMessage(
-                    "Player 2 submitted an invalid move. Press EndTurn."
-                );
+            // Boxed on the board with its score.
+            if (move == null || !move.isValid)
+                Singleton.Instance.UIManager.ShowTurnState("Not a word", UIManager.TurnTone.Bad);
         }
     }
     public void StartOnlineMatch(MatchData match, string localUid)
@@ -5426,6 +5423,8 @@ public class GameLogic : MonoBehaviour
             Singleton.Instance.UIManager.UpdateRoundText(currentRoundNumber, maxRounds);
             Singleton.Instance.UIManager.UpdateTotalScores(humanTotalScore, aiTotalScore);
             Singleton.Instance.UIManager.ClearRoundMessage();
+            Singleton.Instance.UIManager.ShowTurnState(
+                "Your turn", UIManager.TurnTone.Yours);
         }
 
         Debug.Log("[ONLINE] Local hydrated rack count = " + playerHandTiles.Count);
@@ -5439,6 +5438,8 @@ public class GameLogic : MonoBehaviour
 
         if (Singleton.Instance != null && Singleton.Instance.UIManager != null)
             Singleton.Instance.UIManager.ClearRoundMessage();
+            Singleton.Instance.UIManager.ShowTurnState(
+                "Your turn", UIManager.TurnTone.Yours);
 
         RoundResultData previousResult = null;
 
@@ -5543,11 +5544,7 @@ public class GameLogic : MonoBehaviour
 
         bool localWon = result.winnerUid == localUid;
 
-        Singleton.Instance.UIManager.ShowRoundMessage(
-            (localWon ? "You won" : (result.winnerDisplayName + " won")) +
-            " round " + result.roundNumber + " with " + result.winnerWord +
-            " for " + result.winnerScore + " points."
-        );
+        // Round result: shown on the board and in the totals.
     }
 
     public void EnsureBoardInitializedForOnline()
@@ -5706,6 +5703,7 @@ public class GameLogic : MonoBehaviour
     private static Color ReplayFirstPlayerColour => UIManager.ReplayFirstPlayerColour;
     private static Color ReplaySecondPlayerColour => UIManager.ReplaySecondPlayerColour;
     private static Color ReplayWinnerColour => UIManager.ReplayWinnerColour;
+    private static Color ReplayRejectedColour => UIManager.ReplayRejectedColour;
 
     public IEnumerator ReplaySoloRound(RoundResult round)
     {
@@ -5746,24 +5744,34 @@ public class GameLogic : MonoBehaviour
 
         yield return new WaitForSecondsRealtime(0.5f);
 
-        if (round.humanValid && round.humanTiles.Count > 0)
+        if (round.humanTiles.Count > 0)
         {
-            ui.ShowRoundMessage(
-                $"You played {round.humanWord} ({round.humanScore} points)");
+            ui.ShowRoundMessage(round.humanValid
+                ? $"You played {round.humanWord} ({round.humanScore} points)"
+                : $"You tried {round.humanWord} - not a word");
 
             yield return StartCoroutine(
                 ui.PlayMovePreview(
-                    round.humanTiles, ReplayFirstPlayerColour, round.humanScore));
+                    round.humanTiles,
+                    round.humanValid ? ReplayFirstPlayerColour : ReplayRejectedColour,
+                    round.humanScore,
+                    false,
+                    !round.humanValid));
         }
 
-        if (round.aiValid && round.aiTiles.Count > 0)
+        if (round.aiTiles.Count > 0)
         {
-            ui.ShowRoundMessage(
-                $"Opponent played {round.aiWord} ({round.aiScore} points)");
+            ui.ShowRoundMessage(round.aiValid
+                ? $"Opponent played {round.aiWord} ({round.aiScore} points)"
+                : $"Opponent tried {round.aiWord} - not a word");
 
             yield return StartCoroutine(
                 ui.PlayMovePreview(
-                    round.aiTiles, ReplaySecondPlayerColour, round.aiScore));
+                    round.aiTiles,
+                    round.aiValid ? ReplaySecondPlayerColour : ReplayRejectedColour,
+                    round.aiScore,
+                    false,
+                    !round.aiValid));
         }
 
         if (round.winnerTiles.Count > 0)
@@ -5873,38 +5881,42 @@ public class GameLogic : MonoBehaviour
         Color player2Color = ReplaySecondPlayerColour;
         Color winnerColor = ReplayWinnerColour;
 
-        if (round.player1Valid &&
-            player1Move != null &&
+        if (player1Move != null &&
             player1Move.tiles != null &&
             player1Move.tiles.Count > 0)
         {
-            ui.ShowRoundMessage(
-                player1Name + " played " + round.player1Word +
-                " (" + round.player1Score + " points)");
+            ui.ShowRoundMessage(round.player1Valid
+                ? player1Name + " played " + round.player1Word +
+                  " (" + round.player1Score + " points)"
+                : player1Name + " tried " + round.player1Word + " - not a word");
 
             yield return StartCoroutine(
                 ui.PlayMovePreview(
                     player1Move.tiles,
-                    player1Color,
-                    round.player1Score
+                    round.player1Valid ? player1Color : ReplayRejectedColour,
+                    round.player1Score,
+                    false,
+                    !round.player1Valid
                 )
             );
         }
 
-        if (round.player2Valid &&
-            player2Move != null &&
+        if (player2Move != null &&
             player2Move.tiles != null &&
             player2Move.tiles.Count > 0)
         {
-            ui.ShowRoundMessage(
-                player2Name + " played " + round.player2Word +
-                " (" + round.player2Score + " points)");
+            ui.ShowRoundMessage(round.player2Valid
+                ? player2Name + " played " + round.player2Word +
+                  " (" + round.player2Score + " points)"
+                : player2Name + " tried " + round.player2Word + " - not a word");
 
             yield return StartCoroutine(
                 ui.PlayMovePreview(
                     player2Move.tiles,
-                    player2Color,
-                    round.player2Score
+                    round.player2Valid ? player2Color : ReplayRejectedColour,
+                    round.player2Score,
+                    false,
+                    !round.player2Valid
                 )
             );
         }

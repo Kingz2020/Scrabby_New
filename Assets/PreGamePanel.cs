@@ -1895,12 +1895,13 @@ public class PreGamePanel : MonoBehaviour
             gameLogic.SetInputLocked(true);
 
         if (Singleton.Instance != null && Singleton.Instance.UIManager != null)
-            Singleton.Instance.UIManager.ShowRoundMessage("Move submitted!");
+            // The board bands the submitted word; nothing to add.
 
         yield return new WaitForSeconds(1.5f);
 
         if (Singleton.Instance != null && Singleton.Instance.UIManager != null)
-            Singleton.Instance.UIManager.ShowRoundMessage("Waiting for other players...");
+            Singleton.Instance.UIManager.ShowTurnState(
+                "Waiting for opponent", UIManager.TurnTone.Busy);
 
         yield return new WaitForSeconds(1.5f);
 

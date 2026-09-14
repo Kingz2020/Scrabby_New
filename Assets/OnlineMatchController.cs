@@ -262,13 +262,12 @@ public class OnlineMatchController : MonoBehaviour
                   {
                       Debug.LogError("[OnlineMatchController] Failed to submit round move: " + task.Exception);
                       if (uiManager != null)
-                          uiManager.ShowRoundMessage("Failed to submit move.");
+                          uiManager.ShowTurnState("Submit failed", UIManager.TurnTone.Bad);
                       return;
                   }
 
                   Debug.Log("[OnlineMatchController] Round " + roundNumber + " submission written.");
-                  if (uiManager != null)
-                      uiManager.ShowRoundMessage("Move submitted. Waiting for other players...");
+                  // The board bands the submitted word; nothing to add.
 
                   // Remember: actively waiting on this match
                   pendingResolutionMatchId = currentMatch.matchId;
@@ -1372,15 +1371,11 @@ public class OnlineMatchController : MonoBehaviour
         if (gameLogic != null)
             gameLogic.SetInputLocked(true);
 
-        if (uiManager != null)
-            uiManager.ShowRoundMessage("Move submitted!");
-
-        yield return new WaitForSeconds(1.5f);
-
-        if (uiManager != null)
-            uiManager.ShowRoundMessage("Waiting for other players...");
-
-        yield return new WaitForSeconds(1.5f);
+        // The submitted word is already banded on the board, and the panel this
+        // returns to exists to show which matches are waiting on whom. Two
+        // messages and three seconds said neither of those things any better -
+        // just long enough for the band to register, then go.
+        yield return new WaitForSeconds(0.9f);
 
         if (pendingResolutionMatchId == null)
             yield break; // already redirected to game-over panel
@@ -1952,8 +1947,12 @@ ValueChangedEventArgs args)
             yield return StartCoroutine(
                 uiManager.PlayMovePreview(
                     player1Tiles,
-                    UIManager.ReplayFirstPlayerColour,
-                    entry.player1Score
+                    entry.player1Valid
+                        ? UIManager.ReplayFirstPlayerColour
+                        : UIManager.ReplayRejectedColour,
+                    entry.player1Score,
+                    false,
+                    !entry.player1Valid
                 )
             );
         }
@@ -1972,8 +1971,12 @@ ValueChangedEventArgs args)
             yield return StartCoroutine(
                 uiManager.PlayMovePreview(
                     player2Tiles,
-                    UIManager.ReplaySecondPlayerColour,
-                    entry.player2Score
+                    entry.player2Valid
+                        ? UIManager.ReplaySecondPlayerColour
+                        : UIManager.ReplayRejectedColour,
+                    entry.player2Score,
+                    false,
+                    !entry.player2Valid
                 )
             );
         }

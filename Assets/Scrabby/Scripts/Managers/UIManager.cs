@@ -37,6 +37,9 @@ public class UIManager : MonoBehaviour
     public static readonly Color ReplayFirstPlayerColour = new Color(0.25f, 0.65f, 1f, 1f);
     public static readonly Color ReplaySecondPlayerColour = new Color(1f, 0.70f, 0.20f, 1f);
     public static readonly Color ReplayWinnerColour = new Color(0.20f, 1f, 0.34f, 1f);
+    // A move the dictionary turned down, replayed in the same red the live game
+    // outlines it with.
+    public static readonly Color ReplayRejectedColour = new Color(0.84f, 0.15f, 0.16f, 1f);
 
     [Header("Round replay cascade")]
     // A word falls as one cascade rather than as n separate drops, so the tiles
@@ -57,6 +60,25 @@ public class UIManager : MonoBehaviour
     public TextMeshProUGUI gameOverSummaryText;
 
     [SerializeField] private TextMeshProUGUI roundMessageText;
+
+    [Header("Turn pill")]
+    // The pill says what the game is doing and whose move it is. It never
+    // reports a result: the board already boxes the played word and pins its
+    // score to it, and the header already carries the running totals.
+    [SerializeField] private GameObject turnPill;
+    [SerializeField] private Image turnPillFace;
+    [SerializeField] private TextMeshProUGUI turnPillLabel;
+    [SerializeField] private GameObject turnPillDots;
+    [SerializeField] private float turnDotsInterval = 0.32f;
+
+    private Coroutine turnDotsRoutine;
+
+    [SerializeField] private Color turnYoursFace = new Color(0.945f, 0.878f, 0.733f, 1f);
+    [SerializeField] private Color turnYoursInk = new Color(0.227f, 0.173f, 0.094f, 1f);
+    [SerializeField] private Color turnBusyFace = new Color(0.039f, 0.149f, 0.267f, 0.42f);
+    [SerializeField] private Color turnGoodFace = new Color(0.184f, 0.620f, 0.310f, 0.85f);
+    [SerializeField] private Color turnBadFace = new Color(0.839f, 0.149f, 0.157f, 0.88f);
+    [SerializeField] private Color turnBusyInk = Color.white;
     [SerializeField] private TextMeshProUGUI humanScoreText;
     [SerializeField] private TextMeshProUGUI aiScoreText;
     [SerializeField] private TextMeshProUGUI roundText;
@@ -652,8 +674,100 @@ public class UIManager : MonoBehaviour
         wordlistDisplay.AddMissingWord(word);
     }
 
+    // How the pill should read. Yours is the cream tile face, so "it is on you"
+    // looks like the tiles you are about to play.
+    public enum TurnTone { Yours, Busy, Good, Bad }
+
+    public void ShowTurnState(string label, TurnTone tone)
+    {
+        if (turnPill == null)
+        {
+            // No pill built yet - fall back to the old text line so nothing is
+            // lost while the scene catches up.
+            ShowRoundMessage(label);
+            return;
+        }
+
+        turnPill.SetActive(true);
+
+        if (turnPillFace != null)
+        {
+            switch (tone)
+            {
+                case TurnTone.Yours: turnPillFace.color = turnYoursFace; break;
+                case TurnTone.Good:  turnPillFace.color = turnGoodFace; break;
+                case TurnTone.Bad:   turnPillFace.color = turnBadFace; break;
+                default:             turnPillFace.color = turnBusyFace; break;
+            }
+        }
+
+        if (turnPillLabel != null)
+            turnPillLabel.color = tone == TurnTone.Yours ? turnYoursInk : turnBusyInk;
+
+        if (turnPillDots != null)
+            turnPillDots.SetActive(tone == TurnTone.Busy);
+
+        // The dots stand in for the "..." the old messages carried, and run only
+        // while something is actually happening.
+        if (turnDotsRoutine != null)
+        {
+            StopCoroutine(turnDotsRoutine);
+            turnDotsRoutine = null;
+        }
+
+        if (turnPillLabel == null)
+            return;
+
+        if (tone == TurnTone.Busy)
+            turnDotsRoutine = StartCoroutine(AnimateTurnDots(label));
+        else
+            turnPillLabel.text = label;
+    }
+
+    // The dots are padded to a fixed three characters in a fixed-width run, so
+    // the label keeps its width and the centred text does not jitter as they
+    // cycle.
+    private IEnumerator AnimateTurnDots(string label)
+    {
+        int shown = 0;
+
+        while (true)
+        {
+            shown = shown % 3 + 1;
+
+            turnPillLabel.text =
+                label + "<mspace=0.38em>" +
+                new string('.', shown) +
+                new string(' ', 3 - shown) +
+                "</mspace>";
+
+            yield return new WaitForSecondsRealtime(turnDotsInterval);
+        }
+    }
+
+    public void HideTurnState()
+    {
+        if (turnDotsRoutine != null)
+        {
+            StopCoroutine(turnDotsRoutine);
+            turnDotsRoutine = null;
+        }
+
+        if (turnPill != null)
+            turnPill.SetActive(false);
+        else
+            ClearRoundMessage();
+    }
+
+    // Kept for replay narration, which genuinely needs a sentence: watching a
+    // replay, "You played GRAIN (14 points)" is the only thing giving context.
     public void ShowRoundMessage(string message)
     {
+        // Narration and the pill share a row and are never both wanted: a
+        // replay has no turn to report, and live play has nothing to narrate.
+        if (turnPill != null && !string.IsNullOrEmpty(message))
+            turnPill.SetActive(false);
+
         if (roundMessageText != null)
             roundMessageText.text = message;
     }
@@ -851,11 +965,15 @@ public class UIManager : MonoBehaviour
     // keepTiles is for the round's winner, whose tiles are the board from here
     // on - they stay exactly where they landed instead of being destroyed and
     // immediately respawned in the same cells.
+    // rejected draws the move the way a turned-down word is drawn during play:
+    // red letters inside the rejected-word outline, and no score, because it
+    // did not score.
     public IEnumerator PlayMovePreview(
         List<SimPlacedTileData> moveTiles,
         Color highlightColour,
         int score,
-        bool keepTiles = false)
+        bool keepTiles = false,
+        bool rejected = false)
     {
         if (moveTiles == null || moveTiles.Count == 0)
             yield break;
@@ -898,7 +1016,10 @@ public class UIManager : MonoBehaviour
 
         yield return StartCoroutine(PunchWord(previewTiles));
 
-        HighlightPlayedWord(cells, score, OutlineShade(highlightColour));
+        if (rejected)
+            DrawRejectedOutline(previewTiles);
+        else
+            HighlightPlayedWord(cells, score, OutlineShade(highlightColour));
 
         yield return new WaitForSecondsRealtime(replayWordHold);
 
@@ -919,7 +1040,10 @@ public class UIManager : MonoBehaviour
 
         yield return StartCoroutine(CascadeTilesOut(previewTiles));
 
-        HidePlayedWordHighlight();
+        if (rejected)
+            HideRejectedOutlineNow();
+        else
+            HidePlayedWordHighlight();
         RemoveReplayPreviewTiles(previewTiles);
     }
 
