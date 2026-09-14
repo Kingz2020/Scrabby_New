@@ -4440,10 +4440,15 @@ public class GameLogic : MonoBehaviour
         public int buildMoveNulls;
     }
 
+    // wantBestOnly asks for the strongest move the search found rather than one
+    // picked to fit a difficulty band. The daily challenge grades a player
+    // against what was actually there, so it needs the real best - which the
+    // search already tracks and then discards.
     private IEnumerator FindBestGaddagMoveCoroutine(
         List<LetterInfo> rack,
         BonusTile[,] bonusBoard,
-        System.Action<RoundMove> onComplete)
+        System.Action<RoundMove> onComplete,
+        bool wantBestOnly = false)
     {
 
         var totalTimer = System.Diagnostics.Stopwatch.StartNew();
@@ -4557,9 +4562,60 @@ public class GameLogic : MonoBehaviour
 
         // At this point, aiDifficultyCandidates has been filled inside
         // GenerateLeftPart/GenerateTopPart via ConsiderAIDifficultyCandidate.
+        if (wantBestOnly)
+        {
+            onComplete?.Invoke(ctx.bestMove);
+            yield break;
+        }
+
         RoundMove chosen = SelectMoveForDifficulty(aiDifficultyCandidates);
 
         onComplete?.Invoke(chosen ?? ctx.bestMove);
+    }
+
+    // What the daily challenge needs to grade a board: the best move that was
+    // available, and the score bands that decide which AI a player matched.
+    public IEnumerator SolveBestMove(
+        List<LetterInfo> rack,
+        BonusTile[,] bonusBoard,
+        System.Action<RoundMove> onComplete)
+    {
+        yield return StartCoroutine(
+            FindBestGaddagMoveCoroutine(rack, bonusBoard, onComplete, true));
+    }
+
+    // The fraction of the best score each difficulty plays to, exposed so a
+    // result can say which of them a player would have beaten without
+    // redefining the ladder somewhere else.
+    public static float ScoreFractionFor(SoloDifficulty difficulty)
+    {
+        switch (difficulty)
+        {
+            case SoloDifficulty.Easy:   return 0.20f;
+            case SoloDifficulty.Medium: return 0.45f;
+            case SoloDifficulty.Hard:   return 0.75f;
+            default:                    return 1.00f;
+        }
+    }
+
+    // Which AI a score would have matched, as a share of the best available.
+    public static SoloDifficulty BandFor(int score, int bestScore)
+    {
+        if (bestScore <= 0)
+            return SoloDifficulty.Easy;
+
+        float fraction = (float)score / bestScore;
+
+        if (fraction >= ScoreFractionFor(SoloDifficulty.Expert))
+            return SoloDifficulty.Expert;
+
+        if (fraction >= ScoreFractionFor(SoloDifficulty.Hard))
+            return SoloDifficulty.Hard;
+
+        if (fraction >= ScoreFractionFor(SoloDifficulty.Medium))
+            return SoloDifficulty.Medium;
+
+        return SoloDifficulty.Easy;
     }
 
     private bool ShouldYieldSearch(GaddagSearchContext ctx)
