@@ -638,18 +638,14 @@ public class PreGamePanel : MonoBehaviour
 
             Debug.Log("[PregamePanel] Room created successfully: " + roomCode);
 
-            roomCodeInput.text = roomCode;
-            roomCodeInput.SetTextWithoutNotify(roomCode);
-            roomCodeInput.ForceLabelUpdate();
-
-            //SetStatus("Room created: " + roomCode);
-            //WatchRoom(roomCode);
+            // Display only, and the field is not on the redesigned card at
+            // all - so it has to be optional. Unguarded, this threw straight
+            // after the room was created and before it was ever attached to
+            // the user or watched: the room existed in the database and
+            // nothing was listening to it.
+            ShowRoomCode(roomCode);
 
             AddRoomToUser(roomCode);
-
-            roomCodeInput.text = roomCode;
-            roomCodeInput.SetTextWithoutNotify(roomCode);
-            roomCodeInput.ForceLabelUpdate();
 
             SetStatus("Room created: " + roomCode);
             WatchRoom(roomCode);
@@ -824,8 +820,29 @@ public class PreGamePanel : MonoBehaviour
         });
     }
 
+    // Writes the room code into the old pregame field when that field still
+    // exists. It does not on the redesigned card, where the code reaches the
+    // other player through the invitation rather than by being read off the
+    // screen and typed in.
+    private void ShowRoomCode(string roomCode)
+    {
+        if (roomCodeInput == null)
+            return;
+
+        roomCodeInput.SetTextWithoutNotify(roomCode);
+        roomCodeInput.ForceLabelUpdate();
+    }
+
     public void OnJoinRoomPressed()
     {
+        if (roomCodeInput == null)
+        {
+            // Joining by typed code is not part of the redesigned flow -
+            // invitations carry the code instead - so there is no field to
+            // read. Say so rather than throwing.
+            SetStatus("Join a match from an invitation.");
+            return;
+        }
 
         string roomCode = roomCodeInput.text.Trim().ToUpper();
 
