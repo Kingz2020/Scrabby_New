@@ -129,6 +129,7 @@ public static class DailyPlayMenu
     public static void ClearCache()
     {
         PlayerPrefs.DeleteKey("Scrabby.Daily.Cached");
+        PlayerPrefs.DeleteKey("Scrabby.Daily.Cached.v2");
         PlayerPrefs.Save();
         Debug.Log("[DAILY] Cached day cleared; it will be generated again.");
     }

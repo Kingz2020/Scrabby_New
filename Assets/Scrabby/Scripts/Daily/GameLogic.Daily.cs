@@ -12,7 +12,9 @@ using UnityEngine;
 // notices that generation happened.
 public partial class GameLogic
 {
-    private const int DefaultHandSize = 7;
+    // Six, the same as every other game in Scrabby. The daily is the same
+    // game with one turn in it, so it deals the same hand.
+    private const int DefaultHandSize = 6;
 
     private const int MinOpeningWords = 1;      // never zero: an empty board has
     private const int MaxOpeningWords = 4;      // nothing to play off
