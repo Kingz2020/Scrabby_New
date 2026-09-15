@@ -111,7 +111,10 @@ public static class DailyProbe
         // work - roughly a third of the time spent waiting on the editor
         // rather than searching. A budget far longer than a frame makes the
         // search effectively synchronous, which is what an offline run wants.
-        logic.BeginOfflineSolving(2000.0);
+        // Long enough that the run is not throttled to a crawl, short enough
+        // that the editor still redraws and can be stopped. At two seconds it
+        // was quick but looked exactly like a hang, which is worse than slow.
+        logic.BeginOfflineSolving(250.0);
 
 
         for (int i = 0; i < days && !cancelled; i++)
