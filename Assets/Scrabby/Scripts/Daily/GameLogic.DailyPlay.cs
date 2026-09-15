@@ -292,16 +292,12 @@ public partial class GameLogic
             return;
         }
 
-        int best = dailyDay.bestScore;
-        int percent = best > 0 ? Mathf.RoundToInt(100f * score / best) : 0;
-
         if (ui != null)
-        {
             ui.HideTurnState();
-            ui.ShowRoundMessage(
-                word + " - " + score + " of " + best + " (" + percent + "%). " +
-                "Best was " + dailyDay.bestWord + ".");
-        }
+
+        // The board stays visible behind the result, so the word just played
+        // can still be seen next to what it was worth.
+        DailyResultPanel.Show(dailyDay, score, word);
     }
 
     // Which rung of the solo ladder the player's score lands on, so the result
