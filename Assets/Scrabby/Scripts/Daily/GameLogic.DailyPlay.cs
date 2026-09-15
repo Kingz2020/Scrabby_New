@@ -37,6 +37,14 @@ public partial class GameLogic
             return;
         }
 
+        // Generation may still be running in the background on this same
+        // object, and StopAllCoroutines would kill it without its restore ever
+        // running. Setting up the day overwrites the board anyway, so the
+        // board itself is safe - but the manager has to be told, or it waits
+        // forever for a run that no longer exists.
+        if (DailyManager.Instance != null)
+            DailyManager.Instance.Abort();
+
         StopAllCoroutines();
         StartCoroutine(SetUpDaily(day));
     }
@@ -183,6 +191,48 @@ public partial class GameLogic
                   word + " for " + score + " of a possible " + dailyDay.bestScore);
 
         return true;
+    }
+
+    // The submit button, in daily mode. Until there is a result screen this
+    // says what happened in the message line, which is enough to play a day
+    // end to end and see whether the scoring is right.
+    private void HandleDailySubmission()
+    {
+        UIManager ui = Singleton.Instance != null
+            ? Singleton.Instance.UIManager
+            : null;
+
+        if (dailyAnswered)
+        {
+            if (ui != null)
+                ui.ShowRoundMessage("You have already answered today.");
+
+            return;
+        }
+
+        int score;
+        string word;
+
+        if (!SubmitDailyAnswer(out score, out word))
+        {
+            // A rejected word does not use up the one answer: the rule is one
+            // submission, not one attempt at placing tiles.
+            if (ui != null)
+                ui.ShowRoundMessage("That is not a word you can play there.");
+
+            return;
+        }
+
+        int best = dailyDay.bestScore;
+        int percent = best > 0 ? Mathf.RoundToInt(100f * score / best) : 0;
+
+        if (ui != null)
+        {
+            ui.HideTurnState();
+            ui.ShowRoundMessage(
+                word + " - " + score + " of " + best + " (" + percent + "%). " +
+                "Best was " + dailyDay.bestWord + ".");
+        }
     }
 
     // Which rung of the solo ladder the player's score lands on, so the result

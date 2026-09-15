@@ -1533,6 +1533,16 @@ public partial class GameLogic : MonoBehaviour
 
     public void EndTurn()
     {
+        // A daily is one position and one answer, with no round around it, so
+        // the submit button cannot go through the round flow. It also never
+        // set roundStarted, which would make this return silently and leave
+        // the button looking broken.
+        if (dailyMode)
+        {
+            HandleDailySubmission();
+            return;
+        }
+
         if (!roundStarted)
             return;
 

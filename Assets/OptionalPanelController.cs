@@ -1,3 +1,4 @@
+using System.Collections;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
@@ -30,10 +31,13 @@ public class OptionPanelController : MonoBehaviour
     [Header("One-card flow")]
     [SerializeField] private Button soloTabButton;
     [SerializeField] private Button multiplayerTabButton;
+    [SerializeField] private Button dailyTabButton;
     [SerializeField] private Button playButton;
     [SerializeField] private TextMeshProUGUI playLabel;
     [SerializeField] private GameObject difficultyRow;
     [SerializeField] private GameObject multiplayerBlurb;
+    [SerializeField] private GameObject dailyBlurb;
+    [SerializeField] private TextMeshProUGUI dailyStatusLabel;
 
     [Header("Difficulty chips")]
     [SerializeField] private Button easyChip;
@@ -51,8 +55,15 @@ public class OptionPanelController : MonoBehaviour
 
     private const string DifficultyPrefsKey = "Scrabby.SoloDifficulty";
 
-    private bool multiplayerChosen;
+    // Three choices now, so what used to be "is multiplayer chosen" cannot
+    // answer the question any more.
+    private enum Mode { Solo, Multiplayer, Daily }
+
+    private Mode mode = Mode.Solo;
     private GameLogic.SoloDifficulty difficulty = GameLogic.SoloDifficulty.Medium;
+
+    private bool multiplayerChosen { get { return mode == Mode.Multiplayer; } }
+    private bool dailyChosen { get { return mode == Mode.Daily; } }
 
     // True once the card has the controls it needs to run the folded-in flow.
     private bool OneCard
@@ -66,6 +77,7 @@ public class OptionPanelController : MonoBehaviour
         {
             Wire(soloTabButton, ShowSoloTab);
             Wire(multiplayerTabButton, ShowMultiplayerTab);
+            Wire(dailyTabButton, ShowDailyTab);
             Wire(playButton, OnPlayPressed);
 
             Wire(easyChip, delegate { ChooseDifficulty(GameLogic.SoloDifficulty.Easy); });
@@ -106,13 +118,26 @@ public class OptionPanelController : MonoBehaviour
     // ---------------------------------------------------------------- tabs --
     public void ShowSoloTab()
     {
-        multiplayerChosen = false;
+        mode = Mode.Solo;
         Refresh();
     }
 
     public void ShowMultiplayerTab()
     {
-        multiplayerChosen = true;
+        mode = Mode.Multiplayer;
+        Refresh();
+    }
+
+    public void ShowDailyTab()
+    {
+        mode = Mode.Daily;
+
+        // Asking for it here rather than on Play: if it is not ready yet, the
+        // few seconds it needs are spent while the player reads the tab
+        // instead of after they have committed to starting.
+        if (DailyManager.Instance != null)
+            DailyManager.Instance.Prepare();
+
         Refresh();
     }
 
@@ -129,22 +154,39 @@ public class OptionPanelController : MonoBehaviour
         if (!OneCard)
             return;
 
+        bool solo = mode == Mode.Solo;
+
+        // Difficulty is a solo idea: the daily sets its own level from how well
+        // you do, and multiplayer has an opponent instead.
         if (difficultyRow != null)
-            difficultyRow.SetActive(!multiplayerChosen);
+            difficultyRow.SetActive(solo);
 
         if (multiplayerBlurb != null)
             multiplayerBlurb.SetActive(multiplayerChosen);
 
+        if (dailyBlurb != null)
+            dailyBlurb.SetActive(dailyChosen);
+
         if (playLabel != null)
-            playLabel.text = multiplayerChosen ? "Find an opponent" : "Play";
+        {
+            if (dailyChosen)
+                playLabel.text = "Play today's puzzle";
+            else if (multiplayerChosen)
+                playLabel.text = "Find an opponent";
+            else
+                playLabel.text = "Play";
+        }
 
-        Paint(soloTabButton, !multiplayerChosen);
+        RefreshDailyStatus();
+
+        Paint(soloTabButton, solo);
         Paint(multiplayerTabButton, multiplayerChosen);
+        Paint(dailyTabButton, dailyChosen);
 
-        Paint(easyChip, !multiplayerChosen && difficulty == GameLogic.SoloDifficulty.Easy);
-        Paint(mediumChip, !multiplayerChosen && difficulty == GameLogic.SoloDifficulty.Medium);
-        Paint(hardChip, !multiplayerChosen && difficulty == GameLogic.SoloDifficulty.Hard);
-        Paint(expertChip, !multiplayerChosen && difficulty == GameLogic.SoloDifficulty.Expert);
+        Paint(easyChip, solo && difficulty == GameLogic.SoloDifficulty.Easy);
+        Paint(mediumChip, solo && difficulty == GameLogic.SoloDifficulty.Medium);
+        Paint(hardChip, solo && difficulty == GameLogic.SoloDifficulty.Hard);
+        Paint(expertChip, solo && difficulty == GameLogic.SoloDifficulty.Expert);
     }
 
     // Selected is a letter tile, unselected is glass - the same pairing the
@@ -171,6 +213,12 @@ public class OptionPanelController : MonoBehaviour
     // --------------------------------------------------------------- start --
     public void OnPlayPressed()
     {
+        if (dailyChosen)
+        {
+            OnDailyPressed();
+            return;
+        }
+
         if (multiplayerChosen)
         {
             OnMultiplayerPressed();
@@ -180,8 +228,88 @@ public class OptionPanelController : MonoBehaviour
         StartSolo(difficulty);
     }
 
+    // ---------------------------------------------------------------- daily --
+    public void OnDailyPressed()
+    {
+        if (DailyManager.Instance == null)
+        {
+            Debug.LogError("[OptionPanel] No DailyManager in the scene.");
+            return;
+        }
+
+        StartCoroutine(StartDailyWhenReady());
+    }
+
+    private IEnumerator StartDailyWhenReady()
+    {
+        DailyManager manager = DailyManager.Instance;
+
+        manager.Prepare();
+
+        // Usually already done - it starts at launch and the tab asks again -
+        // but a player quick enough to get here first waits rather than being
+        // handed nothing.
+        while (!manager.IsReady && manager.IsGenerating)
+        {
+            RefreshDailyStatus();
+            yield return null;
+        }
+
+        DailyBoard day = manager.Today;
+
+        if (day == null)
+        {
+            Debug.LogError("[OptionPanel] Today's puzzle could not be built.");
+
+            if (dailyStatusLabel != null)
+                dailyStatusLabel.text = "Today's puzzle could not be built.";
+
+            yield break;
+        }
+
+        if (optionPanel != null) optionPanel.SetActive(false);
+        if (pregamePanel != null) pregamePanel.SetActive(false);
+        if (gameoverPanel != null) gameoverPanel.SetActive(false);
+        if (matchstatusPanel != null) matchstatusPanel.SetActive(false);
+        if (difficultyPanel != null) difficultyPanel.SetActive(false);
+        if (gameplayPanel != null) gameplayPanel.SetActive(true);
+
+        Singleton.Instance.GameLogic.StartDaily(day);
+
+        Debug.Log("[OptionPanel] Daily started: " + day);
+    }
+
+    private void RefreshDailyStatus()
+    {
+        if (dailyStatusLabel == null)
+            return;
+
+        if (!dailyChosen)
+            return;
+
+        DailyManager manager = DailyManager.Instance;
+
+        if (manager == null)
+        {
+            dailyStatusLabel.text = "Daily puzzle unavailable.";
+            return;
+        }
+
+        if (manager.IsReady)
+        {
+            dailyStatusLabel.text = "Puzzle #" + manager.Today.dayNumber +
+                                    " - one word, one go.";
+        }
+        else
+        {
+            dailyStatusLabel.text = "Building today's puzzle...";
+        }
+    }
+
     private void StartSolo(GameLogic.SoloDifficulty chosen)
     {
+        LeaveDaily();
+
         if (optionPanel != null) optionPanel.SetActive(false);
         if (pregamePanel != null) pregamePanel.SetActive(false);
         if (gameoverPanel != null) gameoverPanel.SetActive(false);
@@ -202,6 +330,17 @@ public class OptionPanelController : MonoBehaviour
         Singleton.Instance.DebugManager.StartNewGame(chosen);
 
         Debug.Log("[OptionPanel] Solo started, difficulty=" + chosen);
+    }
+
+    // Background generation borrows the real board and bag, so anything that
+    // starts a game on them has to call this first.
+    private void LeaveDaily()
+    {
+        if (DailyManager.Instance != null)
+            DailyManager.Instance.Abort();
+
+        if (Singleton.Instance != null && Singleton.Instance.GameLogic != null)
+            Singleton.Instance.GameLogic.LeaveDailyMode();
     }
 
     // ----------------------------------------------- the old two-screen flow --
@@ -232,6 +371,8 @@ public class OptionPanelController : MonoBehaviour
 
     public void OnMultiplayerPressed()
     {
+        LeaveDaily();
+
         Debug.Log("[OptionPanel] Multiplayer selected");
 
         if (preGamePanelController != null)

@@ -140,6 +140,12 @@ public class DailyManager : MonoBehaviour
         if (logic != null)
             logic.CancelDailyGeneration();
 
+        // Cleared here rather than waiting for the coroutine to notice: the
+        // caller is about to stop every coroutine on GameLogic, so the run may
+        // never get another frame in which to tidy up after itself. Leaving
+        // this set would mean no day is ever generated again this session.
+        generating = false;
+
         Debug.Log("[DAILY] Background generation given up: a game is starting.");
     }
 
