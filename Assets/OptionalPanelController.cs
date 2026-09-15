@@ -113,6 +113,53 @@ public class OptionPanelController : MonoBehaviour
     {
         ShowOptionPanel();
         Refresh();
+
+        AddHowToPlayLink();
+
+        // First time only. Someone who already knows the rules should not have
+        // to dismiss them every launch.
+        HowToPlayPanel.ShowIfNotSeen();
+    }
+
+    // The way back into the rules, placed under the play button rather than
+    // given a position of its own - the panel has been rearranged more than
+    // once, and anything with fixed coordinates ends up on top of something.
+    private void AddHowToPlayLink()
+    {
+        if (playButton == null)
+            return;
+
+        RectTransform anchor = playButton.transform as RectTransform;
+
+        if (anchor == null || anchor.parent == null)
+            return;
+
+        GameObject go = new GameObject("HowToPlayLink",
+            typeof(RectTransform), typeof(TextMeshProUGUI), typeof(Button));
+
+        go.transform.SetParent(anchor.parent, false);
+
+        TextMeshProUGUI label = go.GetComponent<TextMeshProUGUI>();
+        label.text = "How to play";
+        label.fontSize = 30f;
+        label.color = new Color(0.945f, 0.878f, 0.733f, 0.95f);
+        label.fontStyle = FontStyles.Underline;
+        label.alignment = TextAlignmentOptions.Center;
+        label.raycastTarget = true;
+
+        RectTransform rect = go.GetComponent<RectTransform>();
+        rect.anchorMin = anchor.anchorMin;
+        rect.anchorMax = anchor.anchorMax;
+        rect.pivot = anchor.pivot;
+        rect.sizeDelta = new Vector2(anchor.sizeDelta.x, 52f);
+
+        // Just below the play button, measured off it rather than guessed.
+        rect.anchoredPosition = anchor.anchoredPosition +
+            new Vector2(0f, -(anchor.sizeDelta.y * 0.5f + 42f));
+
+        Button button = go.GetComponent<Button>();
+        button.targetGraphic = label;
+        button.onClick.AddListener(HowToPlayPanel.Show);
     }
 
     // ---------------------------------------------------------------- tabs --
