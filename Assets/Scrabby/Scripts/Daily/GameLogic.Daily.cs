@@ -42,6 +42,17 @@ public partial class GameLogic
     // rack is the cheap thing to change, so it is changed first.
     private const int RacksPerBoard = 2;
 
+    private bool dailyGenerationCancelled;
+
+    // Stops background generation at the next safe point. Killing the coroutine
+    // outright would be worse than useless: generation works on the real board
+    // and bag, and the restore only runs when it finishes, so an aborted run
+    // would leave a game being played on the daily puzzle's position.
+    public void CancelDailyGeneration()
+    {
+        dailyGenerationCancelled = true;
+    }
+
     // Rather than fix the number of opening words up front and throw the whole
     // day away when the puzzle turns out dull, the board is grown until it is
     // interesting: draw a rack, look at what it is worth, and if there is
@@ -54,6 +65,18 @@ public partial class GameLogic
     {
         UnityEngine.Random.State entryState = UnityEngine.Random.state;
 
+        // Generation plays on the real board arrays and draws from the real
+        // bag, so anything already using them has to be handed back exactly as
+        // it was. This runs quietly in the background while a player is on a
+        // menu, and must stay invisible if they start a game halfway through.
+        LetterInfo[,] entryBoard = validatedBoardTiles;
+        BonusTile[,] entryBonuses = boardBonusTiles;
+        List<LetterInfo> entryHand = playerHandTiles;
+        List<LetterInfo> entryBag =
+            _tileBag != null ? new List<LetterInfo>(_tileBag.GetLetters()) : null;
+
+        dailyGenerationCancelled = false;
+
         DailyBoard day = new DailyBoard { dayNumber = dayNumber };
 
         // ---- geometry, which no game has necessarily set up -----------------
@@ -64,6 +87,7 @@ public partial class GameLogic
         // here rather than assumed.
         if (!EnsureDailyGeometry())
         {
+            RestoreAfterGeneration(entryBoard, entryBonuses, entryHand, entryBag, entryState);
             onComplete?.Invoke(day);
             yield break;
         }
@@ -83,6 +107,7 @@ public partial class GameLogic
         // it. A day has to be reproducible on its own.
         if (!ResetDailyBag(dayNumber))
         {
+            RestoreAfterGeneration(entryBoard, entryBonuses, entryHand, entryBag, entryState);
             onComplete?.Invoke(day);
             yield break;
         }
@@ -111,7 +136,8 @@ public partial class GameLogic
         DailyBoard best = null;
         int racksTried = 0;
 
-        for (int words = 1; words <= MaxOpeningWords; words++)
+        for (int words = 1; words <= MaxOpeningWords && !dailyGenerationCancelled;
+             words++)
         {
             // Never zero words: an empty board has nothing to play off, so one
             // is laid down before the first rack is ever drawn.
@@ -127,7 +153,9 @@ public partial class GameLogic
                 break;
             }
 
-            for (int attempt = 0; attempt < RacksPerBoard; attempt++)
+            for (int attempt = 0;
+                 attempt < RacksPerBoard && !dailyGenerationCancelled;
+                 attempt++)
             {
                 DailyBoard candidate = null;
 
@@ -147,22 +175,49 @@ public partial class GameLogic
                 if (IsDayWorthPlaying(candidate))
                 {
                     candidate.attempts = racksTried;
-                    UnityEngine.Random.state = entryState;
+                    RestoreAfterGeneration(entryBoard, entryBonuses, entryHand, entryBag, entryState);
                     onComplete?.Invoke(candidate);
                     yield break;
                 }
             }
         }
 
-        if (best != null)
+        if (dailyGenerationCancelled)
+        {
+            // Deliberately empty: a half-grown board is not a puzzle, and the
+            // caller should try again later rather than cache this.
+            day = new DailyBoard { dayNumber = dayNumber };
+        }
+        else if (best != null)
         {
             best.attempts = racksTried;
             day = best;
         }
 
-        UnityEngine.Random.state = entryState;
+        RestoreAfterGeneration(entryBoard, entryBonuses, entryHand, entryBag, entryState);
 
         onComplete?.Invoke(day);
+    }
+
+    private void RestoreAfterGeneration(
+        LetterInfo[,] board,
+        BonusTile[,] bonuses,
+        List<LetterInfo> hand,
+        List<LetterInfo> bag,
+        UnityEngine.Random.State randomState)
+    {
+        validatedBoardTiles = board;
+        boardBonusTiles = bonuses;
+        playerHandTiles = hand;
+
+        if (bag != null && _tileBag != null)
+        {
+            List<LetterInfo> letters = _tileBag.GetLetters();
+            letters.Clear();
+            letters.AddRange(bag);
+        }
+
+        UnityEngine.Random.state = randomState;
     }
 
     // Ranks two candidates when neither clears the gate. Spread first: a day
@@ -284,6 +339,7 @@ public partial class GameLogic
         };
 
         DescribeSpectrum(candidate, options);
+        CaptureBoard(candidate);
 
         // The no-bonus solve is a second full search, and it exists only to
         // work out the spread. A rack that already fails on score or on band
@@ -506,6 +562,37 @@ public partial class GameLogic
                 used.RemoveAt(at);     // this one was played
             else
                 bag.Add(tile);
+        }
+    }
+
+    // Snapshots the opening position as it stands for this candidate. Taken
+    // per candidate rather than at the end, because the board keeps growing
+    // between attempts and the day that wins is the board as it was when it
+    // won.
+    private void CaptureBoard(DailyBoard day)
+    {
+        if (day == null || validatedBoardTiles == null)
+            return;
+
+        day.placedTiles = new List<DailyTile>();
+
+        for (int row = 1; row <= boardSizeX; row++)
+        {
+            for (int col = 1; col <= boardSizeY; col++)
+            {
+                LetterInfo tile = validatedBoardTiles[row, col];
+
+                if (tile == null)
+                    continue;
+
+                day.placedTiles.Add(new DailyTile
+                {
+                    letter = tile.letter,
+                    points = tile.points,
+                    row = row,
+                    col = col
+                });
+            }
         }
     }
 

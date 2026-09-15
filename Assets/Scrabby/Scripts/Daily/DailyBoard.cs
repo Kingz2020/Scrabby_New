@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 
 // What one day's puzzle is, once it has been generated and solved.
@@ -5,6 +6,7 @@ using System.Collections.Generic;
 // bestScore is the number a player is graded against, so it has to be the real
 // best the solver could find on this board with this rack - not the best it
 // happened to sample, and not a move picked to fit a difficulty band.
+[Serializable]
 public class DailyBoard
 {
     public int dayNumber;
@@ -14,6 +16,16 @@ public class DailyBoard
     public int openingWords;
 
     public List<LetterInfo> rack = new List<LetterInfo>();
+
+    // The opening words, as placed. Without these the day is only a set of
+    // numbers - there would be nothing to put on the board, and a cached day
+    // would have to be generated again to be played, which is the whole thing
+    // caching is meant to avoid.
+    //
+    // Bonus squares are deliberately not here: they come straight from the
+    // day's seed and cost nothing to lay out again, so storing them would only
+    // create a second version of the truth.
+    public List<DailyTile> placedTiles = new List<DailyTile>();
 
     public string bestWord = "";
     public int bestScore;
@@ -73,4 +85,15 @@ public class DailyBoard
 
         return string.Join(" ", letters);
     }
+}
+
+// One tile of a day's opening position. Flat and serialisable so a whole day
+// survives a round trip through JSON.
+[Serializable]
+public class DailyTile
+{
+    public string letter;
+    public int points;
+    public int row;
+    public int col;
 }
