@@ -206,6 +206,12 @@ public class OnlineMatchController : MonoBehaviour
         if (gameplayPanel != null)
             gameplayPanel.SetActive(false);
 
+        // Also reached from the game over panel, which sits above the match
+        // list - without this the match list comes up behind the result and
+        // looks like nothing happened.
+        if (gameOverPanel != null)
+            gameOverPanel.SetActive(false);
+
         if (backToMatchButton != null)
             backToMatchButton.SetActive(false);
 

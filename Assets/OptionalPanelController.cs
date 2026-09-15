@@ -379,6 +379,23 @@ public class OptionPanelController : MonoBehaviour
             preGamePanelController.EnterMultiplayerFlow();
     }
 
+    // The game over panel's Main Menu button has been wired to this name in the
+    // scene all along, but the method was never written - so pressing it did
+    // nothing at all, silently, because an unresolved persistent call is not an
+    // error Unity reports.
+    //
+    // Leaving a finished game means leaving whatever it was: a daily has to be
+    // stood down too, or its board and its locked buttons follow you out.
+    public void ReturnToMainMenu()
+    {
+        if (Singleton.Instance != null && Singleton.Instance.GameLogic != null)
+            Singleton.Instance.GameLogic.LeaveDailyMode();
+
+        ShowOptionPanel();
+
+        Debug.Log("[OptionPanel] Returned to the main menu.");
+    }
+
     public void ShowOptionPanel()
     {
         if (optionPanel != null) optionPanel.SetActive(true);
