@@ -248,6 +248,15 @@ public class OptionPanelController : MonoBehaviour
             if (selectedSprite != null && idleSprite != null)
                 button.image.sprite = selected ? selectedSprite : idleSprite;
 
+            // The shape stays the same and the colour carries the state. A tab
+            // is stretched far wider than a letter tile ever is, and a tile
+            // pulled to that width stops reading as a tile - it just reads as
+            // a stretched picture of one.
+            //
+            // Sliced, so the rounded corners keep their size at any width
+            // instead of being pulled out with the rest of the image.
+            button.image.type = Image.Type.Sliced;
+
             button.image.color = selected ? selectedColour : idleColour;
         }
 
