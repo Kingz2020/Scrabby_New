@@ -71,6 +71,14 @@ public partial class GameLogic
         if (!EnsureDailyGeometry())
             yield break;
 
+        // The board's cells are built by BoardGen.Start(), which does not run
+        // until the gameplay panel is switched on - and the option panel
+        // switches it on and starts the daily in the same frame. Laying tiles
+        // out before then draws them onto a grid that does not exist yet:
+        // every bonus square reports "No GhostTile found" and the opening
+        // words land nowhere.
+        yield return StartCoroutine(WaitForBoardCells());
+
         ClearBoardForNewGame();
 
         validatedBoardTiles = new LetterInfo[boardSizeX + 2, boardSizeY + 2];
@@ -202,6 +210,32 @@ public partial class GameLogic
                   word + " for " + score + " of a possible " + dailyDay.bestScore);
 
         return true;
+    }
+
+    // Waits for the cell grid rather than assuming a frame count. Two frames
+    // covers the usual case; the loop covers a slow first build, and gives up
+    // rather than hanging if the grid never appears.
+    private IEnumerator WaitForBoardCells()
+    {
+        yield return null;
+        yield return null;
+
+        int needed = boardSizeX * boardSizeY;
+
+        for (int frame = 0; frame < 120; frame++)
+        {
+            GhostTile[] cells = UnityEngine.Object.FindObjectsByType<GhostTile>(
+                FindObjectsSortMode.None);
+
+            if (cells != null && cells.Length >= needed)
+                yield break;
+
+            yield return null;
+        }
+
+        Debug.LogError(
+            "[DAILY] The board's cells never appeared, so the position cannot " +
+            "be laid out. Is the gameplay panel active?");
     }
 
     // The submit button, in daily mode. Until there is a result screen this
