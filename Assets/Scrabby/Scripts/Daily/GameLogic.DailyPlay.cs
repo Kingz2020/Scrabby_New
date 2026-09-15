@@ -47,6 +47,19 @@ public partial class GameLogic
             return;
         }
 
+        // Callers are expected to check first and show the result instead, but
+        // a day that has been answered must not be dealt again whoever asks.
+        DailyProgress.DailyRecord answered;
+
+        if (DailyProgress.AnsweredToday(out answered))
+        {
+            Debug.Log("[DAILY] Day " + day.dayNumber +
+                      " has already been answered; showing the result.");
+
+            DailyResultPanel.Show(day, answered.score, answered.word);
+            return;
+        }
+
         // Generation may still be running in the background on this same
         // object, and StopAllCoroutines would kill it without its restore ever
         // running. Setting up the day overwrites the board anyway, so the
@@ -247,6 +260,10 @@ public partial class GameLogic
         dailyAnswered = true;
         dailyPlayerScore = move.score;
         dailyPlayerWord = move.word;
+
+        // Written down, not just remembered: one go a day means nothing if
+        // closing the app hands out another one.
+        DailyProgress.RecordAnswer(dailyDay.dayNumber, move.score, move.word);
 
         score = move.score;
         word = move.word;

@@ -108,21 +108,34 @@ public static class DailyPlayMenu
             GameLogic.DailyLevelFor(score, day.bestScore) + ".");
     }
 
-    // The one-answer rule is remembered in memory only for now, so testing the
-    // same day twice needs a way to forget it.
+    // One go a day is the point, which makes testing it twice awkward. This
+    // hands today back - the recorded answer and the streak with it.
     [MenuItem("Scrabby/Daily/Forget today's answer")]
     public static void ForgetAnswer()
     {
-        if (!Application.isPlaying)
-            return;
+        DailyProgress.Forget();
 
-        GameLogic logic = Object.FindAnyObjectByType<GameLogic>();
+        if (Application.isPlaying)
+        {
+            GameLogic logic = Object.FindAnyObjectByType<GameLogic>();
 
-        if (logic == null)
-            return;
+            if (logic != null)
+                logic.LeaveDailyMode();
+        }
 
-        logic.LeaveDailyMode();
-        Debug.Log("[DAILY] Daily mode left; today can be started again.");
+        Debug.Log("[DAILY] Today's answer forgotten; it can be played again.");
+    }
+
+    [MenuItem("Scrabby/Daily/Show what has been played")]
+    public static void ShowProgress()
+    {
+        DailyProgress.DailyRecord record = DailyProgress.Load();
+
+        Debug.Log("[DAILY] Last played day " + record.dayNumber + ": " +
+                  (string.IsNullOrEmpty(record.word) ? "nothing yet" : record.word) +
+                  " for " + record.score + " | streak " + record.streak +
+                  ", best " + record.bestStreak +
+                  " | today is day " + DailySeed.Today());
     }
 
     [MenuItem("Scrabby/Daily/Clear cached day")]

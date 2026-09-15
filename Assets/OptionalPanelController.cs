@@ -217,7 +217,8 @@ public class OptionPanelController : MonoBehaviour
         if (playLabel != null)
         {
             if (dailyChosen)
-                playLabel.text = "Play today's puzzle";
+                playLabel.text = PlayedToday() ? "See today's result"
+                                               : "Play today's puzzle";
             else if (multiplayerChosen)
                 playLabel.text = "Find an opponent";
             else
@@ -323,6 +324,16 @@ public class OptionPanelController : MonoBehaviour
             yield break;
         }
 
+        // Already answered: the result goes over the menu rather than the
+        // board being laid out for a puzzle that cannot be played again.
+        DailyProgress.DailyRecord answered;
+
+        if (DailyProgress.AnsweredToday(out answered))
+        {
+            DailyResultPanel.Show(day, answered.score, answered.word);
+            yield break;
+        }
+
         if (optionPanel != null) optionPanel.SetActive(false);
         if (pregamePanel != null) pregamePanel.SetActive(false);
         if (gameoverPanel != null) gameoverPanel.SetActive(false);
@@ -333,6 +344,12 @@ public class OptionPanelController : MonoBehaviour
         Singleton.Instance.GameLogic.StartDaily(day);
 
         Debug.Log("[OptionPanel] Daily started: " + day);
+    }
+
+    private static bool PlayedToday()
+    {
+        DailyProgress.DailyRecord record;
+        return DailyProgress.AnsweredToday(out record);
     }
 
     private void RefreshDailyStatus()
@@ -351,7 +368,14 @@ public class OptionPanelController : MonoBehaviour
             return;
         }
 
-        if (manager.IsReady)
+        if (PlayedToday())
+        {
+            DailyProgress.DailyRecord record = DailyProgress.Load();
+
+            dailyStatusLabel.text = "Played today: " + record.word.ToUpper() +
+                                    " for " + record.score + ".";
+        }
+        else if (manager.IsReady)
         {
             dailyStatusLabel.text = "Puzzle #" + manager.Today.dayNumber +
                                     " - one word, one go.";
