@@ -485,8 +485,11 @@ public partial class GameLogic
             return false;
         }
 
-        if (maxHandSize <= 0)
-            maxHandSize = DefaultHandSize;
+        // Always, not just when unset. A day has to be the same puzzle for
+        // everyone on the date, and starting a solo game leaves maxHandSize at
+        // whatever that game wanted - so a daily generated after one would
+        // deal a different sized rack, and be a different puzzle.
+        maxHandSize = DefaultHandSize;
 
         // The solver scores against the dictionary, which InitGame would
         // normally have loaded. Only pay for it once across a probe run.

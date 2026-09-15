@@ -58,6 +58,18 @@ public partial class GameLogic
     // one. Called by whatever starts solo or multiplayer.
     public void LeaveDailyMode()
     {
+        // The puzzle's position has to come off the board with it. Starting a
+        // game goes through InitGame, which sets up fresh state but does not
+        // clear what is already drawn - so without this the new game is dealt
+        // on top of the daily's words.
+        if (dailyMode)
+        {
+            ClearBoardForNewGame();
+
+            validatedBoardTiles =
+                new LetterInfo[boardSizeX + 2, boardSizeY + 2];
+        }
+
         dailyMode = false;
         dailyDay = null;
         dailyAnswered = false;
