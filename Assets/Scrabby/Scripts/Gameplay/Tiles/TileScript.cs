@@ -111,6 +111,51 @@ public class TileScript : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDr
         transform.position = (Vector3)eventData.position + dragOffset;
     }
 
+    // Whether the pointer let go over the rack. Tested against the rack's own
+    // rectangle rather than what the raycast hit, so it works wherever on the
+    // rack the tile is dropped - over a gap between tiles, or over the rack's
+    // background.
+    private bool DroppedOverTheRack(PointerEventData eventData)
+    {
+        GameObject hand = Singleton.Instance != null &&
+                          Singleton.Instance.UIManager != null
+            ? Singleton.Instance.UIManager.handTileHolder
+            : null;
+
+        if (hand == null)
+            return false;
+
+        RectTransform rect = hand.transform as RectTransform;
+
+        if (rect == null)
+            return false;
+
+        Canvas canvas = GetComponentInParent<Canvas>();
+
+        // A Screen Space Overlay canvas wants a null camera here; anything else
+        // wants the one it renders through.
+        Camera camera = canvas != null &&
+                        canvas.renderMode != RenderMode.ScreenSpaceOverlay
+            ? canvas.worldCamera
+            : null;
+
+        return RectTransformUtility.RectangleContainsScreenPoint(
+            rect, eventData.position, camera);
+    }
+
+    private void ReturnThisTileToHand()
+    {
+        GameObject hand = Singleton.Instance.UIManager.handTileHolder;
+
+        transform.SetParent(hand.transform, false);
+        transform.localPosition = Vector3.zero;
+        transform.localScale = Vector3.one;
+
+        // It is in the hand now, so it is not anywhere on the board.
+        if (placedTile != null)
+            placedTile.letterPosition = null;
+    }
+
     public void OnEndDrag(PointerEventData eventData)
     {
         if (isLockedOnBoard)
@@ -119,6 +164,22 @@ public class TileScript : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDr
         //background.raycastTarget = true;
         canvasGroup.blocksRaycasts = true;
         Singleton.Instance.DropManager.isCurrentlyDragging = false;
+
+        // Asked before the board is consulted, because it always answers.
+        // GetCurrentLocation falls back to the last cell the tile passed over,
+        // so letting go anywhere off the board - the rack included - put the
+        // tile back on that square. Taking a single tile back was impossible,
+        // leaving the return-everything button as the only way to change your
+        // mind about one of them.
+        //
+        // Nothing has to be told the tile has left the board: OnBeginDrag
+        // already took it off, and this simply declines to put it back.
+        if (DroppedOverTheRack(eventData))
+        {
+            ReturnThisTileToHand();
+            Singleton.Instance.DropManager.SetTempGrabbedTile(null);
+            return;
+        }
 
         GhostTile targetLocation = Singleton.Instance.DropManager.GetCurrentLocation();
 
