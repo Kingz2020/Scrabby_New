@@ -19595,6 +19595,7 @@ GameObject:
   - component: {fileID: 1602580472}
   - component: {fileID: 1602580473}
   - component: {fileID: 1602580475}
+  - component: {fileID: 1602580476}
   m_Layer: 5
   m_Name: Manager
   m_TagString: Untagged
@@ -37106,3 +37107,15 @@ MonoBehaviour:
   m_hasFontAssetChanged: 0
   m_baseMaterial: {fileID: 0}
   m_maskOffset: {x: 0, y: 0, z: 0, w: 0}
+--- !u!114 &1602580476
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1602580471}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e44d127c9f424a4429f7b3a293f678f0, type: 3}
+  m_Name:
+  m_EditorClassIdentifier:

@@ -968,12 +968,16 @@ public class UIManager : MonoBehaviour
     // rejected draws the move the way a turned-down word is drawn during play:
     // red letters inside the rejected-word outline, and no score, because it
     // did not score.
+    // showScore is for words that arrive without anyone having played them -
+    // the opening position of a daily puzzle - where pinning a score to them
+    // would be claiming something that did not happen.
     public IEnumerator PlayMovePreview(
         List<SimPlacedTileData> moveTiles,
         Color highlightColour,
         int score,
         bool keepTiles = false,
-        bool rejected = false)
+        bool rejected = false,
+        bool showScore = true)
     {
         if (moveTiles == null || moveTiles.Count == 0)
             yield break;
@@ -1018,7 +1022,7 @@ public class UIManager : MonoBehaviour
 
         if (rejected)
             DrawRejectedOutline(previewTiles);
-        else
+        else if (showScore)
             HighlightPlayedWord(cells, score, OutlineShade(highlightColour));
 
         yield return new WaitForSecondsRealtime(replayWordHold);
