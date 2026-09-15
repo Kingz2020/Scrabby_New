@@ -848,6 +848,12 @@ public partial class GameLogic : MonoBehaviour
     {
         VerboseLog("[TRACE] BeginGameFromButton CALLED");
 
+        // Belt and braces with the buttons being made uninteractable: a daily
+        // cannot be dealt again, so starting a game over the top of one would
+        // lose it for good.
+        if (dailyMode)
+            return;
+
         // The same Game Over panel is used by solo and online games.
         // Route online results to the online rematch flow.
         if (Singleton.Instance != null &&

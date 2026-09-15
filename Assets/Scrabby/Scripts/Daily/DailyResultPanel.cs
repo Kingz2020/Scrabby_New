@@ -127,7 +127,7 @@ public static class DailyResultPanel
                delegate { StartGameAt(level); });
 
         Button(card.transform, "Done", 300f, y, new Color(1f, 1f, 1f, 0.18f),
-               Color.white, delegate { Close(); });
+               Color.white, delegate { Done(); });
     }
 
     // The bar is the whole of the day's best move. Yours is the filled part.
@@ -208,6 +208,24 @@ public static class DailyResultPanel
             Singleton.Instance.DebugManager.LoadFromJson();
             Singleton.Instance.DebugManager.StartNewGame(level);
         }
+    }
+
+    // Done means done: the day has been answered and cannot be played again,
+    // so there is nothing to go back to on the board. The option panel is
+    // where the next choice gets made.
+    private static void Done()
+    {
+        Close();
+
+        if (Singleton.Instance != null && Singleton.Instance.GameLogic != null)
+            Singleton.Instance.GameLogic.LeaveDailyMode();
+
+        OptionPanelController options =
+            UnityEngine.Object.FindAnyObjectByType<OptionPanelController>(
+                FindObjectsInactive.Include);
+
+        if (options != null)
+            options.ShowOptionPanel();
     }
 
     private static void Close()

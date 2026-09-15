@@ -1,6 +1,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.UI;
 
 // Playing a daily puzzle, as opposed to generating one.
 //
@@ -17,6 +18,10 @@ public partial class GameLogic
     // What the player actually managed, once they have answered.
     private int dailyPlayerScore;
     private string dailyPlayerWord = "";
+
+    // Buttons switched off for the duration of a daily, remembered so they can
+    // be switched back on again afterwards.
+    private readonly List<Button> dailyLockedButtons = new List<Button>();
 
     public bool IsDailyMode { get { return dailyMode; } }
     public DailyBoard CurrentDailyDay { get { return dailyDay; } }
@@ -69,6 +74,8 @@ public partial class GameLogic
             validatedBoardTiles =
                 new LetterInfo[boardSizeX + 2, boardSizeY + 2];
         }
+
+        UnlockNewGameButtons();
 
         dailyMode = false;
         dailyDay = null;
@@ -186,6 +193,8 @@ public partial class GameLogic
 
         currentState = TurnState.PlayerTurn;
 
+        LockNewGameButtons();
+
         // No clock on a puzzle: a daily is one position to think about, not a
         // turn to be hurried through. The round counter beside it belongs to a
         // game and means nothing here either.
@@ -272,6 +281,43 @@ public partial class GameLogic
         Debug.LogError(
             "[DAILY] The board's cells never appeared, so the position cannot " +
             "be laid out. Is the gameplay panel active?");
+    }
+
+    // A daily is one position and one answer, so there is no game to restart.
+    // Leaving the button live would let a player wipe the puzzle by accident
+    // and get nothing back - the day cannot be dealt again.
+    //
+    // The buttons are found by what they are wired to rather than by name,
+    // which is exact and survives them being renamed or moved.
+    private void LockNewGameButtons()
+    {
+        dailyLockedButtons.Clear();
+
+        foreach (Button button in UnityEngine.Object.FindObjectsByType<Button>(
+                     FindObjectsInactive.Include, FindObjectsSortMode.None))
+        {
+            if (button == null || !button.interactable)
+                continue;
+
+            for (int i = 0; i < button.onClick.GetPersistentEventCount(); i++)
+            {
+                if (button.onClick.GetPersistentMethodName(i) != "BeginGameFromButton")
+                    continue;
+
+                button.interactable = false;
+                dailyLockedButtons.Add(button);
+                break;
+            }
+        }
+    }
+
+    private void UnlockNewGameButtons()
+    {
+        foreach (Button button in dailyLockedButtons)
+            if (button != null)
+                button.interactable = true;
+
+        dailyLockedButtons.Clear();
     }
 
     // The submit button, in daily mode. Until there is a result screen this
