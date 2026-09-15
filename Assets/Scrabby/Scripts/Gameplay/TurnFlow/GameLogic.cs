@@ -4146,6 +4146,16 @@ public partial class GameLogic : MonoBehaviour
     {
         VerboseLog("[TRACE] EndTurnSingleGuess CALLED. roundStarted=" + roundStarted + ", mode=" + currentInitMode);
 
+        // This is what the play button is actually wired to in the scene, so
+        // the daily has to be caught here. Letting a daily fall through starts
+        // an ordinary round on top of it: a new bonus board, the rack wiped,
+        // and the uncommitted tiles pulled back off the board.
+        if (dailyMode)
+        {
+            HandleDailySubmission();
+            return;
+        }
+
         if (IsOnlineMatch)
         {
             if (currentState != TurnState.PlayerTurn)

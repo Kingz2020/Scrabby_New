@@ -26,6 +26,11 @@ public partial class GameLogic
 
     // The opening words are shown in a neutral shade: nobody played them, and
     // colouring them as a move would say somebody had.
+    // A round reveals its squares slowly, over the moment the round starts.
+    // A daily has the whole board to lay out before the player can do
+    // anything, so it moves quicker.
+    private const float DailyBonusRevealStep = 0.06f;
+
     private static readonly Color DailyOpeningColour =
         new Color(0.62f, 0.66f, 0.72f, 1f);
 
@@ -96,8 +101,25 @@ public partial class GameLogic
         PlaceBonusTilesOnBoard();
         UnityEngine.Random.state = entryState;
 
+        int bonusCount = 0;
+
+        for (int x = 0; x < boardSizeX; x++)
+            for (int y = 0; y < boardSizeY; y++)
+                if (boardBonusTiles[x, y] != null)
+                    bonusCount++;
+
+        // The squares go down before the words do, and this waits for them.
+        // The reveal draws one square every DailyBonusRevealStep and paints
+        // whatever cell it is given - so a square revealed after a word has
+        // landed covers the letter sitting on it, which reads as a hole in the
+        // middle of the word and an illegal position.
         if (bonusBoardView != null)
-            bonusBoardView.StartRevealBonusTiles(0.3f);
+        {
+            bonusBoardView.StartRevealBonusTiles(DailyBonusRevealStep);
+
+            yield return new WaitForSeconds(
+                bonusCount * DailyBonusRevealStep + 0.15f);
+        }
 
         UIManager ui = Singleton.Instance != null
             ? Singleton.Instance.UIManager
@@ -152,18 +174,20 @@ public partial class GameLogic
 
         currentState = TurnState.PlayerTurn;
 
+        // No clock on a puzzle: a daily is one position to think about, not a
+        // turn to be hurried through. The round counter beside it belongs to a
+        // game and means nothing here either.
+        if (timer != null)
+            timer.StopTimer();
+
+        roundStarted = false;
+        roundFlowActive = false;
+
         if (ui != null)
         {
             ui.ClearRoundMessage();
             ui.ShowTurnState("One word. Best you can.", UIManager.TurnTone.Yours);
         }
-
-        int bonusCount = 0;
-
-        for (int x = 0; x < boardSizeX; x++)
-            for (int y = 0; y < boardSizeY; y++)
-                if (boardBonusTiles[x, y] != null)
-                    bonusCount++;
 
         Debug.Log("[DAILY] Day " + day.dayNumber + " set up: rack [" +
                   day.RackString() + "], best available " + day.bestScore +
