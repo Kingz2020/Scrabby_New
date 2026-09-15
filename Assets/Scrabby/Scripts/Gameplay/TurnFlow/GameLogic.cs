@@ -20,7 +20,7 @@ using UnityEngine.Networking;
 // Board arrays use [x, y].
 // Bonus arrays are 0-based: boardBonusTiles[x - 1, y - 1].
 
-public class GameLogic : MonoBehaviour
+public partial class GameLogic : MonoBehaviour
 {
     private static readonly ProfilerMarker EvaluateAIMoveMarker =
         new ProfilerMarker("AI.EvaluateAIMoveIncremental");
@@ -51,6 +51,27 @@ public class GameLogic : MonoBehaviour
 
     private static readonly ProfilerMarker StartNextRoundMarker =
         new ProfilerMarker("Round.StartNextRound");
+
+    // How long the move search may work before yielding a frame. Raised
+    // by offline callers; see FindBestGaddagMoveCoroutine.
+    private const double GameplayFrameBudgetMs = 2.0;
+    private double solverFrameBudgetMs = GameplayFrameBudgetMs;
+
+    // Offline callers raise the budget and silence the per-search stats, which
+    // are useful once a turn and unreadable a hundred times in a row.
+    public void BeginOfflineSolving(double frameBudgetMs)
+    {
+        solverFrameBudgetMs = frameBudgetMs;
+        logSolverStats = false;
+    }
+
+    public void EndOfflineSolving()
+    {
+        solverFrameBudgetMs = GameplayFrameBudgetMs;
+        logSolverStats = true;
+    }
+
+    private bool logSolverStats = true;
 
     private int maxHandSize;//=7;
     private int boardSizeX;
@@ -4460,7 +4481,10 @@ public class GameLogic : MonoBehaviour
         precalculatedCrossChecks = new int[boardSizeX + 2, boardSizeY + 2];
         precalculatedCrossChecksVertical = new int[boardSizeX + 2, boardSizeY + 2];
 
-        const double frameBudgetMs = 2.0;
+        // 2ms a frame keeps a running game smooth. Offline work - generating
+        // daily puzzles, probing a run of them - has no framerate to protect
+        // and is otherwise throttled to a crawl, so it may raise this.
+        double frameBudgetMs = solverFrameBudgetMs;
         var sliceTimer = System.Diagnostics.Stopwatch.StartNew();
 
         for (int r = 1; r <= boardSizeX; r++)
@@ -4549,6 +4573,7 @@ public class GameLogic : MonoBehaviour
             }
         }
 
+        if (logSolverStats)
         Debug.Log(
         $"GADDAG total={totalTimer.Elapsed.TotalMilliseconds:F1}ms " +
         $"anchors={anchors.Count} slow={slowAnchorCount} " +
@@ -4580,8 +4605,47 @@ public class GameLogic : MonoBehaviour
         BonusTile[,] bonusBoard,
         System.Action<RoundMove> onComplete)
     {
-        yield return StartCoroutine(
-            FindBestGaddagMoveCoroutine(rack, bonusBoard, onComplete, true));
+        // Scoring reads the boardBonusTiles field, not the bonusBoard argument
+        // threaded through the search - so passing a different board had no
+        // effect at all, and "what is this worth with no bonuses" came back
+        // identical to the real score. Swapping the field for the duration is
+        // what actually makes the argument mean something.
+        BonusTile[,] restore = boardBonusTiles;
+
+        if (bonusBoard != null)
+            boardBonusTiles = bonusBoard;
+
+        // The search fills aiDifficultyCandidates but never clears it - its
+        // callers do. Left alone, one search's candidates would be read as the
+        // next one's, so anything asking what this board offers has to start
+        // from an empty list.
+        aiDifficultyCandidates.Clear();
+        bestAICandidate = null;
+
+        try
+        {
+            yield return StartCoroutine(
+                FindBestGaddagMoveCoroutine(rack, bonusBoard, onComplete, true));
+        }
+        finally
+        {
+            boardBonusTiles = restore;
+        }
+    }
+
+    // Every playable move the last search sampled, by score. The search caps
+    // its sample, so this is a spread of what the board offers rather than an
+    // exhaustive list - which is all that judging "is there something here for
+    // a player of any level" needs.
+    public List<int> LastSearchScores()
+    {
+        List<int> scores = new List<int>();
+
+        foreach (RoundMove move in aiDifficultyCandidates)
+            if (move != null && move.isValid)
+                scores.Add(move.score);
+
+        return scores;
     }
 
     // The fraction of the best score each difficulty plays to, exposed so a
