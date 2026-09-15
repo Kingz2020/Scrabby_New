@@ -20,6 +20,19 @@ using System.Threading.Tasks;
 /// </summary>
 public class OnlineMatchController : MonoBehaviour
 {
+    // Informational logging, off unless something is being chased.
+    // The console filled to its 999-line cap within seconds of a game
+    // starting, which buries the errors that matter. These are kept rather
+    // than deleted: they are worth having when a specific thing is being
+    // debugged, just not all the time.
+    public static bool Verbose = false;
+
+    private static void VerboseLog(object message)
+    {
+        if (Verbose)
+            UnityEngine.Debug.Log(message);
+    }
+
     //public static OnlineMatchController Instance { get; private set; }
     [Header("Core References")]
     [SerializeField] private GameLogic gameLogic;
@@ -125,7 +138,7 @@ public class OnlineMatchController : MonoBehaviour
             dbRoot = database.RootReference;
 
         bool ready = (dbRoot != null && auth != null);
-        Debug.Log("[OnlineMatchController] EnsureFirebaseReady: ready=" + ready);
+        VerboseLog("[OnlineMatchController] EnsureFirebaseReady: ready=" + ready);
         return ready;
     }
 
@@ -220,7 +233,7 @@ public class OnlineMatchController : MonoBehaviour
         string uid = GetCurrentUser().UserId;
         int roundNumber = currentMatch.currentRoundNumber;
 
-                Debug.Log(
+                VerboseLog(
             "[SUBMIT DIAGNOSTIC]" +
             " uid=" + uid +
             " matchId=" + currentMatch.matchId +
@@ -266,7 +279,7 @@ public class OnlineMatchController : MonoBehaviour
                       return;
                   }
 
-                  Debug.Log("[OnlineMatchController] Round " + roundNumber + " submission written.");
+                  VerboseLog("[OnlineMatchController] Round " + roundNumber + " submission written.");
                   // The board bands the submitted word; nothing to add.
 
                   // Remember: actively waiting on this match
@@ -289,7 +302,7 @@ public class OnlineMatchController : MonoBehaviour
             return;
         }
 
-        Debug.Log("[OnlineMatchController] ResumeMatch called with matchId=" + matchId);
+        VerboseLog("[OnlineMatchController] ResumeMatch called with matchId=" + matchId);
 
         WatchMatch(matchId, enterWhenReady: true);
     }
@@ -348,7 +361,7 @@ public class OnlineMatchController : MonoBehaviour
 
     public void PlayAgainFromResults()
     {
-        Debug.Log("[ONLINE] PlayAgainFromResults CALLED");
+        VerboseLog("[ONLINE] PlayAgainFromResults CALLED");
 
         // We are leaving the old completed match result.
         viewingOnlineMatchResult = false;
@@ -569,7 +582,7 @@ public class OnlineMatchController : MonoBehaviour
             );
         }
 
-        Debug.Log(
+        VerboseLog(
             "[OnlineMatchController] Game-over round history loaded: " +
             history.Count + " rounds."
         );
@@ -610,7 +623,7 @@ public class OnlineMatchController : MonoBehaviour
 
         currentSubmissionsRef.ValueChanged += OnSubmissionsValueChanged;
 
-        Debug.Log("[OnlineMatchController] Now watching submissions for match " +
+        VerboseLog("[OnlineMatchController] Now watching submissions for match " +
                   currentMatch.matchId + " round " + roundNumber);
     }
 
@@ -625,7 +638,7 @@ public class OnlineMatchController : MonoBehaviour
         int submittedCount = (int)args.Snapshot.ChildrenCount;
         int expectedCount = 2; // host + guest; adjust when supporting more players
 
-        Debug.Log("[OnlineMatchController] Round " + watchedRoundNumber +
+        VerboseLog("[OnlineMatchController] Round " + watchedRoundNumber +
                   " submissions: " + submittedCount + " / " + expectedCount);
 
         if (submittedCount >= expectedCount && currentMatch != null)
@@ -636,7 +649,7 @@ public class OnlineMatchController : MonoBehaviour
 
     public void TryResolveRound(string matchId, int roundNumber)
     {
-        Debug.Log("[OnlineMatchController] TryResolveRound START | matchId=" +
+        VerboseLog("[OnlineMatchController] TryResolveRound START | matchId=" +
                   matchId + " round=" + roundNumber);
 
         DatabaseReference submissionsRef = dbRoot.Child("matches")
@@ -667,7 +680,7 @@ public class OnlineMatchController : MonoBehaviour
                     submissions.Add(sub);
             }
 
-            Debug.Log("[OnlineMatchController] TryResolveRound after submissions read | matchId=" +
+            VerboseLog("[OnlineMatchController] TryResolveRound after submissions read | matchId=" +
                       matchId + " round=" + roundNumber + " submissionsCount=" + submissions.Count);
 
             if (submissions.Count == 0)
@@ -698,7 +711,7 @@ public class OnlineMatchController : MonoBehaviour
                     return;
                 }
 
-                Debug.Log("[OnlineMatchController] TryResolveRound MATCH SNAPSHOT | matchId=" +
+                VerboseLog("[OnlineMatchController] TryResolveRound MATCH SNAPSHOT | matchId=" +
                           liveMatch.matchId +
                           " currentRoundNumber=" + liveMatch.currentRoundNumber +
                           " roundResolutionStatus=" + liveMatch.roundResolutionStatus +
@@ -720,7 +733,7 @@ public class OnlineMatchController : MonoBehaviour
                 }
 
                 // Claim resolution using a transaction
-                Debug.Log("[OnlineMatchController] TryResolveRound attempting transaction claim for matchId=" +
+                VerboseLog("[OnlineMatchController] TryResolveRound attempting transaction claim for matchId=" +
                           matchId + " round=" + roundNumber);
 
                 matchRef.Child("roundResolutionStatus").RunTransaction(mutableData =>
@@ -739,7 +752,7 @@ public class OnlineMatchController : MonoBehaviour
                 })
                 .ContinueWithOnMainThread(claimTask =>
                 {
-                    Debug.Log("[OnlineMatchController] TRANSACTION ENTER" +
+                    VerboseLog("[OnlineMatchController] TRANSACTION ENTER" +
                               " | matchId=" + matchId +
                               " round=" + roundNumber +
                               " taskStatus=" + claimTask.Status +
@@ -771,7 +784,7 @@ public class OnlineMatchController : MonoBehaviour
 
                     DataSnapshot transactionSnapshot = transactionTask.Result;
 
-                    Debug.Log("[OnlineMatchController] TRANSACTION RESULT RECEIVED" +
+                    VerboseLog("[OnlineMatchController] TRANSACTION RESULT RECEIVED" +
                               " | snapshotNull=" + (transactionSnapshot == null) +
                               " | exists=" + (transactionSnapshot != null && transactionSnapshot.Exists) +
                               " | value=" +
@@ -786,7 +799,7 @@ public class OnlineMatchController : MonoBehaviour
                         return;
                     }
 
-                    Debug.Log("[OnlineMatchController] TRANSACTION CLAIM COMPLETED — beginning re-read.");
+                    VerboseLog("[OnlineMatchController] TRANSACTION CLAIM COMPLETED — beginning re-read.");
 
                     matchRef.GetValueAsync().ContinueWithOnMainThread(reReadTask =>
                     {
@@ -810,7 +823,7 @@ public class OnlineMatchController : MonoBehaviour
                             return;
                         }
 
-                        Debug.Log("[OnlineMatchController] TryResolveRound re-read MATCH" +
+                        VerboseLog("[OnlineMatchController] TryResolveRound re-read MATCH" +
                                   " | matchId=" + freshMatch.matchId +
                                   " | currentRoundNumber=" + freshMatch.currentRoundNumber +
                                   " | roundResolutionStatus=" + freshMatch.roundResolutionStatus);
@@ -823,7 +836,7 @@ public class OnlineMatchController : MonoBehaviour
                             return;
                         }
 
-                        Debug.Log("[OnlineMatchController] TryResolveRound calling ResolveRoundNow" +
+                        VerboseLog("[OnlineMatchController] TryResolveRound calling ResolveRoundNow" +
                                   " | matchId=" + matchId +
                                   " | round=" + roundNumber +
                                   " | submissionsCount=" + submissions.Count);
@@ -844,7 +857,7 @@ public class OnlineMatchController : MonoBehaviour
     List<RoundSubmissionData> submissions,
     DatabaseReference matchRef)
     {
-        Debug.Log("[OnlineMatchController] ResolveRoundNow START | matchId=" +
+        VerboseLog("[OnlineMatchController] ResolveRoundNow START | matchId=" +
                   liveMatch.matchId + " round=" + roundNumber +
                   " submissionsCount=" + (submissions != null ? submissions.Count : -1));
 
@@ -860,7 +873,7 @@ public class OnlineMatchController : MonoBehaviour
 
         foreach (var sub in submissions)
         {
-            Debug.Log("[OnlineMatchController] ResolveRoundNow submission uid=" + sub.uid +
+            VerboseLog("[OnlineMatchController] ResolveRoundNow submission uid=" + sub.uid +
                       " score=" + sub.score + " isValid=" + sub.isValid);
 
             if (!sub.isValid)
@@ -878,7 +891,7 @@ public class OnlineMatchController : MonoBehaviour
             sub => sub != null && sub.uid == liveMatch.player2Uid
         );
 
-        Debug.Log("[OnlineMatchController] ResolveRoundNow winner uid=" +
+        VerboseLog("[OnlineMatchController] ResolveRoundNow winner uid=" +
                   (winner != null ? winner.uid : "NULL"));
 
         // 1. Capture FULL board BEFORE this round's winner is applied
@@ -894,7 +907,7 @@ public class OnlineMatchController : MonoBehaviour
         RackStateData sharedRack = JsonUtility.FromJson<RackStateData>(liveMatch.sharedrackjson)
                                    ?? new RackStateData();
 
-        Debug.Log("[OnlineMatchController] ResolveRoundNow parsed state | " +
+        VerboseLog("[OnlineMatchController] ResolveRoundNow parsed state | " +
                   "boardCells=" + (board.cells != null ? board.cells.Count : -1) +
                   " bagTiles=" + (bag.tiles != null ? bag.tiles.Count : -1) +
                   " sharedRackTiles=" + (sharedRack.tiles != null ? sharedRack.tiles.Count : -1));
@@ -907,7 +920,7 @@ public class OnlineMatchController : MonoBehaviour
 
         if (winner != null)
         {
-            Debug.Log("[OnlineMatchController] ResolveRoundNow winner has simulatedTilesJson length=" +
+            VerboseLog("[OnlineMatchController] ResolveRoundNow winner has simulatedTilesJson length=" +
                       (winner.simulatedTilesJson != null ? winner.simulatedTilesJson.Length : 0));
 
             SimTileListWrapper wrapper = JsonUtility.FromJson<SimTileListWrapper>(winner.simulatedTilesJson);
@@ -916,7 +929,7 @@ public class OnlineMatchController : MonoBehaviour
 
             if (wrapper != null && wrapper.tiles != null)
             {
-                Debug.Log("[OnlineMatchController] ResolveRoundNow placing " +
+                VerboseLog("[OnlineMatchController] ResolveRoundNow placing " +
                           wrapper.tiles.Count + " tiles on board.");
 
                 foreach (var tile in wrapper.tiles)
@@ -962,7 +975,7 @@ public class OnlineMatchController : MonoBehaviour
                 ? liveMatch.player1DisplayName
                 : liveMatch.player2DisplayName;
 
-            Debug.Log("[OnlineMatchController] ResolveRoundNow winnerDisplayName=" +
+            VerboseLog("[OnlineMatchController] ResolveRoundNow winnerDisplayName=" +
                       result.winnerDisplayName + " winnerScore=" + result.winnerScore);
 
             if (winnerIsPlayer1)
@@ -970,12 +983,12 @@ public class OnlineMatchController : MonoBehaviour
             else
                 liveMatch.player2Score += winner.score;
 
-            Debug.Log("[OnlineMatchController] ResolveRoundNow updated scores | p1=" +
+            VerboseLog("[OnlineMatchController] ResolveRoundNow updated scores | p1=" +
                       liveMatch.player1Score + " p2=" + liveMatch.player2Score);
         }
         else
         {
-            Debug.Log("[OnlineMatchController] ResolveRoundNow no valid winner; skipping board/rack updates.");
+            VerboseLog("[OnlineMatchController] ResolveRoundNow no valid winner; skipping board/rack updates.");
         }
 
         // Round scores
@@ -997,7 +1010,7 @@ public class OnlineMatchController : MonoBehaviour
                 player2Score = winner != null && !winnerIsPlayer1 ? winner.score : 0
             });
 
-            Debug.Log(
+            VerboseLog(
                 "[OnlineMatchController] Recorded round score | round=" + roundNumber +
                 " p1=" + (winnerIsPlayer1 ? winner.score : 0) +
                 " p2=" + (winner != null && !winnerIsPlayer1 ? winner.score : 0)
@@ -1025,7 +1038,7 @@ public class OnlineMatchController : MonoBehaviour
             bag.tiles.RemoveAt(0);
         }
 
-        Debug.Log("[OnlineMatchController] ResolveRoundNow refilled rack from " +
+        VerboseLog("[OnlineMatchController] ResolveRoundNow refilled rack from " +
                   beforeRefill + " to " + sharedRack.tiles.Count +
                   " (bag now " + (bag.tiles != null ? bag.tiles.Count : -1) + " tiles)");
 
@@ -1043,7 +1056,7 @@ public class OnlineMatchController : MonoBehaviour
         liveMatch.roundResolutionStatus = isFinalRoundJustPlayed ? "done" : "idle";
         liveMatch.status = isFinalRoundJustPlayed ? "completed" : "active";
 
-        Debug.Log("[OnlineMatchController] ResolveRoundNow round progression | " +
+        VerboseLog("[OnlineMatchController] ResolveRoundNow round progression | " +
                   "current=" + roundNumber + " next=" + nextRound +
                   " totalRounds=" + totalRounds +
                   " isFinal=" + isFinalRoundJustPlayed);
@@ -1109,7 +1122,7 @@ public class OnlineMatchController : MonoBehaviour
                 anyValidMove = result.anyValidMove
             });
 
-            Debug.Log(
+            VerboseLog(
                 "[OnlineMatchController] Saved round replay history | round=" +
                 roundNumber +
                 " p1='" + (player1Submission != null ? player1Submission.word : "") +
@@ -1131,7 +1144,7 @@ public class OnlineMatchController : MonoBehaviour
                 string newBonusJson = gameLogic.GenerateBonusBoardJsonForOnlineMatch();
                 liveMatch.bonusBoardJson = newBonusJson;
 
-                Debug.Log("[ONLINE] Regenerated bonusBoardJson for next round, length=" +
+                VerboseLog("[ONLINE] Regenerated bonusBoardJson for next round, length=" +
                           (string.IsNullOrEmpty(newBonusJson) ? 0 : newBonusJson.Length));
             }
             catch (Exception ex)
@@ -1141,10 +1154,10 @@ public class OnlineMatchController : MonoBehaviour
         }
         else
         {
-            Debug.Log("[OnlineMatchController] ResolveRoundNow skip bonus regen; match final or Singleton/GameLogic missing.");
+            VerboseLog("[OnlineMatchController] ResolveRoundNow skip bonus regen; match final or Singleton/GameLogic missing.");
         }
 
-        Debug.Log("[OnlineMatchController] ResolveRoundNow ABOUT TO GUARD READ & WRITE | nextRound=" +
+        VerboseLog("[OnlineMatchController] ResolveRoundNow ABOUT TO GUARD READ & WRITE | nextRound=" +
                   nextRound + " status=" + liveMatch.status +
                   " roundResolutionStatus=" + liveMatch.roundResolutionStatus);
 
@@ -1160,7 +1173,7 @@ public class OnlineMatchController : MonoBehaviour
             MatchData freshCheck =
                 JsonUtility.FromJson<MatchData>(guardTask.Result.GetRawJsonValue());
 
-            Debug.Log("[OnlineMatchController] Resolve guard freshCheck.currentRoundNumber=" +
+            VerboseLog("[OnlineMatchController] Resolve guard freshCheck.currentRoundNumber=" +
                       (freshCheck != null
                           ? freshCheck.currentRoundNumber.ToString()
                           : "NULL"));
@@ -1175,7 +1188,7 @@ public class OnlineMatchController : MonoBehaviour
                 return;
             }
 
-            Debug.Log(
+            VerboseLog(
                 "[OnlineMatchController] ResolveRoundNow guard passed; " +
                 "updating resolved match fields.");
 
@@ -1204,7 +1217,7 @@ public class OnlineMatchController : MonoBehaviour
                         return;
                     }
 
-                    Debug.Log(
+                    VerboseLog(
                         "[OnlineMatchController] Round " + roundNumber +
                         " resolved; match fields updated and round history preserved.");
 
@@ -1254,7 +1267,7 @@ public class OnlineMatchController : MonoBehaviour
                     return;
                 }
 
-                Debug.Log(
+                VerboseLog(
                     "[OnlineMatchController] Saved roundScores: " +
                     roundScores.Count
                 );
@@ -1265,7 +1278,7 @@ public class OnlineMatchController : MonoBehaviour
     DatabaseReference matchRef,
     List<OnlineRoundHistoryEntry> roundHistory)
     {
-        Debug.Log(
+        VerboseLog(
             "[OnlineMatchController] SaveRoundHistory ENTER | count=" +
             (roundHistory == null ? -1 : roundHistory.Count)
         );
@@ -1342,7 +1355,7 @@ public class OnlineMatchController : MonoBehaviour
             return;
         }
 
-        Debug.Log(
+        VerboseLog(
             "[OnlineMatchController] SaveRoundHistory WRITING | fields=" +
             updates.Count
         );
@@ -1359,7 +1372,7 @@ public class OnlineMatchController : MonoBehaviour
                     return;
                 }
 
-                Debug.Log(
+                VerboseLog(
                     "[OnlineMatchController] Saved roundHistory entries: " +
                     roundHistory.Count
                 );
@@ -1432,7 +1445,7 @@ public class OnlineMatchController : MonoBehaviour
 
     public void StartGameplayForCurrentMatch(string uid)
     {
-        Debug.Log("[OnlineMatchController] StartGameplayForCurrentMatch START | uid=" + uid);
+        VerboseLog("[OnlineMatchController] StartGameplayForCurrentMatch START | uid=" + uid);
 
         if (gameLogic == null || currentMatch == null || string.IsNullOrEmpty(uid))
         {
@@ -1567,7 +1580,7 @@ public class OnlineMatchController : MonoBehaviour
         string currentStatus = currentMatch != null ? currentMatch.status : "NULL";
         string currentTurn = currentMatch != null ? currentMatch.currentRoundNumber.ToString() : "NULL";
 
-        Debug.Log("[MATCHTRACE #" + matchTraceSeq + "] " + label +
+        VerboseLog("[MATCHTRACE #" + matchTraceSeq + "] " + label +
                   " | watchedMatchId=" + watchedMatchId +
                   " | currentMatchId=" + currentMatchId +
                   " | currentStatus=" + currentStatus +
@@ -1661,7 +1674,7 @@ public class OnlineMatchController : MonoBehaviour
         // If already watching this match, do nothing
         if (!string.IsNullOrEmpty(currentMatchId) && currentMatchId == matchId && currentMatchRef != null)
         {
-            Debug.Log("[OnlineMatchController] Already watching match " + matchId);
+            VerboseLog("[OnlineMatchController] Already watching match " + matchId);
             return;
         }
 
@@ -1670,7 +1683,7 @@ public class OnlineMatchController : MonoBehaviour
         currentMatchId = matchId;
         currentMatchRef = dbRoot.Child("matches").Child(matchId);
 
-        Debug.Log("[OnlineMatchController] Now watching match " + matchId);
+        VerboseLog("[OnlineMatchController] Now watching match " + matchId);
         currentMatchRef.ValueChanged += OnMatchValueChanged;
     }
     */
@@ -1716,7 +1729,7 @@ ValueChangedEventArgs args)
                 : raw.Length;
         }
 
-        Debug.Log(
+        VerboseLog(
             "[MATCHTRACE CALLBACK] OnMatchValueChanged ENTER" +
             " | dbError=" +
             (args.DatabaseError != null
@@ -1754,7 +1767,7 @@ ValueChangedEventArgs args)
         MatchData match =
             JsonUtility.FromJson<MatchData>(raw);
 
-        Debug.Log(
+        VerboseLog(
             "[MATCHTRACE CALLBACK] parsed match id = " +
             (match == null ? "NULL" : match.matchId)
         );
@@ -1874,7 +1887,7 @@ ValueChangedEventArgs args)
             a.roundNumber.CompareTo(b.roundNumber)
         );
 
-        Debug.Log(
+        VerboseLog(
             "[REPLAY] Showing " +
             history.Count +
             " valid history rows. First round=" +
@@ -2035,7 +2048,7 @@ ValueChangedEventArgs args)
     private void ReplayRoundFromGameOver(
     OnlineRoundHistoryEntry entry)
     {
-                Debug.Log(
+                VerboseLog(
             "[REPLAY] Selected round=" + entry.roundNumber +
             " | preBoardJsonLength=" +
             (string.IsNullOrEmpty(entry.preRoundBoardStateJson)
@@ -2191,7 +2204,7 @@ ValueChangedEventArgs args)
             FindObjectsInactive.Exclude
         );
 
-        Debug.Log(
+        VerboseLog(
             "[REPLAY] Board ready. board=" +
             boardWidth + "x" + boardHeight +
             " | active GhostTiles=" + ghostTiles.Length +

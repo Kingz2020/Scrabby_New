@@ -508,18 +508,22 @@ public partial class GameLogic
 
         LetterBag bag = letterBag;
 
-        if (bag == null && Singleton.Instance != null &&
+        if (!HasLetters(bag) && Singleton.Instance != null &&
             Singleton.Instance.DebugManager != null)
         {
             DebugManager debug = Singleton.Instance.DebugManager;
 
-            if (debug.letterBag == null)
+            // Not a null check: the scene serialises letterBag as a real object
+            // with an empty letters array, so it is never null and testing for
+            // that meant the JSON was never parsed. Empty and missing have to
+            // mean the same thing here, or the bag silently stays empty.
+            if (!HasLetters(debug.letterBag))
                 debug.LoadFromJson();
 
             bag = debug.letterBag;
         }
 
-        if (bag == null || bag.letters == null || bag.letters.Length == 0)
+        if (!HasLetters(bag))
         {
             Debug.LogError(
                 "[DAILY] Day " + dayNumber + ": no letter distribution available, " +
@@ -594,6 +598,11 @@ public partial class GameLogic
                 });
             }
         }
+    }
+
+    private static bool HasLetters(LetterBag bag)
+    {
+        return bag != null && bag.letters != null && bag.letters.Length > 0;
     }
 
     private static string DescribeRack(List<LetterInfo> rack)

@@ -6,6 +6,19 @@ using TMPro;
 using UnityEngine;
 
 public class DebugManager: MonoBehaviour {
+    // Informational logging, off unless something is being chased.
+    // The console filled to its 999-line cap within seconds of a game
+    // starting, which buries the errors that matter. These are kept rather
+    // than deleted: they are worth having when a specific thing is being
+    // debugged, just not all the time.
+    public static bool Verbose = false;
+
+    private static void VerboseLog(object message)
+    {
+        if (Verbose)
+            UnityEngine.Debug.Log(message);
+    }
+
 
     public string json;
     public LetterBag letterBag;
@@ -20,7 +33,7 @@ public class DebugManager: MonoBehaviour {
             .GetTileBag()
             .FromJsonToClass(json);
 
-        UnityEngine.Debug.Log(
+        VerboseLog(
             $"[Solo Timing] LoadFromJson: " +
             $"{stopwatch.ElapsedMilliseconds} ms"
         );
@@ -28,7 +41,7 @@ public class DebugManager: MonoBehaviour {
 
     public void StartNewGame(GameLogic.SoloDifficulty difficulty)
     {
-        UnityEngine.Debug.Log($"[Solo] StartNewGame with difficulty={difficulty}");
+        VerboseLog($"[Solo] StartNewGame with difficulty={difficulty}");
 
         // Set difficulty on GameLogic
         Singleton.Instance.GameLogic.SetSoloDifficulty(difficulty);
@@ -37,7 +50,7 @@ public class DebugManager: MonoBehaviour {
 
         int letterBagCount = GetLetterBagTileCount(letterBag);
 
-        UnityEngine.Debug.Log(
+        VerboseLog(
             "[BAG-DEBUG] StartNewGame(difficulty) ENTER | " +
             $"letterBag count={letterBagCount}"
         );
@@ -49,12 +62,12 @@ public class DebugManager: MonoBehaviour {
         var bagAfterReset = Singleton.Instance.GameLogic.GetTileBag();
         var lettersAfterReset = bagAfterReset.GetLetters();
 
-        UnityEngine.Debug.Log(
+        VerboseLog(
             $"[BAG-DEBUG] After ResetLetterBag in StartNewGame | " +
             $"count={lettersAfterReset?.Count ?? -1}"
         );
 
-        UnityEngine.Debug.Log(
+        VerboseLog(
             $"[Solo Timing] ResetLetterBag: " +
             $"{stopwatch.ElapsedMilliseconds} ms"
         );
@@ -66,12 +79,12 @@ public class DebugManager: MonoBehaviour {
             GameLogic.GameInitMode.Solo
         );
 
-        UnityEngine.Debug.Log(
+        VerboseLog(
             $"[Solo Timing] InitGame total: " +
             $"{stopwatch.ElapsedMilliseconds} ms"
         );
 
-        UnityEngine.Debug.Log($"[Solo] StartNewGame complete, difficulty={difficulty}. Waiting for Play.");
+        VerboseLog($"[Solo] StartNewGame complete, difficulty={difficulty}. Waiting for Play.");
     }
     public void StartNewGame()
     {
@@ -83,7 +96,7 @@ public class DebugManager: MonoBehaviour {
             .GetTileBag()
             .ResetLetterBag(letterBag);
 
-        UnityEngine.Debug.Log(
+        VerboseLog(
             $"[Solo Timing] ResetLetterBag: " +
             $"{stopwatch.ElapsedMilliseconds} ms"
         );
@@ -95,7 +108,7 @@ public class DebugManager: MonoBehaviour {
             GameLogic.GameInitMode.Solo
         );
 
-        UnityEngine.Debug.Log(
+        VerboseLog(
             $"[Solo Timing] InitGame total: " +
             $"{stopwatch.ElapsedMilliseconds} ms"
         );
@@ -123,19 +136,19 @@ public class DebugManager: MonoBehaviour {
     }
 
     public void CheckSameLine() {
-        UnityEngine.Debug.Log(Singleton.Instance.GameLogic.AllTilesInSameLine());
+        VerboseLog(Singleton.Instance.GameLogic.AllTilesInSameLine());
     }
 
     public void CheckHasHoles() {
-        UnityEngine.Debug.Log(Singleton.Instance.GameLogic.HasHoles(Singleton.Instance.GameLogic.AllTilesInSameLine()));
+        VerboseLog(Singleton.Instance.GameLogic.HasHoles(Singleton.Instance.GameLogic.AllTilesInSameLine()));
     }
 
     public void CheckConnectedToOldTiles() {
-        UnityEngine.Debug.Log(Singleton.Instance.GameLogic.CheckConnectedToTiles());
+        VerboseLog(Singleton.Instance.GameLogic.CheckConnectedToTiles());
     }
 
     public void CheckValidMove() {
-        UnityEngine.Debug.Log(Singleton.Instance.GameLogic.ValidMove());
+        VerboseLog(Singleton.Instance.GameLogic.ValidMove());
     }
 
     public void CollectAllWords() {
@@ -144,7 +157,7 @@ public class DebugManager: MonoBehaviour {
             foreach (var word in wordList) {
                 completed += word.letter;
             }
-            UnityEngine.Debug.Log(completed);
+            VerboseLog(completed);
         }
     }
 
@@ -153,13 +166,13 @@ public class DebugManager: MonoBehaviour {
     }
 
     public void CheckWordValidity() {
-        UnityEngine.Debug.Log(Singleton.Instance.GameLogic.CheckWordValidity(
+        VerboseLog(Singleton.Instance.GameLogic.CheckWordValidity(
             Singleton.Instance.GameLogic.CollectAllWords(Singleton.Instance.GameLogic.AllTilesInSameLine())));
     }
 
     public void CountPointsForWord() {
         foreach (var wordList in Singleton.Instance.GameLogic.CollectAllWords(Singleton.Instance.GameLogic.AllTilesInSameLine())) {
-            UnityEngine.Debug.Log(Singleton.Instance.GameLogic.CountWordPoints(wordList));
+            VerboseLog(Singleton.Instance.GameLogic.CountWordPoints(wordList));
         }
     }
 
@@ -179,8 +192,8 @@ public class DebugManager: MonoBehaviour {
             wordList = Singleton.Instance.WordLookupLogic.FindWords(letterList);
         }
         UnityEngine.Debug.LogFormat("Found {0} words", wordList.Count);
-        UnityEngine.Debug.Log(wordList.ToString());
-        UnityEngine.Debug.Log(string.Join(", ", wordList));        
+        VerboseLog(wordList.ToString());
+        VerboseLog(string.Join(", ", wordList));        
     }
     private int GetLetterBagTileCount(LetterBag bag)
     {

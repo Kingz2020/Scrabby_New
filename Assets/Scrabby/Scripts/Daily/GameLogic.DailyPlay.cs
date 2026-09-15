@@ -150,8 +150,19 @@ public partial class GameLogic
             ui.ShowTurnState("One word. Best you can.", UIManager.TurnTone.Yours);
         }
 
+        int bonusCount = 0;
+
+        for (int x = 0; x < boardSizeX; x++)
+            for (int y = 0; y < boardSizeY; y++)
+                if (boardBonusTiles[x, y] != null)
+                    bonusCount++;
+
         Debug.Log("[DAILY] Day " + day.dayNumber + " set up: rack [" +
-                  day.RackString() + "], best available " + day.bestScore);
+                  day.RackString() + "], best available " + day.bestScore +
+                  ", " + day.placedTiles.Count + " opening tile(s) from " +
+                  day.openingWords + " word(s), " + bonusCount +
+                  " bonus square(s), bonusBoardView " +
+                  (bonusBoardView == null ? "MISSING" : "present"));
     }
 
     // The single submission. Returns what it was worth; the caller shows the

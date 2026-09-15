@@ -8,6 +8,19 @@ using UnityEngine.UI;
 
 public class UIManager : MonoBehaviour
 {
+    // Informational logging, off unless something is being chased.
+    // The console filled to its 999-line cap within seconds of a game
+    // starting, which buries the errors that matter. These are kept rather
+    // than deleted: they are worth having when a specific thing is being
+    // debugged, just not all the time.
+    public static bool Verbose = false;
+
+    private static void VerboseLog(object message)
+    {
+        if (Verbose)
+            UnityEngine.Debug.Log(message);
+    }
+
     public GameObject gameBoard;
     public GameObject handTileHolder;
     public GameObject basicTile;
@@ -105,7 +118,7 @@ public class UIManager : MonoBehaviour
 
     public void AddTileToHand(LetterInfo tileInfo)
     {
-        //Debug.Log("UIManager.AddTileToHand called for " + tileInfo.letter);
+        //VerboseLog("UIManager.AddTileToHand called for " + tileInfo.letter);
         GameObject tempTile = Instantiate(basicTile);
         tempTile.transform.SetParent(handTileHolder.transform, false);
         tempTile.GetComponent<TileScript>().InitTile(tileInfo);
@@ -1160,7 +1173,7 @@ public class UIManager : MonoBehaviour
 
     public void ShowValidatedWordScore(LetterPosition letterPosition, int score, bool isWinningMove = true)
     {
-        Debug.Log("ShowValidatedWordScore CALLED");
+        VerboseLog("ShowValidatedWordScore CALLED");
 
         if (letterPosition == null)
         {
@@ -1168,7 +1181,7 @@ public class UIManager : MonoBehaviour
             return;
         }
 
-        Debug.Log("letterPosition row=" + letterPosition.RowX + " col=" + letterPosition.ColY + " score=" + score + " isWinningMove=" + isWinningMove);
+        VerboseLog("letterPosition row=" + letterPosition.RowX + " col=" + letterPosition.ColY + " score=" + score + " isWinningMove=" + isWinningMove);
 
         // Fallback for unassigned prefab
         if (validatedScorePopupPrefab == null)
@@ -1210,11 +1223,11 @@ public class UIManager : MonoBehaviour
             return;
         }
 
-        Debug.Log("GhostTile found: " + ghostTile.name);
-        Debug.Log("GhostTile transform position: " + ghostTile.transform.position);
+        VerboseLog("GhostTile found: " + ghostTile.name);
+        VerboseLog("GhostTile transform position: " + ghostTile.transform.position);
 
         GameObject popup = Instantiate(validatedScorePopupPrefab, overlayCanvasRect);
-        Debug.Log("Popup instantiated: " + popup.name);
+        VerboseLog("Popup instantiated: " + popup.name);
 
         RectTransform popupRect = popup.GetComponent<RectTransform>();
         Transform imgChild = popup.transform.Find("Image");
@@ -1359,7 +1372,7 @@ public class UIManager : MonoBehaviour
             popupText.enableAutoSizing = false;
             popupText.textWrappingMode = TextWrappingModes.NoWrap;
             popupText.overflowMode = TextOverflowModes.Overflow;
-            Debug.Log("Popup text set to: " + popupText.text);
+            VerboseLog("Popup text set to: " + popupText.text);
         }
         else
         {
@@ -1432,7 +1445,7 @@ public class UIManager : MonoBehaviour
         Singleton.Instance.GameLogic != null &&
         Singleton.Instance.GameLogic.IsOnlineMatch;
 
-        Debug.Log(
+        VerboseLog(
             "[GAME OVER] isOnlineMatch=" + isOnlineMatch +
             " | backToMatchButton=" +
             (backToMatchButton != null ? backToMatchButton.name : "NULL")
@@ -1442,7 +1455,7 @@ public class UIManager : MonoBehaviour
         {
             backToMatchButton.SetActive(isOnlineMatch);
 
-            Debug.Log(
+            VerboseLog(
             "[GAME OVER] Back button active after SetActive: " +
             backToMatchButton.activeSelf);
         }

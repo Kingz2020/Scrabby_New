@@ -22,6 +22,19 @@ using UnityEngine.Networking;
 
 public partial class GameLogic : MonoBehaviour
 {
+    // Informational logging, off unless something is being chased.
+    // The console filled to its 999-line cap within seconds of a game
+    // starting, which buries the errors that matter. These are kept rather
+    // than deleted: they are worth having when a specific thing is being
+    // debugged, just not all the time.
+    public static bool Verbose = false;
+
+    private static void VerboseLog(object message)
+    {
+        if (Verbose)
+            UnityEngine.Debug.Log(message);
+    }
+
     private static readonly ProfilerMarker EvaluateAIMoveMarker =
         new ProfilerMarker("AI.EvaluateAIMoveIncremental");
 
@@ -234,7 +247,7 @@ public partial class GameLogic : MonoBehaviour
 
         long fileBytes = new FileInfo(outputPath).Length;
 
-        Debug.Log(
+        VerboseLog(
             $"[GADDAG] Binary created | " +
             $"sourceWords={rawWords.Length:N0} | " +
             $"addedWords={addedWords:N0} | " +
@@ -696,7 +709,7 @@ public partial class GameLogic : MonoBehaviour
     {
         currentSoloDifficulty = difficulty;
 
-        Debug.Log(
+        VerboseLog(
             $"[AI] Solo difficulty set to {currentSoloDifficulty}");
     }
 
@@ -725,7 +738,7 @@ public partial class GameLogic : MonoBehaviour
     int boardSizeY,
     GameInitMode mode)
     {
-        Debug.Log($"[INIT-DEBUG] InitGame CALLED maxHandSizeParam={maxHandSize} " +
+        VerboseLog($"[INIT-DEBUG] InitGame CALLED maxHandSizeParam={maxHandSize} " +
               $"this.maxHandSize(before)={this.maxHandSize}");
 
         currentInitMode = mode;
@@ -736,7 +749,7 @@ public partial class GameLogic : MonoBehaviour
             boardSizeX = boardGen.RowX;
             boardSizeY = boardGen.RowY;
 
-            Debug.Log("[INIT] Auto-detected board size " +
+            VerboseLog("[INIT] Auto-detected board size " +
                       boardSizeX + " x " + boardSizeY +
                       " (width x height)");
         }
@@ -755,13 +768,13 @@ public partial class GameLogic : MonoBehaviour
             // Only local Solo AI needs this 279,496-word structure.
             EnsureAIGaddagReady();
 
-            Debug.Log("[INIT] Solo InitGame complete.");
+            VerboseLog("[INIT] Solo InitGame complete.");
         }
         else
         {
             InitOnlineStateShell();
 
-            Debug.Log("[INIT] Online InitGame complete. Waiting for match snapshot.");
+            VerboseLog("[INIT] Online InitGame complete. Waiting for match snapshot.");
         }
     }
 
@@ -828,12 +841,12 @@ public partial class GameLogic : MonoBehaviour
             }
         }
 
-        Debug.Log("[INIT] Dictionary size " + scrabbleWordSet.Count);
+        VerboseLog("[INIT] Dictionary size " + scrabbleWordSet.Count);
     }
 
     public void BeginGameFromButton()
     {
-        Debug.Log("[TRACE] BeginGameFromButton CALLED");
+        VerboseLog("[TRACE] BeginGameFromButton CALLED");
 
         // The same Game Over panel is used by solo and online games.
         // Route online results to the online rematch flow.
@@ -897,7 +910,7 @@ public partial class GameLogic : MonoBehaviour
 
     private void ClearBoardForNewGame()
     {
-        Debug.Log("ClearBoardForNewGame START");
+        VerboseLog("ClearBoardForNewGame START");
 
         if (Singleton.Instance != null && Singleton.Instance.UIManager != null)
         {
@@ -920,12 +933,12 @@ public partial class GameLogic : MonoBehaviour
         if (boardBonusTiles != null)
             System.Array.Clear(boardBonusTiles, 0, boardBonusTiles.Length);
 
-        Debug.Log("ClearBoardForNewGame END");
+        VerboseLog("ClearBoardForNewGame END");
     }
 
     private IEnumerator StartRound()
     {
-        Debug.Log("[ONLINE-CHECK] StartRound START. isOnlineMatch=" + isOnlineMatch);
+        VerboseLog("[ONLINE-CHECK] StartRound START. isOnlineMatch=" + isOnlineMatch);
 
         // Last round's word keeps its box through the reveal; it goes when the
         // next round actually begins.
@@ -990,7 +1003,7 @@ public partial class GameLogic : MonoBehaviour
         var bag = GetTileBag();
         var letters = bag.GetLetters();
 
-        UnityEngine.Debug.Log(
+        VerboseLog(
             $"[BAG-DEBUG] Before RefillPlayerHandAnimated in StartRound | " +
             $"bag null? {bag == null} | " +
             $"letters count={letters?.Count ?? -1}"
@@ -1019,7 +1032,7 @@ public partial class GameLogic : MonoBehaviour
             timer.StartTimer();
         }
 
-        Debug.Log("StartRound END");
+        VerboseLog("StartRound END");
     }
     public int GetMaxHandSize()
     {
@@ -1494,7 +1507,7 @@ public partial class GameLogic : MonoBehaviour
 
                     if (bonusTile != null && !tile.bonusUsed)
                     {
-                        Debug.Log(
+                        VerboseLog(
                             "[SCORE] Tile " + tile.letter +
                             " at x=" + x + " y=" + y +
                             " -> bonusX=" + bonusX + " bonusY=" + bonusY +
@@ -1569,7 +1582,7 @@ public partial class GameLogic : MonoBehaviour
 
     public void RefillPlayerHand()
     {
-        Debug.Log("[ONLINE-CHECK] RefillPlayerHand START. isOnlineMatch=" + isOnlineMatch);
+        VerboseLog("[ONLINE-CHECK] RefillPlayerHand START. isOnlineMatch=" + isOnlineMatch);
 
         if (playerHandTiles == null)
         {
@@ -1583,14 +1596,14 @@ public partial class GameLogic : MonoBehaviour
             return;
         }
 
-        Debug.Log("maxHandSize = " + maxHandSize);
-        Debug.Log("playerHandTiles.Count at refill start = " + playerHandTiles.Count);
+        VerboseLog("maxHandSize = " + maxHandSize);
+        VerboseLog("playerHandTiles.Count at refill start = " + playerHandTiles.Count);
 
         // If hand is already full or overfull, do nothing
         if (playerHandTiles.Count >= maxHandSize)
         {
-            Debug.Log("Hand already full or overfull. No refill performed.");
-            Debug.Log("RefillPlayerHand END");
+            VerboseLog("Hand already full or overfull. No refill performed.");
+            VerboseLog("RefillPlayerHand END");
             return;
         }
 
@@ -1598,22 +1611,22 @@ public partial class GameLogic : MonoBehaviour
         int tilesMissing = maxHandSize - playerHandTiles.Count;
         int tilesToDraw = Mathf.Min(tilesMissing, availableInBag);
 
-        Debug.Log("availableInBag = " + availableInBag);
-        Debug.Log("tilesMissing   = " + tilesMissing);
-        Debug.Log("tilesToDraw    = " + tilesToDraw);
+        VerboseLog("availableInBag = " + availableInBag);
+        VerboseLog("tilesMissing   = " + tilesMissing);
+        VerboseLog("tilesToDraw    = " + tilesToDraw);
 
         for (int i = 0; i < tilesToDraw; i++)
         {
             // Safety: if hand somehow reaches max during the loop, stop.
             if (playerHandTiles.Count >= maxHandSize)
             {
-                Debug.Log("Safety break: hand reached maxHandSize during refill.");
+                VerboseLog("Safety break: hand reached maxHandSize during refill.");
                 break;
             }
 
             // Correct source for new tiles: the serialized TileBag
             LetterInfo tile = _tileBag.DrawLetterTileFromBag();
-            Debug.Log("[ONLINE-CHECK] RefillPlayerHand LOCAL DRAW -> " + tile.letter + tile.points);
+            VerboseLog("[ONLINE-CHECK] RefillPlayerHand LOCAL DRAW -> " + tile.letter + tile.points);
             if (tile == null)
             {
                 Debug.LogWarning("DrawLetterTileFromBag returned null. Stopping refill.");
@@ -1623,20 +1636,20 @@ public partial class GameLogic : MonoBehaviour
             playerHandTiles.Add(tile);
             Singleton.Instance.UIManager.AddTileToHand(tile);
 
-            Debug.Log(
+            VerboseLog(
                 "Drew tile letter " + tile.letter +
                 ", points " + tile.points +
                 ", new hand count = " + playerHandTiles.Count
             );
         }
 
-        Debug.Log("playerHandTiles.Count at refill end = " + playerHandTiles.Count);
-        Debug.Log("RefillPlayerHand END");
+        VerboseLog("playerHandTiles.Count at refill end = " + playerHandTiles.Count);
+        VerboseLog("RefillPlayerHand END");
     }
 
     private void PlaceBonusTilesOnBoard()
     {
-        // Debug.Log("===== PlaceBonusTilesOnBoard START =====");
+        // VerboseLog("===== PlaceBonusTilesOnBoard START =====");
 
         if (boardBonusTiles == null)
         {
@@ -1653,7 +1666,7 @@ public partial class GameLogic : MonoBehaviour
         int width = boardBonusTiles.GetLength(0);   // x / column
         int height = boardBonusTiles.GetLength(1);  // y / row
 
-        //Debug.Log("boardBonusTiles size => X = " + width + ", Y = " + height);
+        //VerboseLog("boardBonusTiles size => X = " + width + ", Y = " + height);
 
         for (int x = 0; x < width; x++)
         {
@@ -1663,7 +1676,7 @@ public partial class GameLogic : MonoBehaviour
             }
         }
 
-        //Debug.Log("Cleared old bonus tiles from array.");
+        //VerboseLog("Cleared old bonus tiles from array.");
 
         int placedCount = 0;
         int safety = 0;
@@ -1731,11 +1744,11 @@ public partial class GameLogic : MonoBehaviour
             boardBonusTiles[x, y] = bonusTile;
             placedCount++;
 
-            //Debug.Log("Placed " + bonusTile.bonusType + " at [x=" + x + ", y=" + y + "]");
+            //VerboseLog("Placed " + bonusTile.bonusType + " at [x=" + x + ", y=" + y + "]");
         }
 
-        //Debug.Log("Total bonus tiles placed = " + placedCount);
-        //Debug.Log("===== BONUS BOARD DUMP START =====");
+        //VerboseLog("Total bonus tiles placed = " + placedCount);
+        //VerboseLog("===== BONUS BOARD DUMP START =====");
 
         for (int y = 0; y < height; y++)
         {
@@ -1781,11 +1794,11 @@ public partial class GameLogic : MonoBehaviour
                 }
             }
 
-            // Debug.Log("Bonus row y=" + y + " => " + line);
+            // VerboseLog("Bonus row y=" + y + " => " + line);
         }
 
-        // Debug.Log("===== BONUS BOARD DUMP END =====");
-        // Debug.Log("===== PlaceBonusTilesOnBoard END =====");
+        // VerboseLog("===== BONUS BOARD DUMP END =====");
+        // VerboseLog("===== PlaceBonusTilesOnBoard END =====");
     }
 
     public BonusTile[,] GetBoardBonusTiles()
@@ -1850,7 +1863,7 @@ public partial class GameLogic : MonoBehaviour
                 case 1:
                     if (!opponentMoveRequested)
                     {
-                        Debug.Log("FLOW Opponent move not requested yet. Requesting now.");
+                        VerboseLog("FLOW Opponent move not requested yet. Requesting now.");
 
                         if (Singleton.Instance != null && Singleton.Instance.UIManager != null)
                             Singleton.Instance.UIManager.ReturnTilesToHand();
@@ -1863,13 +1876,13 @@ public partial class GameLogic : MonoBehaviour
 
                     if (!opponentMoveReady)
                     {
-                        Debug.Log("FLOW Waiting for opponent move...");
+                        VerboseLog("FLOW Waiting for opponent move...");
 
                         ShowOpponentThinking();
                         return;
                     }
 
-                    Debug.Log("FLOW Opponent move ready. Revealing opponent move.");
+                    VerboseLog("FLOW Opponent move ready. Revealing opponent move.");
 
                     if (Singleton.Instance != null && Singleton.Instance.UIManager != null)
                     {
@@ -1915,7 +1928,7 @@ public partial class GameLogic : MonoBehaviour
                         }
                     }
 
-                    Debug.Log("Displayed final winner message.");
+                    VerboseLog("Displayed final winner message.");
                     roundRevealStep = 3;
                     break;
 
@@ -1928,7 +1941,7 @@ public partial class GameLogic : MonoBehaviour
                     else
                         StartCoroutine(StartNextRound());
 
-                    Debug.Log("Applied winning move. Checked for game over.");
+                    VerboseLog("Applied winning move. Checked for game over.");
                     break;
             }
         }
@@ -1960,27 +1973,27 @@ public partial class GameLogic : MonoBehaviour
 
     private RoundMove CompareMoves(RoundMove playerMove, RoundMove aiMove)
     {
-        Debug.Log("===== CompareMoves START =====");
+        VerboseLog("===== CompareMoves START =====");
 
         if (playerMove == null)
         {
-            Debug.Log("Player move is null. Returning AI move.");
+            VerboseLog("Player move is null. Returning AI move.");
             return aiMove;
         }
 
         if (aiMove == null)
         {
-            Debug.Log("AI move is null. Returning player move.");
+            VerboseLog("AI move is null. Returning player move.");
             return playerMove;
         }
 
-        Debug.Log("Player => valid: " + playerMove.isValid +
+        VerboseLog("Player => valid: " + playerMove.isValid +
                   ", score: " + playerMove.score +
                   ", time: " + playerMove.timeUsed +
                   ", word: " + playerMove.word +
                   ", isHuman: " + playerMove.isHuman);
 
-        Debug.Log("AI => valid: " + aiMove.isValid +
+        VerboseLog("AI => valid: " + aiMove.isValid +
                   ", score: " + aiMove.score +
                   ", time: " + aiMove.timeUsed +
                   ", word: " + aiMove.word +
@@ -1988,79 +2001,79 @@ public partial class GameLogic : MonoBehaviour
 
         if (playerMove.isValid && !aiMove.isValid)
         {
-            Debug.Log("Player wins because player is valid and AI is invalid.");
+            VerboseLog("Player wins because player is valid and AI is invalid.");
             return playerMove;
         }
 
         if (!playerMove.isValid && aiMove.isValid)
         {
-            Debug.Log("AI wins because AI is valid and player is invalid.");
+            VerboseLog("AI wins because AI is valid and player is invalid.");
             return aiMove;
         }
 
         if (!playerMove.isValid && !aiMove.isValid)
         {
-            Debug.Log("Neither move is valid. No winner this round.");
+            VerboseLog("Neither move is valid. No winner this round.");
             return null;
         }
 
         if (playerMove.score > aiMove.score)
         {
-            Debug.Log("Player wins on score.");
+            VerboseLog("Player wins on score.");
             return playerMove;
         }
 
         if (aiMove.score > playerMove.score)
         {
-            Debug.Log("AI wins on score.");
+            VerboseLog("AI wins on score.");
             return aiMove;
         }
 
-        Debug.Log("Scores are tied.");
+        VerboseLog("Scores are tied.");
 
         bool playerIsHuman = playerMove.isHuman;
         bool aiIsHuman = aiMove.isHuman;
 
         if (playerIsHuman && !aiIsHuman)
         {
-            Debug.Log("Scores tied in human vs AI. Human wins tie.");
+            VerboseLog("Scores tied in human vs AI. Human wins tie.");
             return playerMove;
         }
 
         if (!playerIsHuman && aiIsHuman)
         {
-            Debug.Log("Scores tied in AI vs human. Human wins tie.");
+            VerboseLog("Scores tied in AI vs human. Human wins tie.");
             return aiMove;
         }
 
         if (playerMove.timeUsed < aiMove.timeUsed)
         {
-            Debug.Log("Scores tied. Player wins on faster time.");
+            VerboseLog("Scores tied. Player wins on faster time.");
             return playerMove;
         }
 
         if (aiMove.timeUsed < playerMove.timeUsed)
         {
-            Debug.Log("Scores tied. AI wins on faster time.");
+            VerboseLog("Scores tied. AI wins on faster time.");
             return aiMove;
         }
 
-        Debug.Log("Scores and time are tied exactly. Falling back to first argument.");
+        VerboseLog("Scores and time are tied exactly. Falling back to first argument.");
         return playerMove;
     }
 
     private void ApplyWinningMove(RoundMove winningMove)
     {
-        Debug.Log("===== ApplyWinningMove START =====");
+        VerboseLog("===== ApplyWinningMove START =====");
 
         if (winningMove == null)
         {
-            Debug.Log("winningMove is null. No move won this round.");
-            Debug.Log("===== ApplyWinningMove END =====");
+            VerboseLog("winningMove is null. No move won this round.");
+            VerboseLog("===== ApplyWinningMove END =====");
             return;
         }
 
-        Debug.Log(
+        VerboseLog(
             "Winning move isValid=" + winningMove.isValid +
             ", isHuman=" + winningMove.isHuman +
             ", word=" + winningMove.word +
@@ -2069,19 +2082,19 @@ public partial class GameLogic : MonoBehaviour
 
         if (!winningMove.isValid)
         {
-            Debug.Log("Winning move invalid. Nothing applied.");
-            Debug.Log("===== ApplyWinningMove END =====");
+            VerboseLog("Winning move invalid. Nothing applied.");
+            VerboseLog("===== ApplyWinningMove END =====");
             return;
         }
 
         if (winningMove.isHuman)
         {
-            Debug.Log("Applying HUMAN winning move.");
+            VerboseLog("Applying HUMAN winning move.");
             ApplyHumanWinningTiles(winningMove);
         }
         else
         {
-            Debug.Log("Applying AI winning move.");
+            VerboseLog("Applying AI winning move.");
             ApplyAIWinningTiles(winningMove);
         }
 
@@ -2090,7 +2103,7 @@ public partial class GameLogic : MonoBehaviour
         LetterPosition popupAnchor = GetPopupAnchorPosition(winningMove);
         if (popupAnchor != null && Singleton.Instance != null && Singleton.Instance.UIManager != null)
         {
-            Debug.Log(
+            VerboseLog(
                 "Showing validated word score popup at RowX=" + popupAnchor.RowX +
                 ", ColY=" + popupAnchor.ColY +
                 ", score=" + winningMove.score
@@ -2108,7 +2121,7 @@ public partial class GameLogic : MonoBehaviour
         RefillPlayerHand();
         RebuildHandUIFromLogicalHand();
 
-        Debug.Log("===== ApplyWinningMove END =====");
+        VerboseLog("===== ApplyWinningMove END =====");
     }
 
 
@@ -2120,7 +2133,7 @@ public partial class GameLogic : MonoBehaviour
             return;
         }
 
-        Debug.Log("ApplyHumanWinningTiles: starting with " + winningMove.simulatedTiles.Count + " tiles.");
+        VerboseLog("ApplyHumanWinningTiles: starting with " + winningMove.simulatedTiles.Count + " tiles.");
 
         foreach (var simTile in winningMove.simulatedTiles)
         {
@@ -2135,7 +2148,7 @@ public partial class GameLogic : MonoBehaviour
                 simTile.letterInfo.points
             );
 
-            Debug.Log(
+            VerboseLog(
                 "HUMAN removing logical hand tile => " +
                 simTile.letterInfo.letter + " (" + simTile.letterInfo.points + "), removed = " + removed
             );
@@ -2144,7 +2157,7 @@ public partial class GameLogic : MonoBehaviour
             simTile.letterInfo.bonusUsed = true;
             validatedBoardTiles[simTile.letterPosition.RowX, simTile.letterPosition.ColY] = simTile.letterInfo;
 
-            Debug.Log(
+            VerboseLog(
                 "HUMAN committed board tile => " +
                 simTile.letterInfo.letter + " at row " +
                 simTile.letterPosition.RowX + ", col " + simTile.letterPosition.ColY
@@ -2178,7 +2191,7 @@ public partial class GameLogic : MonoBehaviour
                 simTile.letterInfo.points
             );
 
-            /*Debug.Log(
+            /*VerboseLog(
                 "AI removing logical hand tile => " +
                 simTile.letterInfo.letter + " (" + simTile.letterInfo.points + "), removed = " + removed
             );*/
@@ -2211,7 +2224,7 @@ public partial class GameLogic : MonoBehaviour
 
     private IEnumerator StartNextRound()
     {
-        Debug.Log("[ONLINE-CHECK] StartnexttRound START. isOnlineMatch=" + isOnlineMatch);
+        VerboseLog("[ONLINE-CHECK] StartnexttRound START. isOnlineMatch=" + isOnlineMatch);
 
 
         yield return new WaitForSeconds(1.5f);
@@ -2263,9 +2276,9 @@ public partial class GameLogic : MonoBehaviour
 
         if (timer != null)
         {
-            Debug.Log("Resetting timer in StartNextRound");
+            VerboseLog("Resetting timer in StartNextRound");
             timer.ResetTimer();
-            Debug.Log("Starting timer in StartNextRound");
+            VerboseLog("Starting timer in StartNextRound");
             timer.StartTimer();
         }
         else
@@ -2273,7 +2286,7 @@ public partial class GameLogic : MonoBehaviour
             Debug.LogWarning("StartNextRound: timer is null.");
         }
 
-        Debug.Log("StartNextRound END");
+        VerboseLog("StartNextRound END");
     }
     private float GetCurrentTimeUsed()
     {
@@ -2590,13 +2603,13 @@ public partial class GameLogic : MonoBehaviour
 
     private void RebuildHandUIFromLogicalHand()
     {
-        Debug.Log("[HANDUI] playerHandTiles null? " + (playerHandTiles == null));
-        Debug.Log("[HANDUI] Singleton.Instance null? " + (Singleton.Instance == null));
+        VerboseLog("[HANDUI] playerHandTiles null? " + (playerHandTiles == null));
+        VerboseLog("[HANDUI] Singleton.Instance null? " + (Singleton.Instance == null));
 
         UIManager ui = (Singleton.Instance != null) ? Singleton.Instance.UIManager : null;
-        Debug.Log("[HANDUI] UIManager null? " + (ui == null));
+        VerboseLog("[HANDUI] UIManager null? " + (ui == null));
 
-        Debug.Log("===== RebuildHandUIFromLogicalHand START =====");
+        VerboseLog("===== RebuildHandUIFromLogicalHand START =====");
 
         if (playerHandTiles == null)
         {
@@ -2627,8 +2640,8 @@ public partial class GameLogic : MonoBehaviour
         }
 
         ResetDisplay();
-        Debug.Log("[HANDUI] Rebuilt hand with count = " + playerHandTiles.Count);
-        Debug.Log("===== RebuildHandUIFromLogicalHand END =====");
+        VerboseLog("[HANDUI] Rebuilt hand with count = " + playerHandTiles.Count);
+        VerboseLog("===== RebuildHandUIFromLogicalHand END =====");
     }
 
     public void ShuffleHand()
@@ -2653,7 +2666,7 @@ public partial class GameLogic : MonoBehaviour
 
         // Rebuild UI in the new shuffled order
         RebuildHandUIFromLogicalHand();
-        //Debug.Log("[GameLogic] Hand shuffled and rebuilt.");
+        //VerboseLog("[GameLogic] Hand shuffled and rebuilt.");
     }
 
     private void AddRoundWinnerScore(RoundMove winningMove)
@@ -2771,7 +2784,7 @@ public partial class GameLogic : MonoBehaviour
 
         roundHistory.Add(result);
 
-        Debug.Log($"[ROUND RESULT] Round {result.roundNumber}: Human '{result.humanWord}' ({result.humanScore}) vs AI '{result.aiWord}' ({result.aiScore}), winner={(result.humanWasWinner ? "Human" : "AI")}");
+        VerboseLog($"[ROUND RESULT] Round {result.roundNumber}: Human '{result.humanWord}' ({result.humanScore}) vs AI '{result.aiWord}' ({result.aiScore}), winner={(result.humanWasWinner ? "Human" : "AI")}");
     }
 
 
@@ -2806,7 +2819,7 @@ public partial class GameLogic : MonoBehaviour
         if (timer != null)
             timer.StopTimer();
 
-        Debug.Log(finalMessage);
+        VerboseLog(finalMessage);
 
         string roundSummary =
                     $"Final score: {humanTotalScore} - AI {aiTotalScore} " +
@@ -2816,7 +2829,7 @@ public partial class GameLogic : MonoBehaviour
         // in the summary text just prints every score twice.
         foreach (var r in roundHistory)
         {
-            Debug.Log(
+            VerboseLog(
                 $"Round {r.roundNumber}: " +
                 $"{r.humanWord}({r.humanScore}) vs " +
                 $"{r.aiWord}({r.aiScore})"
@@ -3265,7 +3278,7 @@ public partial class GameLogic : MonoBehaviour
         aiEvaluationFinished = false;
         aiBestMoveSoFar = null;
 
-        Debug.Log("[AI-TRACE] EvaluateAIMoveIncremental START");
+        VerboseLog("[AI-TRACE] EvaluateAIMoveIncremental START");
 
         try
         {
@@ -3288,7 +3301,7 @@ public partial class GameLogic : MonoBehaviour
                     yield break;
                 }
 
-                Debug.Log(
+                VerboseLog(
                     $"[AI-TRACE] snapshot initialTilesCount={currentRoundSnapshot.initialTiles.Count} " +
                     $"initialBonusTilesNull={(currentRoundSnapshot.initialBonusTiles == null)} " +
                     $"boardHasValidatedTiles={HasAnyValidatedTilesOnBoard()} " +
@@ -3301,31 +3314,31 @@ public partial class GameLogic : MonoBehaviour
                 BonusTile[,] aiBonusBoard = CloneBonusTilesForAI(currentRoundSnapshot.initialBonusTiles);
                 EndStageTimer("Clone snapshot");
 
-                Debug.Log(
+                VerboseLog(
                     $"[AI-TRACE] clone result rackCount={(aiTiles == null ? -1 : aiTiles.Count)} " +
                     $"rack={RackToString(aiTiles)} " +
                     $"bonusBoardNull={(aiBonusBoard == null)}"
                 );
 
                 bool boardHasTiles = HasAnyValidatedTilesOnBoard();
-                Debug.Log($"[AI-TRACE] branch boardHasTiles={boardHasTiles}");
+                VerboseLog($"[AI-TRACE] branch boardHasTiles={boardHasTiles}");
 
                 if (!boardHasTiles)
                 {
-                    Debug.Log("[AI-TRACE] entering first-turn search");
+                    VerboseLog("[AI-TRACE] entering first-turn search");
 
                     StartStageTimer("First-turn search");
                     aiBestMoveSoFar = FindBestFirstTurnPlacementGaddag(aiTiles, aiBonusBoard);
                     EndStageTimer("First-turn search");
 
-                    Debug.Log(
+                    VerboseLog(
                         "[AI-TRACE] first-turn search returned " +
                         DescribeMove(aiBestMoveSoFar)
                     );
                 }
                 else
                 {
-                    Debug.Log("[AI-TRACE] entering connected GADDAG search");
+                    VerboseLog("[AI-TRACE] entering connected GADDAG search");
 
                     StartStageTimer("Connected GADDAG search");
                     yield return StartCoroutine(
@@ -3334,12 +3347,12 @@ public partial class GameLogic : MonoBehaviour
                             aiBonusBoard,
                             move =>
                             {
-                                Debug.Log("[AI-TRACE] connected search callback move=" + DescribeMove(move));
+                                VerboseLog("[AI-TRACE] connected search callback move=" + DescribeMove(move));
                                 aiBestMoveSoFar = move;
                             }));
                     EndStageTimer("Connected GADDAG search");
 
-                    Debug.Log(
+                    VerboseLog(
                         "[AI-TRACE] connected search finished aiBestMoveSoFar=" +
                         DescribeMove(aiBestMoveSoFar)
                     );
@@ -3356,7 +3369,7 @@ public partial class GameLogic : MonoBehaviour
                 aiBestMoveSoFar.isHuman = false;
                 aiBestMoveSoFar.timeUsed = GetCurrentTimeUsed();
 
-                Debug.Log(
+                VerboseLog(
                     "[AI-TRACE] finalize result " +
                     DescribeMove(aiBestMoveSoFar)
                 );
@@ -3369,7 +3382,7 @@ public partial class GameLogic : MonoBehaviour
             aiEvaluationRunning = false;
             aiEvaluationFinished = true;
 
-            Debug.Log(
+            VerboseLog(
                 "[AI-TRACE] EvaluateAIMoveIncremental END " +
                 $"running={aiEvaluationRunning} finished={aiEvaluationFinished} " +
                 $"finalMove={DescribeMove(aiBestMoveSoFar)}"
@@ -4131,7 +4144,7 @@ public partial class GameLogic : MonoBehaviour
 
     public void EndTurnSingleGuess()
     {
-        Debug.Log("[TRACE] EndTurnSingleGuess CALLED. roundStarted=" + roundStarted + ", mode=" + currentInitMode);
+        VerboseLog("[TRACE] EndTurnSingleGuess CALLED. roundStarted=" + roundStarted + ", mode=" + currentInitMode);
 
         if (IsOnlineMatch)
         {
@@ -4177,7 +4190,7 @@ public partial class GameLogic : MonoBehaviour
 
         if (!roundStarted)
         {
-            Debug.Log("[TRACE] EndTurnSingleGuess starting StartRound directly for SOLO mode");
+            VerboseLog("[TRACE] EndTurnSingleGuess starting StartRound directly for SOLO mode");
             StartCoroutine(StartRound());
             return;
         }
@@ -4239,14 +4252,14 @@ public partial class GameLogic : MonoBehaviour
     }
     private IEnumerator RefillPlayerHandAnimated(float totalDuration = 2f)
     {
-        Debug.Log($"[HAND-DEBUG] RefillPlayerHandAnimated ENTER " +
+        VerboseLog($"[HAND-DEBUG] RefillPlayerHandAnimated ENTER " +
               $"playerHandTiles={(playerHandTiles == null ? "null" : "not null")} " +
               $"playerHandTiles.Count={(playerHandTiles == null ? -1 : playerHandTiles.Count)} " +
               $"maxHandSize={maxHandSize}");
 
 
 
-        //Debug.Log("RefillPlayerHandAnimated START");
+        //VerboseLog("RefillPlayerHandAnimated START");
 
         if (playerHandTiles == null)
         {
@@ -4262,7 +4275,7 @@ public partial class GameLogic : MonoBehaviour
 
         if (playerHandTiles.Count >= maxHandSize)
         {
-            Debug.Log("Hand already full or overfull. No animated refill performed.");
+            VerboseLog("Hand already full or overfull. No animated refill performed.");
             yield break;
         }
 
@@ -4286,7 +4299,7 @@ public partial class GameLogic : MonoBehaviour
                 Debug.LogWarning("DrawLetterTileFromBag returned null during animated refill.");
                 yield break;
             }
-            Debug.Log("[ONLINE-CHECK] RefillPlayerHandAnimated LOCAL DRAW -> " + tile.letter + tile.points);
+            VerboseLog("[ONLINE-CHECK] RefillPlayerHandAnimated LOCAL DRAW -> " + tile.letter + tile.points);
             playerHandTiles.Add(tile);
 
             if (Singleton.Instance != null && Singleton.Instance.UIManager != null)
@@ -4298,7 +4311,7 @@ public partial class GameLogic : MonoBehaviour
                 yield return new WaitForSeconds(delayBetweenTiles);
         }
 
-        Debug.Log("[ONLINE-CHECK] RefillPlayerHandAnimated END. isOnlineMatch=" + isOnlineMatch);
+        VerboseLog("[ONLINE-CHECK] RefillPlayerHandAnimated END. isOnlineMatch=" + isOnlineMatch);
     }
     private bool InitialRackHasPlayableWord()
     {
@@ -4342,7 +4355,7 @@ public partial class GameLogic : MonoBehaviour
     private IEnumerator EnsurePlayableInitialRack(float refillDuration = 2f, int maxAttempts = 10)
     {
 
-        Debug.Log("[ONLINE-CHECK] EnsurePlayableInitialRack START. isOnlineMatch=" + isOnlineMatch);
+        VerboseLog("[ONLINE-CHECK] EnsurePlayableInitialRack START. isOnlineMatch=" + isOnlineMatch);
 
         int attempt = 0;
 
@@ -4352,7 +4365,7 @@ public partial class GameLogic : MonoBehaviour
 
             if (InitialRackHasPlayableWord())
             {
-                Debug.Log("Initial rack is playable on attempt " + attempt);
+                VerboseLog("Initial rack is playable on attempt " + attempt);
                 yield break;
             }
 
@@ -4432,7 +4445,7 @@ public partial class GameLogic : MonoBehaviour
         if (!enableAITimingLogs) return;
 
         aiStageStopwatch.Restart();
-        Debug.Log("[AI-TIME] START " + stageName + " | t=" + Time.realtimeSinceStartup.ToString("F3"));
+        VerboseLog("[AI-TIME] START " + stageName + " | t=" + Time.realtimeSinceStartup.ToString("F3"));
     }
 
     private void EndStageTimer(string stageName)
@@ -4440,7 +4453,7 @@ public partial class GameLogic : MonoBehaviour
         if (!enableAITimingLogs) return;
 
         aiStageStopwatch.Stop();
-        Debug.Log("[AI-TIME] END " + stageName + " | dt=" + aiStageStopwatch.Elapsed.TotalMilliseconds.ToString("F2") + "ms | t=" + Time.realtimeSinceStartup.ToString("F3"));
+        VerboseLog("[AI-TIME] END " + stageName + " | dt=" + aiStageStopwatch.Elapsed.TotalMilliseconds.ToString("F2") + "ms | t=" + Time.realtimeSinceStartup.ToString("F3"));
     }
 
     private void EndTotalAITimer()
@@ -4448,7 +4461,7 @@ public partial class GameLogic : MonoBehaviour
         if (!enableAITimingLogs) return;
 
         aiTotalStopwatch.Stop();
-        Debug.Log("[AI-TIME] END EvaluateAIMoveIncremental TOTAL | dt=" + aiTotalStopwatch.Elapsed.TotalMilliseconds.ToString("F2") + "ms | t=" + Time.realtimeSinceStartup.ToString("F3"));
+        VerboseLog("[AI-TIME] END EvaluateAIMoveIncremental TOTAL | dt=" + aiTotalStopwatch.Elapsed.TotalMilliseconds.ToString("F2") + "ms | t=" + Time.realtimeSinceStartup.ToString("F3"));
     }
 
 
@@ -4584,7 +4597,7 @@ public partial class GameLogic : MonoBehaviour
         }
 
         if (logSolverStats)
-        Debug.Log(
+        VerboseLog(
         $"GADDAG total={totalTimer.Elapsed.TotalMilliseconds:F1}ms " +
         $"anchors={anchors.Count} slow={slowAnchorCount} " +
         $"candidates={ctx.candidateCount} best={(ctx.bestMove != null ? ctx.bestMove.word : "NONE")} " +
@@ -4776,7 +4789,7 @@ public partial class GameLogic : MonoBehaviour
                     if (ctx.debugLeftCrossRejectLogs < DebugCrossRejectLogLimit)
                     {
                         ctx.debugLeftCrossRejectLogs++;
-                        Debug.Log($"XCHECK LEFT reject at ({state.anchorRow},{col}) for {c}");
+                        VerboseLog($"XCHECK LEFT reject at ({state.anchorRow},{col}) for {c}");
                     }
 
                     rack.Add(tile);
@@ -4900,7 +4913,7 @@ public partial class GameLogic : MonoBehaviour
                     if (ctx.debugRightCrossRejectLogs < DebugCrossRejectLogLimit)
                     {
                         ctx.debugRightCrossRejectLogs++;
-                        Debug.Log($"XCHECK RIGHT reject at ({row},{col}) for {c}");
+                        VerboseLog($"XCHECK RIGHT reject at ({row},{col}) for {c}");
                     }
 
                     rack.Add(tile);
@@ -5006,7 +5019,7 @@ public partial class GameLogic : MonoBehaviour
 
                 timer.Stop();
 
-                Debug.Log(
+                VerboseLog(
                     $"[AI-TIME] GADDAG binary loaded | " +
                     $"bytes={bytes.Length:N0} | " +
                     $"nodes={aiGaddagLexicon.NodeCount:N0} | " +
@@ -5062,7 +5075,7 @@ public partial class GameLogic : MonoBehaviour
         {
             aiGaddagBuildLogged = true;
 
-            Debug.Log(
+            VerboseLog(
                         $"[AI-TIME] GADDAG build complete | " +
                         $"sourceWords={scrabbleWords?.Count ?? 0} | " +
                         $"addedWords={addedWords} | " +
@@ -5498,7 +5511,7 @@ public partial class GameLogic : MonoBehaviour
         string lastRoundResultJson,
         int totalRounds)
     {
-        Debug.Log("[ONLINE] BeginOnlineMatchFromRack CALLED");
+        VerboseLog("[ONLINE] BeginOnlineMatchFromRack CALLED");
 
         SetMaxRounds(totalRounds);
 
@@ -5521,7 +5534,7 @@ public partial class GameLogic : MonoBehaviour
         }
         else
         {
-            Debug.Log("[ONLINE] boardStateJson empty, starting from empty board.");
+            VerboseLog("[ONLINE] boardStateJson empty, starting from empty board.");
         }
 
         // Existing: bonus board JSON (multipliers etc.)
@@ -5557,7 +5570,7 @@ public partial class GameLogic : MonoBehaviour
                 "Your turn", UIManager.TurnTone.Yours);
         }
 
-        Debug.Log("[ONLINE] Local hydrated rack count = " + playerHandTiles.Count);
+        VerboseLog("[ONLINE] Local hydrated rack count = " + playerHandTiles.Count);
     }
 
     private IEnumerator BeginOnlineRoundIntro(
@@ -5698,7 +5711,7 @@ public partial class GameLogic : MonoBehaviour
 
     public string GenerateBonusBoardJsonForOnlineMatch()
     {
-        Debug.Log("[BONUS] GenerateBonusBoardJsonForOnlineMatch ENTER");
+        VerboseLog("[BONUS] GenerateBonusBoardJsonForOnlineMatch ENTER");
 
         if (boardSizeX <= 0 || boardSizeY <= 0)
         {
@@ -5711,7 +5724,7 @@ public partial class GameLogic : MonoBehaviour
 
         boardBonusTiles = new BonusTile[boardSizeX, boardSizeY];
 
-        Debug.Log(
+        VerboseLog(
             "[BONUS] boardBonusTiles created. Size=" +
             boardBonusTiles.GetLength(0) + "x" +
             boardBonusTiles.GetLength(1)
@@ -5719,7 +5732,7 @@ public partial class GameLogic : MonoBehaviour
 
         if (bonusTileBag != null && bonusBag != null)
         {
-            Debug.Log("[BONUS] Resetting bonus bag");
+            VerboseLog("[BONUS] Resetting bonus bag");
             bonusTileBag.ResetBonusBag(bonusBag);
         }
         else
@@ -5728,9 +5741,9 @@ public partial class GameLogic : MonoBehaviour
             return JsonUtility.ToJson(new BonusBoardData());
         }
 
-        Debug.Log("[BONUS] Calling PlaceBonusTilesOnBoard()");
+        VerboseLog("[BONUS] Calling PlaceBonusTilesOnBoard()");
         PlaceBonusTilesOnBoard();
-        Debug.Log("[BONUS] Returned from PlaceBonusTilesOnBoard()");
+        VerboseLog("[BONUS] Returned from PlaceBonusTilesOnBoard()");
 
         BonusBoardData data = new BonusBoardData();
         int bonusCount = 0;
@@ -5752,12 +5765,12 @@ public partial class GameLogic : MonoBehaviour
             }
         }
 
-        Debug.Log("[BONUS] Bonus cells collected=" + bonusCount);
+        VerboseLog("[BONUS] Bonus cells collected=" + bonusCount);
 
         string json = JsonUtility.ToJson(data);
 
-        Debug.Log("[BONUS] JSON length=" + (string.IsNullOrEmpty(json) ? 0 : json.Length));
-        Debug.Log("[BONUS] GenerateBonusBoardJsonForOnlineMatch EXIT");
+        VerboseLog("[BONUS] JSON length=" + (string.IsNullOrEmpty(json) ? 0 : json.Length));
+        VerboseLog("[BONUS] GenerateBonusBoardJsonForOnlineMatch EXIT");
 
         return json;
     }
@@ -6099,7 +6112,7 @@ public partial class GameLogic : MonoBehaviour
     string boardStateJson,
     string bonusBoardJson)
     {
-        Debug.Log(
+        VerboseLog(
             "[REPLAY] Loading completed online round " +
             roundNumber
         );
@@ -6206,7 +6219,7 @@ public partial class GameLogic : MonoBehaviour
             return;
         }
 
-        Debug.Log(
+        VerboseLog(
             "[REPLAY] Applying " +
             wrapper.tiles.Count +
             " winning replay tiles."
@@ -6343,7 +6356,7 @@ public partial class GameLogic : MonoBehaviour
 
         RoundMove chosen = candidates[chosenIndex];
 
-        Debug.Log(
+        VerboseLog(
             $"[AI] Difficulty={currentSoloDifficulty} | " +
             $"candidates={candidates.Count:N0} | " +
             $"bestWord={candidates[0]?.word ?? "NONE"} ({bestScore}) | " +
@@ -6376,7 +6389,7 @@ public partial class GameLogic : MonoBehaviour
 
     public void InitSoloGameForDifficulty(int handSize, int boardX, int boardY)
     {
-        Debug.Log($"[INIT] InitSoloGameForDifficulty: hand={handSize} board={boardX}x{boardY}");
+        VerboseLog($"[INIT] InitSoloGameForDifficulty: hand={handSize} board={boardX}x{boardY}");
 
         InitGame(handSize, boardX, boardY, GameInitMode.Solo);
     }
