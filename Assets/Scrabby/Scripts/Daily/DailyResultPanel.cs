@@ -35,10 +35,20 @@ public static class DailyResultPanel
     private static readonly Color Faint = new Color(1f, 1f, 1f, 0.72f);
     private static readonly Color Good = new Color(0.88f, 0.70f, 0.30f, 1f);
 
+    // Kept so the board can be looked at and the result returned to. A result
+    // that has to be earned again to be re-read is a result nobody re-reads.
+    private static DailyBoard lastDay;
+    private static int lastScore;
+    private static string lastWord = "";
+
     public static void Show(DailyBoard day, int playerScore, string playerWord)
     {
         if (day == null)
             return;
+
+        lastDay = day;
+        lastScore = playerScore;
+        lastWord = playerWord;
 
         Canvas canvas = FindCanvas();
 
@@ -118,6 +128,17 @@ public static class DailyResultPanel
               " for " + day.bestScore;
 
         Label(card.transform, bestLine, 32f, Faint, FontStyles.Normal, y, 48f);
+
+        // Where it went matters as much as what it was, so it can be shown.
+        if (day.bestTiles != null && day.bestTiles.Count > 0)
+        {
+            Button(card.transform, "Show me where", 0f, y - 52f,
+                   new Color(1f, 1f, 1f, 0.18f), Cream,
+                   delegate { ShowOnTheBoard(); }, 300f, 62f, 26f);
+
+            y -= 58f;
+        }
+
         y -= 78f;
 
         // ---- what to do next --------------------------------------------------
@@ -192,6 +213,68 @@ public static class DailyResultPanel
             capRect.anchoredPosition =
                 new Vector2(width * at + (at < 1f ? 8f : -180f), -10f);
         }
+    }
+
+    // Closes the card, lays the position out, and drops the best word onto it.
+    // A small button brings the card back, so looking at the board is not a
+    // one-way trip out of the result.
+    private static void ShowOnTheBoard()
+    {
+        Close();
+
+        if (Singleton.Instance == null || Singleton.Instance.GameLogic == null)
+            return;
+
+        OptionPanelController options =
+            UnityEngine.Object.FindAnyObjectByType<OptionPanelController>(
+                FindObjectsInactive.Include);
+
+        if (options != null)
+            options.ShowGameplayForDailyReveal();
+
+        Singleton.Instance.GameLogic.ShowDailyBestMove(lastDay);
+
+        BuildBackToResult();
+    }
+
+    private static void BuildBackToResult()
+    {
+        Canvas canvas = FindCanvas();
+
+        if (canvas == null)
+            return;
+
+        GameObject existing = GameObject.Find("BackToDailyResult");
+
+        if (existing != null)
+            UnityEngine.Object.Destroy(existing);
+
+        GameObject back = Panel("BackToDailyResult", canvas.transform, Cream);
+        RectTransform rect = back.GetComponent<RectTransform>();
+        rect.anchorMin = rect.anchorMax = new Vector2(0.5f, 0f);
+        rect.pivot = new Vector2(0.5f, 0f);
+        rect.sizeDelta = new Vector2(420f, 88f);
+        rect.anchoredPosition = new Vector2(0f, 48f);
+
+        UnityEngine.UI.Button button = back.AddComponent<UnityEngine.UI.Button>();
+        button.targetGraphic = back.GetComponent<Image>();
+        button.onClick.AddListener(delegate
+        {
+            UnityEngine.Object.Destroy(GameObject.Find("BackToDailyResult"));
+            Show(lastDay, lastScore, lastWord);
+        });
+
+        GameObject label = new GameObject("Label", typeof(RectTransform),
+                                          typeof(TextMeshProUGUI));
+        label.transform.SetParent(back.transform, false);
+
+        TextMeshProUGUI text = label.GetComponent<TextMeshProUGUI>();
+        text.text = "Back to my result";
+        text.fontSize = 32f;
+        text.color = Ink;
+        text.fontStyle = FontStyles.Bold;
+        text.alignment = TextAlignmentOptions.Center;
+        Stretch(label);
     }
 
     private static void StartGameAt(GameLogic.SoloDifficulty level)
@@ -279,7 +362,8 @@ public static class DailyResultPanel
 
     private static void Button(
         Transform parent, string content, float x, float y,
-        Color face, Color ink, Action onClick)
+        Color face, Color ink, Action onClick,
+        float width = 360f, float height = 84f, float fontSize = 34f)
     {
         GameObject go = Panel("Button", parent, face);
 
@@ -287,7 +371,7 @@ public static class DailyResultPanel
         rect.anchorMin = new Vector2(0.5f, 1f);
         rect.anchorMax = new Vector2(0.5f, 1f);
         rect.pivot = new Vector2(0.5f, 1f);
-        rect.sizeDelta = new Vector2(360f, 84f);
+        rect.sizeDelta = new Vector2(width, height);
         rect.anchoredPosition = new Vector2(x, y);
 
         UnityEngine.UI.Button button = go.AddComponent<UnityEngine.UI.Button>();
@@ -300,7 +384,7 @@ public static class DailyResultPanel
 
         TextMeshProUGUI text = labelGo.GetComponent<TextMeshProUGUI>();
         text.text = content;
-        text.fontSize = 34f;
+        text.fontSize = fontSize;
         text.color = ink;
         text.fontStyle = FontStyles.Bold;
         text.alignment = TextAlignmentOptions.Center;

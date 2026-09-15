@@ -346,6 +346,18 @@ public class OptionPanelController : MonoBehaviour
         Debug.Log("[OptionPanel] Daily started: " + day);
     }
 
+    // The board has to be on screen for the best word to be shown on it, even
+    // though the day itself is over.
+    public void ShowGameplayForDailyReveal()
+    {
+        if (optionPanel != null) optionPanel.SetActive(false);
+        if (pregamePanel != null) pregamePanel.SetActive(false);
+        if (gameoverPanel != null) gameoverPanel.SetActive(false);
+        if (matchstatusPanel != null) matchstatusPanel.SetActive(false);
+        if (difficultyPanel != null) difficultyPanel.SetActive(false);
+        if (gameplayPanel != null) gameplayPanel.SetActive(true);
+    }
+
     private static bool PlayedToday()
     {
         DailyProgress.DailyRecord record;

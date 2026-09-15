@@ -342,6 +342,7 @@ public partial class GameLogic
 
         DescribeSpectrum(candidate, options);
         CaptureBoard(candidate);
+        candidate.bestTiles = TilesOf(best);
 
         // The no-bonus solve is a second full search, and it exists only to
         // work out the spread. A rack that already fails on score or on band
@@ -578,6 +579,31 @@ public partial class GameLogic
     // per candidate rather than at the end, because the board keeps growing
     // between attempts and the day that wins is the board as it was when it
     // won.
+    // The tiles a move puts down, flattened so they survive being stored.
+    private static List<DailyTile> TilesOf(RoundMove move)
+    {
+        List<DailyTile> tiles = new List<DailyTile>();
+
+        if (move == null || move.simulatedTiles == null)
+            return tiles;
+
+        foreach (SimPlacedTile sim in move.simulatedTiles)
+        {
+            if (sim == null || sim.letterInfo == null || sim.letterPosition == null)
+                continue;
+
+            tiles.Add(new DailyTile
+            {
+                letter = sim.letterInfo.letter,
+                points = sim.letterInfo.points,
+                row = sim.letterPosition.RowX,
+                col = sim.letterPosition.ColY
+            });
+        }
+
+        return tiles;
+    }
+
     private void CaptureBoard(DailyBoard day)
     {
         if (day == null || validatedBoardTiles == null)

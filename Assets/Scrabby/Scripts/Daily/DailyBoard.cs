@@ -30,6 +30,11 @@ public class DailyBoard
     public string bestWord = "";
     public int bestScore;
 
+    // Where the best word went, not just what it was. Naming a word without
+    // showing it is only half an answer: on a board this open, the place it
+    // had to go is most of the puzzle.
+    public List<DailyTile> bestTiles = new List<DailyTile>();
+
     // The score the obvious move gets - the best that uses no bonus square.
     // A day where the best and the obvious are close is a dull day, however
     // high the numbers are.

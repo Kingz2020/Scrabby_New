@@ -36,6 +36,10 @@ public partial class GameLogic
     // anything, so it moves quicker.
     private const float DailyBonusRevealStep = 0.06f;
 
+    // The answer, in the colour the result screen uses for what was possible.
+    private static readonly Color DailyBestColour =
+        new Color(0.88f, 0.70f, 0.30f, 1f);
+
     private static readonly Color DailyOpeningColour =
         new Color(0.62f, 0.66f, 0.72f, 1f);
 
@@ -97,11 +101,80 @@ public partial class GameLogic
         dailyPlayerWord = "";
     }
 
+    // The best word, put where it belonged.
+    //
+    // Naming a word is only half an answer - on an open board the place it had
+    // to go is most of the puzzle, and a player who only hears the word learns
+    // nothing about why it was worth so much.
+    public void ShowDailyBestMove(DailyBoard day)
+    {
+        if (day == null || day.bestTiles == null || day.bestTiles.Count == 0)
+        {
+            Debug.LogWarning(
+                "[DAILY] Day " + (day != null ? day.dayNumber : 0) +
+                " has no recorded placement for its best word, so there is " +
+                "nothing to show. Days cached before this was kept will say " +
+                "this until tomorrow.");
+            return;
+        }
+
+        StopAllCoroutines();
+        StartCoroutine(RevealBestMove(day));
+    }
+
+    private IEnumerator RevealBestMove(DailyBoard day)
+    {
+        // The position is laid out exactly as it was to play, minus the rack -
+        // there is nothing left to place.
+        yield return StartCoroutine(SetUpDaily(day, false));
+
+        UIManager ui = Singleton.Instance != null
+            ? Singleton.Instance.UIManager
+            : null;
+
+        if (ui == null)
+            yield break;
+
+        List<SimPlacedTileData> best = new List<SimPlacedTileData>();
+
+        foreach (DailyTile tile in day.bestTiles)
+        {
+            if (tile == null)
+                continue;
+
+            best.Add(new SimPlacedTileData
+            {
+                letter = tile.letter,
+                points = tile.points,
+                row = tile.row,
+                col = tile.col
+            });
+        }
+
+        ui.ShowRoundMessage("The best word here was " +
+                            day.bestWord.ToUpperInvariant() +
+                            " for " + day.bestScore + ".");
+
+        // Kept on the board with its score pinned to it - unlike the opening
+        // words, this one was worth something, and the number is the point.
+        yield return StartCoroutine(
+            ui.PlayMovePreview(best, DailyBestColour, day.bestScore, true, false, true));
+    }
+
     private IEnumerator SetUpDaily(DailyBoard day)
+    {
+        yield return StartCoroutine(SetUpDaily(day, true));
+    }
+
+    private IEnumerator SetUpDaily(DailyBoard day, bool dealRack)
     {
         dailyMode = true;
         dailyDay = day;
-        dailyAnswered = false;
+
+        // A reveal has no rack and nothing to submit, so it counts as answered
+        // - otherwise the play button would sit there inviting a turn that
+        // cannot be taken.
+        dailyAnswered = !dealRack;
         dailyPlayerScore = 0;
         dailyPlayerWord = "";
 
@@ -192,7 +265,7 @@ public partial class GameLogic
 
         playerHandTiles = new List<LetterInfo>();
 
-        foreach (LetterInfo tile in day.rack)
+        foreach (LetterInfo tile in dealRack ? day.rack : new List<LetterInfo>())
         {
             if (tile == null)
                 continue;
@@ -220,7 +293,11 @@ public partial class GameLogic
         if (ui != null)
         {
             ui.ClearRoundMessage();
-            ui.ShowTurnState("One word. Best you can.", UIManager.TurnTone.Yours);
+
+            if (dealRack)
+                ui.ShowTurnState("One word. Best you can.", UIManager.TurnTone.Yours);
+            else
+                ui.HideTurnState();
         }
 
         Debug.Log("[DAILY] Day " + day.dayNumber + " set up: rack [" +

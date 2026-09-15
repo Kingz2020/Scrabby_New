@@ -15,10 +15,10 @@ using UnityEngine;
 public class DailyManager : MonoBehaviour
 {
     // Versioned: a cached day is only worth serving if it was made the way
-    // days are made now. The hand size changed from seven to six, which makes
-    // every stored day the wrong puzzle - bumping this throws them away rather
-    // than handing someone yesterday's rules.
-    private const string CacheKey = "Scrabby.Daily.Cached.v2";
+    // days are made now. Bumped when the hand size went from seven to six,
+    // and again when days started remembering where the best word went - a
+    // day stored without that cannot show it.
+    private const string CacheKey = "Scrabby.Daily.Cached.v3";
 
     // Generation borrows the real board and bag and hands them back when it is
     // done, so it is safe while a player is on a menu but not while one is
