@@ -656,7 +656,7 @@ public class PreGamePanel : MonoBehaviour
         });
     }
 
-    private void AddMatchToUser(string uid, string matchId, Action onComplete = null)
+    public void AddMatchToUser(string uid, string matchId, Action onComplete = null)
     {
         Debug.Log("[AddMatchToUser] ENTER uid=" + uid + " matchId=" + matchId);
 
@@ -1718,66 +1718,11 @@ public class PreGamePanel : MonoBehaviour
 
                 string matchId = updatedRoom.matchId;
 
-                BagStateData bag = CreateInitialBag();
-                RackStateData sharedrackjson = DrawTiles(bag, 7);
-                BoardStateData board = CreateInitialBoard();
-
-                Debug.Log("[BONUS] gameLogic reference null? " + (gameLogic == null));
-                string bonusBoardJson = "";
-
-                if (gameLogic != null)
-                {
-                    // This snapshot uses a 9x9 board via CreateInitialBoard(9, 9) [13].
-                    gameLogic.SetBoardSize(9, 9);
-
-                    bonusBoardJson = gameLogic.GenerateBonusBoardJsonForOnlineMatch();
-                    Debug.Log("[BONUS] bonusBoardJson length=" + (bonusBoardJson == null ? -1 : bonusBoardJson.Length));
-                }
-                else
-                {
-                    Debug.LogWarning("[BONUS] gameLogic was NULL in TryCreateInitialMatchFromRoom. Skipping bonus board JSON.");
-                }
-
-                MatchData match = new MatchData
-                {
-                    matchId = matchId,
-                    roomCode = roomCode,
-
-                    hostUid = updatedRoom.hostUid,
-                    guestUid = updatedRoom.guestUid,
-
-                    player1Uid = updatedRoom.hostUid,
-                    player2Uid = updatedRoom.guestUid,
-                    player1DisplayName = updatedRoom.hostDisplayName,
-                    player2DisplayName = updatedRoom.guestDisplayName,
-
-                    player1Score = 0,
-                    player2Score = 0,
-
-                    status = "active",
-                    currentRoundNumber = 1,
-
-                    boardStateJson = JsonUtility.ToJson(board),
-                    bagStateJson = JsonUtility.ToJson(bag),
-                    sharedrackjson = JsonUtility.ToJson(sharedrackjson),
-                    
-                    bonusBoardJson = bonusBoardJson,
-
-                    lastRoundResultJson = "",
-                    roundResolutionStatus = "idle",
-                    roundResolutionByUid = "",
-
-                    //totalRounds = matchStatusPanel != null ? matchStatusPanel.GetRoundCount() : 5,
-                    totalRounds = roomSnapshot.totalRounds > 0 ? roomSnapshot.totalRounds: 4,
-
-                    createdAtUnix = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
-
-                    setupStatus = "done",
-                    setupByUid = myUid,
-                    setupAtUnix = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
-
-                    stateVersion = 1
-                };
+                MatchData match = BuildNewMatch(
+                    matchId, roomCode,
+                    updatedRoom.hostUid, updatedRoom.hostDisplayName,
+                    updatedRoom.guestUid, updatedRoom.guestDisplayName,
+                    roomSnapshot.totalRounds > 0 ? roomSnapshot.totalRounds : 4);
 
                 string matchJson = JsonUtility.ToJson(match);
 
@@ -1804,9 +1749,6 @@ public class PreGamePanel : MonoBehaviour
                             }
 
                             Debug.Log("[PregamePanel] Match created: " + matchId);
-                            Debug.Log("[PregamePanel] Player1 rack: " + GetRackDebugString(sharedrackjson));
-                            Debug.Log("[PregamePanel] Player2 rack: " + GetRackDebugString(sharedrackjson));
-                            Debug.Log("[PregamePanel] Bag tiles remaining: " + bag.tiles.Count);
 
                             AddMatchToUser(updatedRoom.hostUid, matchId, () =>
                             {
@@ -1833,6 +1775,83 @@ public class PreGamePanel : MonoBehaviour
             });
         });
     }
+    // A match's opening state: the bag, the shared rack dealt from it, an empty
+    // board and its bonus squares. The one place it is made, so an invitation
+    // and a quick game cannot end up dealing different games.
+    //
+    // player2 may be empty. A quick game is made with only its first player in
+    // it, and the second seat is filled by whoever joins.
+    public MatchData BuildNewMatch(
+        string matchId, string roomCode,
+        string player1Uid, string player1Name,
+        string player2Uid, string player2Name,
+        int totalRounds)
+    {
+        BagStateData bag = CreateInitialBag();
+        RackStateData rack = DrawTiles(bag, OnlineMatchController.HandSize);
+        BoardStateData board = CreateInitialBoard();
+
+        string bonusBoardJson = "";
+
+        if (gameLogic != null)
+        {
+            gameLogic.SetBoardSize(9, 9);
+            bonusBoardJson = gameLogic.GenerateBonusBoardJsonForOnlineMatch();
+        }
+        else
+        {
+            Debug.LogWarning("[MATCH] gameLogic was null building match " + matchId +
+                             "; it has no bonus squares.");
+        }
+
+        long now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        string myUid = auth != null && auth.CurrentUser != null ? auth.CurrentUser.UserId : "";
+
+        Debug.Log("[MATCH] Built " + matchId + " | p1=" + player1Name + " p2=" +
+                  (string.IsNullOrEmpty(player2Uid) ? "(empty seat)" : player2Name) +
+                  " | rounds=" + totalRounds + " | rack " + GetRackDebugString(rack) +
+                  " (" + rack.tiles.Count + " tiles) | bag " + bag.tiles.Count +
+                  " | bonus json " + (bonusBoardJson == null ? -1 : bonusBoardJson.Length));
+
+        return new MatchData
+        {
+            matchId = matchId,
+            roomCode = roomCode ?? "",
+
+            hostUid = player1Uid,
+            guestUid = player2Uid ?? "",
+
+            player1Uid = player1Uid,
+            player2Uid = player2Uid ?? "",
+            player1DisplayName = player1Name,
+            player2DisplayName = player2Name ?? "",
+
+            player1Score = 0,
+            player2Score = 0,
+
+            status = "active",
+            currentRoundNumber = 1,
+
+            boardStateJson = JsonUtility.ToJson(board),
+            bagStateJson = JsonUtility.ToJson(bag),
+            sharedrackjson = JsonUtility.ToJson(rack),
+            bonusBoardJson = bonusBoardJson,
+
+            lastRoundResultJson = "",
+            roundResolutionStatus = "idle",
+            roundResolutionByUid = "",
+
+            totalRounds = totalRounds,
+            createdAtUnix = now,
+
+            setupStatus = "done",
+            setupByUid = myUid,
+            setupAtUnix = now,
+
+            stateVersion = 1
+        };
+    }
+
     public void SetRoomCodeInput(string code)
     {
         if (roomCodeInput == null)

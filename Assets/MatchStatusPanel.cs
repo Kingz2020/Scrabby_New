@@ -218,11 +218,6 @@ public partial class MatchStatusPanel : MonoBehaviour
     {
         StopWatchingUser();
 
-        // Leaving the panel stops the search, so nobody is left sitting in the
-        // queue from a screen they have walked away from. If a match is already
-        // starting this does nothing to it - the room is left alone once
-        // somebody has joined.
-        CancelQuickGame(false);
     }
 
     public void UpdateLoginNameDisplay()
@@ -622,6 +617,12 @@ public partial class MatchStatusPanel : MonoBehaviour
                 amPlayer1
                 ? match.player2DisplayName
                 : match.player1DisplayName;
+
+            // A quick game waiting for someone to take its second seat. Said
+            // plainly, so it reads differently from "Waiting..." on the button,
+            // which means an opponent is there but has not played yet.
+            if (amPlayer1 && string.IsNullOrEmpty(match.player2Uid))
+                opponentName = "Waiting for opponent";
 
             int myScore =
                 amPlayer1

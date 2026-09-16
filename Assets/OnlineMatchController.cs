@@ -150,6 +150,13 @@ public class OnlineMatchController : MonoBehaviour
     /// Start watching a match. If enterWhenReady is true,
     /// we will attempt to enter gameplay when a snapshot arrives.
     /// </summary>
+    // Six, like every other way of playing Scrabby. Online was hard-coded to
+    // seven in three separate places - the first deal, the refill after a
+    // round, and setting up the hand - so it played a different game from solo
+    // and the daily while the rules card said six for all of them. One number
+    // now, so the three cannot drift apart again.
+    public const int HandSize = 6;
+
     public void WatchMatch(string matchId, bool enterWhenReady)
     {
         if (!EnsureFirebaseReady())
@@ -1038,7 +1045,7 @@ public class OnlineMatchController : MonoBehaviour
 
         int beforeRefill = sharedRack.tiles.Count;
 
-        while (sharedRack.tiles.Count < 7 && bag.tiles != null && bag.tiles.Count > 0)
+        while (sharedRack.tiles.Count < HandSize && bag.tiles != null && bag.tiles.Count > 0)
         {
             sharedRack.tiles.Add(bag.tiles[0]);
             bag.tiles.RemoveAt(0);
@@ -1471,7 +1478,7 @@ public class OnlineMatchController : MonoBehaviour
         try
         {
             gameLogic.BeginOnlineMatchFromRack(
-                7, 15, 15,
+                HandSize, 15, 15,
                 localRack, localScore, opponentScore,
                 currentMatch.currentRoundNumber,
                 currentMatch.bonusBoardJson,

@@ -1,5 +1,4 @@
 using System;
-using System.Collections;
 using System.Collections.Generic;
 using Firebase.Database;
 using Firebase.Extensions;
@@ -7,43 +6,44 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
-// A game with whoever else is looking for one, no invitation needed.
+// A game you can start playing straight away, with whoever comes along.
 //
-// There is one waiting slot. The first player to ask makes a room and puts
-// themselves in the slot; the next takes them out of it and joins their room.
-// From there it is the invitation path exactly - the room fills, whoever is
-// watching it creates the match - so there is no second way for a match to
-// start, and nothing here to keep in step with the first.
+// Pressing Quick game never means waiting around for someone to be online at
+// the same moment. Either there is an open game - somebody started one and its
+// second seat is empty - and you take that seat, or there is not and you start
+// one yourself. Either way you are playing round 1 immediately. Online games
+// already let each player take their turn in their own time, so an open game
+// is just a match whose second player has not arrived yet: the round waits for
+// two submissions whether the second one is an hour away or a minute.
 //
-// The slot is taken in a transaction, and that is the whole reason this works.
-// Two players asking in the same second would otherwise both read the same
-// waiting player and both try to join them, and one of them would end up in a
-// room nobody plays in. A transaction makes reading the slot and emptying it a
-// single step, so only one of them can win.
+// Only one open game is offered at a time, in a single slot. Taking a game out
+// of it happens in a transaction, so two players pressing at once cannot both
+// be handed the same seat.
 public partial class MatchStatusPanel
 {
     [SerializeField] private Button quickGameButton;
 
     // Nobody is there to choose, so it plays the same length as a solo game.
     private const int QuickGameRounds = 4;
-    private const int QuickGameTurnMinutes = 5;
 
-    // How long to look before giving up. Long enough for someone to turn up,
-    // short enough that nobody sits staring at a search that is not coming.
-    private const int QuickGameWaitSeconds = 60;
+    // An open game older than this is no longer offered to anyone new. Joining
+    // a game whose creator has stopped playing leaves the joiner waiting on a
+    // round that is never going to be answered.
+    private const long QuickGameOfferMs = 12L * 60 * 60 * 1000;
 
-    // A waiting player older than this is treated as gone. Nobody legitimately
-    // waits longer than QuickGameWaitSeconds, so this sits a little above it.
-    // The slot clearing itself when an app disconnects is what normally
-    // handles a vanished player; this is for when that did not happen.
-    private const long QuickGameStaleMs = 90000;
+    // Each step can find the slot changed under it and have to look again.
+    // This keeps a run of bad luck from turning into a loop.
+    private const int QuickGameMaxAttempts = 5;
 
-    private bool quickSearching;
-    private string quickRoomCode;
-    private Coroutine quickCountdown;
+    // TESTING ONLY. Once a quick game starts, turns the online match tracing
+    // back on - entering the game, submitting a round, waiting, resolving -
+    // which is normally muted because it floods the console. Set to false once
+    // quick game is known to work.
+    private const bool QuickGameTraceOnlineMatch = true;
 
-    private DatabaseReference quickGuestRef;
-    private EventHandler<ValueChangedEventArgs> quickGuestWatcher;
+    private bool quickBusy;
+
+    private enum SlotResult { Empty, Own, Claimed, Stale, Queued }
 
     private DatabaseReference QuickSlot
     {
@@ -53,404 +53,452 @@ public partial class MatchStatusPanel
     private void WireQuickGame()
     {
         if (quickGameButton == null)
+        {
+            Debug.LogWarning("[QUICK] No quickGameButton assigned on MatchStatusPanel.");
             return;
+        }
 
         quickGameButton.onClick.RemoveAllListeners();
         quickGameButton.onClick.AddListener(OnQuickGamePressed);
-
-        SetQuickGameLabel(false);
+        SetQuickGameBusy(false);
     }
 
     public void OnQuickGamePressed()
     {
-        if (quickSearching)
+        if (quickBusy)
         {
-            CancelQuickGame(true);
+            Debug.Log("[QUICK] Pressed while already starting one - ignored.");
             return;
         }
 
         if (auth == null || auth.CurrentUser == null)
         {
+            Debug.LogWarning("[QUICK] Pressed but nobody is signed in.");
             ShowStatus("Sign in to play online.");
             return;
         }
 
         if (dbRoot == null)
         {
+            Debug.LogWarning("[QUICK] Pressed but Firebase is not ready.");
             ShowStatus("Firebase is not ready yet.");
             return;
         }
 
-        quickSearching = true;
-        SetQuickGameLabel(true);
-        ShowStatus("Looking for an opponent...");
+        if (preGamePanel == null)
+        {
+            Debug.LogError("[QUICK] preGamePanel is not assigned; cannot build a match.");
+            return;
+        }
 
-        Debug.Log("[QUICK] Pressed. uid=" + auth.CurrentUser.UserId +
-                  " name=" + MyQuickGameName());
+        SetQuickGameBusy(true);
+        ShowStatus("Starting a quick game...");
 
-        if (quickCountdown != null)
-            StopCoroutine(quickCountdown);
+        Debug.Log("[QUICK] ===== Pressed | uid=" + auth.CurrentUser.UserId +
+                  " name=" + MyQuickGameName() + " =====");
 
-        quickCountdown = StartCoroutine(QuickGameCountdown());
+        if (QuickGameTraceOnlineMatch)
+        {
+            OnlineMatchController.Verbose = true;
+            Debug.Log("[QUICK] Online match tracing switched on for this session " +
+                      "([MATCHTRACE] and [OnlineMatchController] lines).");
+        }
 
-        CreateQuickRoomThenQueue();
+        FindOpenGame(1);
     }
 
-    // The room exists before its code goes in the slot. The other way round, a
-    // player could be claimed in the gap and the claimer would try to join a
-    // room that is not there yet.
-    private void CreateQuickRoomThenQueue()
+    // ---- step 1: is somebody's open game waiting? -----------------------------
+    private void FindOpenGame(int attempt)
     {
-        string code = GenerateRoomCode();
-        string myUid = auth.CurrentUser.UserId;
-
-        RoomData room = new RoomData
+        if (attempt > QuickGameMaxAttempts)
         {
-            code = code,
-            hostUid = myUid,
-            hostDisplayName = MyQuickGameName(),
-            guestUid = "",
-            guestDisplayName = "",
-            status = "waiting",
-            createdAtUnix = DateTimeOffset.UtcNow.ToUnixTimeSeconds(),
-            playerCount = 2,
-            totalRounds = QuickGameRounds,
-            turnTimeMinutes = QuickGameTurnMinutes
-        };
+            QuickGameFailed("Gave up after " + QuickGameMaxAttempts + " attempts in FindOpenGame.");
+            return;
+        }
 
-        dbRoot.Child("rooms").Child(code)
-            .SetRawJsonValueAsync(JsonUtility.ToJson(room))
-            .ContinueWithOnMainThread(task =>
+        string myUid = auth.CurrentUser.UserId;
+        long now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+
+        // Written inside the transaction, which may run more than once: first
+        // against the local cache, again against the server if they disagree.
+        // Every run starts clean so only the last one counts.
+        SlotResult result = SlotResult.Empty;
+        string foundMatch = null;
+
+        Debug.Log("[QUICK] Step 1 (attempt " + attempt + "): looking in quickQueue/waiting");
+
+        QuickSlot.RunTransaction(data =>
+        {
+            result = SlotResult.Empty;
+            foundMatch = null;
+
+            var current = data.Value as Dictionary<string, object>;
+            Debug.Log("[QUICK]   step 1 run sees: " + DescribeSlot(data.Value, current, now));
+
+            // Success, not abort, on an empty-looking slot: the first run is
+            // often against a cache that has not heard from the server, and an
+            // abort would give up without ever seeing a game that is there.
+            if (current == null)
+                return TransactionResult.Success(data);
+
+            string uid = Text(current, "uid");
+            string matchId = Text(current, "matchId");
+            long age = now - Number(current, "createdAt");
+
+            if (uid == myUid && !string.IsNullOrEmpty(matchId))
             {
-                if (task.IsCanceled || task.IsFaulted)
+                result = SlotResult.Own;
+                foundMatch = matchId;
+                return TransactionResult.Success(data);
+            }
+
+            // Too old, or left behind by the earlier version that queued rooms
+            // rather than matches. Cleared, then looked at again.
+            if (string.IsNullOrEmpty(matchId) || age >= QuickGameOfferMs)
+            {
+                data.Value = null;
+                result = SlotResult.Stale;
+                return TransactionResult.Success(data);
+            }
+
+            data.Value = null;
+            result = SlotResult.Claimed;
+            foundMatch = matchId;
+            return TransactionResult.Success(data);
+        })
+        .ContinueWithOnMainThread(task =>
+        {
+            Debug.Log("[QUICK] Step 1 done | faulted=" + task.IsFaulted +
+                      " canceled=" + task.IsCanceled + " result=" + result +
+                      " match=" + foundMatch);
+
+            if (task.IsFaulted || task.IsCanceled)
+            {
+                QuickGameFailed("Step 1 transaction failed: " + task.Exception, true);
+                return;
+            }
+
+            switch (result)
+            {
+                case SlotResult.Own:
+                    Debug.Log("[QUICK] My own open game " + foundMatch +
+                              " is still waiting for an opponent - carrying on with it.");
+                    EnterQuickGame(foundMatch);
+                    break;
+
+                case SlotResult.Stale:
+                    Debug.Log("[QUICK] Cleared an expired or old-format entry; looking again.");
+                    FindOpenGame(attempt + 1);
+                    break;
+
+                case SlotResult.Claimed:
+                    JoinOpenGame(foundMatch, attempt);
+                    break;
+
+                default:
+                    Debug.Log("[QUICK] Nobody's open game is waiting - starting a new one.");
+                    CreateOpenGame(attempt);
+                    break;
+            }
+        });
+    }
+
+    // ---- step 2a: take the empty seat in somebody's game ----------------------
+    private void JoinOpenGame(string matchId, int attempt)
+    {
+        string myUid = auth.CurrentUser.UserId;
+        DatabaseReference match = dbRoot.Child("matches").Child(matchId);
+
+        Debug.Log("[QUICK] Step 2a: joining matches/" + matchId);
+
+        // Checked first so a game that has since been removed is not recreated
+        // as a stub by writing a player into it.
+        match.Child("player1Uid").GetValueAsync().ContinueWithOnMainThread(readTask =>
+        {
+            string player1 = readTask.IsFaulted || readTask.Result == null
+                ? null
+                : readTask.Result.Value as string;
+
+            Debug.Log("[QUICK]   match player1Uid=" + (player1 ?? "(missing)") +
+                      " readFaulted=" + readTask.IsFaulted);
+
+            if (string.IsNullOrEmpty(player1))
+            {
+                Debug.LogWarning("[QUICK]   that open game no longer exists; looking again.");
+                FindOpenGame(attempt + 1);
+                return;
+            }
+
+            if (player1 == myUid)
+            {
+                EnterQuickGame(matchId);
+                return;
+            }
+
+            bool joined = false;
+
+            match.Child("player2Uid").RunTransaction(data =>
+            {
+                string seat = data.Value as string;
+                joined = false;
+
+                if (string.IsNullOrEmpty(seat))
                 {
-                    Debug.LogError("[QUICK] Room write failed: " + task.Exception);
-                    StopQuickGame("Could not start a quick game.");
+                    data.Value = myUid;
+                    joined = true;
+                    return TransactionResult.Success(data);
+                }
+
+                if (seat == myUid)
+                {
+                    joined = true;
+                    return TransactionResult.Success(data);
+                }
+
+                return TransactionResult.Abort();
+            })
+            .ContinueWithOnMainThread(seatTask =>
+            {
+                Debug.Log("[QUICK]   seat transaction | faulted=" + seatTask.IsFaulted +
+                          " joined=" + joined);
+
+                if (seatTask.IsFaulted || seatTask.IsCanceled)
+                {
+                    QuickGameFailed("Seat transaction failed: " + seatTask.Exception, true);
                     return;
                 }
 
-                Debug.Log("[QUICK] Room created: rooms/" + code);
+                if (!joined)
+                {
+                    Debug.LogWarning("[QUICK]   seat 2 was already taken; looking again.");
+                    FindOpenGame(attempt + 1);
+                    return;
+                }
 
-                quickRoomCode = code;
-                ClaimOrQueue();
+                var names = new Dictionary<string, object>
+                {
+                    { "player2DisplayName", MyQuickGameName() },
+                    { "guestUid", myUid }
+                };
+
+                match.UpdateChildrenAsync(names).ContinueWithOnMainThread(nameTask =>
+                {
+                    Debug.Log("[QUICK]   seat 2 taken as " + MyQuickGameName() +
+                              " | name write faulted=" + nameTask.IsFaulted);
+
+                    preGamePanel.AddMatchToUser(myUid, matchId, () =>
+                    {
+                        Debug.Log("[QUICK]   added " + matchId + " to my matches.");
+                        EnterQuickGame(matchId);
+                    });
+                });
+            });
+        });
+    }
+
+    // ---- step 2b: start a game of my own, with its second seat open -----------
+    private void CreateOpenGame(int attempt)
+    {
+        string myUid = auth.CurrentUser.UserId;
+        string matchId = dbRoot.Child("matches").Push().Key;
+
+        MatchData match = preGamePanel.BuildNewMatch(
+            matchId, "",
+            myUid, MyQuickGameName(),
+            "", "",
+            QuickGameRounds);
+
+        Debug.Log("[QUICK] Step 2b: writing new open game matches/" + matchId);
+
+        dbRoot.Child("matches").Child(matchId)
+            .SetRawJsonValueAsync(JsonUtility.ToJson(match))
+            .ContinueWithOnMainThread(writeTask =>
+            {
+                Debug.Log("[QUICK]   match write faulted=" + writeTask.IsFaulted);
+
+                if (writeTask.IsFaulted || writeTask.IsCanceled)
+                {
+                    QuickGameFailed("Match write failed: " + writeTask.Exception, true);
+                    return;
+                }
+
+                OfferOpenGame(matchId, attempt, 1);
             });
     }
 
-    private void ClaimOrQueue()
+    // ---- step 3: put it in the slot for the next player -----------------------
+    private void OfferOpenGame(string matchId, int attempt, int offerAttempt)
     {
-        if (!quickSearching)
+        if (offerAttempt > QuickGameMaxAttempts)
         {
-            // Cancelled while the room was being written.
-            DeleteQuickRoom();
+            DeleteUnplayedGame(matchId);
+            QuickGameFailed("Gave up after " + QuickGameMaxAttempts + " attempts in OfferOpenGame.");
             return;
         }
 
         string myUid = auth.CurrentUser.UserId;
-        string myName = MyQuickGameName();
-        string myRoom = quickRoomCode;
         long now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
 
-        // Set inside the transaction, which may run more than once: first
-        // against the local cache, again against the server if they differ.
-        // So every run starts from a clean slate, and only the last one counts.
-        string claimedRoom = null;
-        bool queued = false;
-        bool clearedStale = false;
+        SlotResult result = SlotResult.Empty;
+        string otherMatch = null;
+
+        Debug.Log("[QUICK] Step 3 (offer attempt " + offerAttempt + "): offering " + matchId);
 
         QuickSlot.RunTransaction(data =>
         {
-            claimedRoom = null;
-            queued = false;
-            clearedStale = false;
+            result = SlotResult.Empty;
+            otherMatch = null;
 
             var current = data.Value as Dictionary<string, object>;
+            Debug.Log("[QUICK]   step 3 run sees: " + DescribeSlot(data.Value, current, now));
 
-            Debug.Log("[QUICK] Transaction run. slot=" +
-                      (data.Value == null ? "EMPTY"
-                       : current == null ? "UNREADABLE type=" + data.Value.GetType().Name
-                       : "uid=" + Text(current, "uid") + " room=" + Text(current, "roomCode") +
-                         " age=" + (now - Number(current, "createdAt")) + "ms"));
-
-            if (current != null)
+            if (current == null)
             {
-                string uid = Text(current, "uid");
-                string room = Text(current, "roomCode");
-                long createdAt = Number(current, "createdAt");
-
-                if (uid == myUid)
+                data.Value = new Dictionary<string, object>
                 {
-                    queued = true;
-                    return TransactionResult.Success(data);
-                }
+                    { "uid", myUid },
+                    { "name", MyQuickGameName() },
+                    { "matchId", matchId },
+                    { "createdAt", now }
+                };
 
-                if (!string.IsNullOrEmpty(room) && now - createdAt < QuickGameStaleMs)
-                {
-                    claimedRoom = room;
-                    data.Value = null;
-                    return TransactionResult.Success(data);
-                }
+                result = SlotResult.Queued;
+                return TransactionResult.Success(data);
+            }
 
-                // Somebody left behind. The rules only let a player put
-                // themselves into an empty slot, so it is emptied here and
-                // the whole thing tried again.
+            string uid = Text(current, "uid");
+            string existing = Text(current, "matchId");
+            long age = now - Number(current, "createdAt");
+
+            if (uid == myUid && !string.IsNullOrEmpty(existing))
+            {
+                result = SlotResult.Own;
+                otherMatch = existing;
+                return TransactionResult.Success(data);
+            }
+
+            // The rules only let a player put themselves into an empty slot, so
+            // anything stale is cleared first and the offer made again.
+            if (string.IsNullOrEmpty(existing) || age >= QuickGameOfferMs)
+            {
                 data.Value = null;
-                clearedStale = true;
+                result = SlotResult.Stale;
                 return TransactionResult.Success(data);
             }
 
-            // Nobody waiting. Returning success rather than aborting when the
-            // slot looks empty matters: the first run is often against a cache
-            // that has not heard from the server, and an abort would give up
-            // without ever seeing a player who is actually there.
-            data.Value = new Dictionary<string, object>
-            {
-                { "uid", myUid },
-                { "name", myName },
-                { "roomCode", myRoom },
-                { "createdAt", now }
-            };
-
-            queued = true;
+            // Somebody offered a game in the moment between looking and
+            // offering. Theirs is taken instead, and the new one discarded.
+            data.Value = null;
+            result = SlotResult.Claimed;
+            otherMatch = existing;
             return TransactionResult.Success(data);
         })
         .ContinueWithOnMainThread(task =>
         {
-            Debug.Log("[QUICK] Transaction done. faulted=" + task.IsFaulted +
-                      " canceled=" + task.IsCanceled + " claimed=" + claimedRoom +
-                      " queued=" + queued + " clearedStale=" + clearedStale +
-                      " stillSearching=" + quickSearching);
+            Debug.Log("[QUICK] Step 3 done | faulted=" + task.IsFaulted +
+                      " canceled=" + task.IsCanceled + " result=" + result +
+                      " other=" + otherMatch);
 
-            if (task.IsCanceled || task.IsFaulted)
+            if (task.IsFaulted || task.IsCanceled)
             {
-                Debug.LogError("[QUICK] Queue transaction failed: " + task.Exception);
-
-                // Most likely the database rules do not allow quickQueue yet.
-                StopQuickGame("Quick game is not available right now.");
+                DeleteUnplayedGame(matchId);
+                QuickGameFailed("Step 3 transaction failed: " + task.Exception, true);
                 return;
             }
 
-            if (!quickSearching)
+            switch (result)
             {
-                // Cancelled while the transaction ran.
-                if (queued)
-                    LeaveQuickSlot();
+                case SlotResult.Queued:
+                    Debug.Log("[QUICK] Offered " + matchId + " - playing round 1 while waiting.");
+                    preGamePanel.AddMatchToUser(myUid, matchId, () =>
+                    {
+                        Debug.Log("[QUICK]   added " + matchId + " to my matches.");
+                        EnterQuickGame(matchId);
+                    });
+                    break;
 
-                DeleteQuickRoom();
-                return;
-            }
+                case SlotResult.Stale:
+                    OfferOpenGame(matchId, attempt, offerAttempt + 1);
+                    break;
 
-            if (clearedStale)
-            {
-                ClaimOrQueue();
-                return;
-            }
+                case SlotResult.Own:
+                    DeleteUnplayedGame(matchId);
+                    EnterQuickGame(otherMatch);
+                    break;
 
-            if (!string.IsNullOrEmpty(claimedRoom))
-            {
-                // Someone was waiting, so the room made for waiting in is not
-                // needed. Joining theirs goes down the invitation path.
-                DeleteQuickRoom();
-
-                quickSearching = false;
-                SetQuickGameLabel(false);
-                ShowStatus("Opponent found - starting...");
-
-                Debug.Log("[QUICK] Claimed a waiting player. Joining rooms/" + claimedRoom);
-
-                preGamePanel.JoinRoomByCode(claimedRoom);
-                return;
-            }
-
-            if (queued)
-            {
-                // If this app goes away while waiting, Firebase empties the
-                // slot, so nobody joins a room nobody will play in.
-                Debug.Log("[QUICK] Nobody waiting. Queued in quickQueue/waiting with rooms/" +
-                          quickRoomCode + ", now watching it.");
-
-                QuickSlot.OnDisconnect().RemoveValue();
-
-                // Not added to this player's own rooms: with nobody invited it
-                // would list as a bare "(waiting)" row whose button opens a
-                // lobby for an empty room. The Cancel button already says a
-                // search is on, and the match lists itself once it starts.
-                WatchQuickRoomForGuest(quickRoomCode);
-
-                // The same watch the invitation path uses. When the room fills
-                // it creates the match and takes both players into it.
-                preGamePanel.WatchRoom(quickRoomCode);
-
+                case SlotResult.Claimed:
+                    DeleteUnplayedGame(matchId);
+                    JoinOpenGame(otherMatch, attempt);
+                    break;
             }
         });
     }
 
-    // Counts down on the status line, and gives up when it reaches zero. It
-    // checks the search is still on before every tick, so a match found or a
-    // cancel pressed ends it without anything having to stop it from outside.
-    private IEnumerator QuickGameCountdown()
+    // ---- in you go ----------------------------------------------------------------
+    // The same way in as pressing Resume on a match in the list.
+    private void EnterQuickGame(string matchId)
     {
-        for (int left = QuickGameWaitSeconds; left > 0; left--)
-        {
-            if (!quickSearching)
-                yield break;
+        Debug.Log("[QUICK] Entering match " + matchId + " via ResumeMatch.");
 
-            ShowStatus("Looking for an opponent... " + left + "s");
-            yield return new WaitForSeconds(1f);
-        }
+        SetQuickGameBusy(false);
+        ShowStatus("Starting...");
 
-        quickCountdown = null;
-
-        if (!quickSearching)
-            yield break;
-
-        // Nobody came. Back to the matches, rather than leaving the player on
-        // New Match wondering whether to press again.
-        Debug.Log("[QUICK] Timed out after " + QuickGameWaitSeconds + "s with no opponent.");
-        CancelQuickGame(false);
-        ShowMatchesTab();
-        ShowStatus("Nobody was looking for a game just now. Try again in a bit.");
+        Singleton.Instance.OnlineMatchController.ResumeMatch(matchId);
     }
 
-    private void WatchQuickRoomForGuest(string code)
+    // A game made a moment ago that turned out not to be needed. Nobody has
+    // played in it and it is on nobody's list, so it can simply go.
+    private void DeleteUnplayedGame(string matchId)
     {
-        StopWatchingQuickRoom();
-
-        quickGuestRef = dbRoot.Child("rooms").Child(code).Child("guestUid");
-
-        quickGuestWatcher = (sender, args) =>
-        {
-            if (args.DatabaseError != null || args.Snapshot == null)
-                return;
-
-            string guest = args.Snapshot.Value as string;
-
-            Debug.Log("[QUICK] Waiting room guestUid changed: '" + guest + "'");
-
-            if (string.IsNullOrEmpty(guest))
-                return;
-
-            // Matched. The disconnect clean-up has to be switched off now:
-            // left on, closing the app later would empty the slot even if
-            // somebody new were waiting in it, and throw them out.
-            QuickSlot.OnDisconnect().Cancel();
-
-            StopWatchingQuickRoom();
-
-            quickSearching = false;
-            quickRoomCode = null;
-            SetQuickGameLabel(false);
-            ShowStatus("Opponent found - starting...");
-        };
-
-        quickGuestRef.ValueChanged += quickGuestWatcher;
-    }
-
-    private void StopWatchingQuickRoom()
-    {
-        if (quickGuestRef != null && quickGuestWatcher != null)
-            quickGuestRef.ValueChanged -= quickGuestWatcher;
-
-        quickGuestRef = null;
-        quickGuestWatcher = null;
-    }
-
-    private void CancelQuickGame(bool announce)
-    {
-        if (!quickSearching && string.IsNullOrEmpty(quickRoomCode))
+        if (string.IsNullOrEmpty(matchId))
             return;
 
-        Debug.Log("[QUICK] Search ended. room=" + quickRoomCode);
-
-        quickSearching = false;
-        SetQuickGameLabel(false);
-        StopWatchingQuickRoom();
-
-        if (dbRoot != null)
-        {
-            QuickSlot.OnDisconnect().Cancel();
-            LeaveQuickSlot();
-            DeleteQuickRoom();
-        }
-
-        if (announce)
-            ShowStatus("Quick game cancelled.");
+        Debug.Log("[QUICK] Discarding unused match " + matchId);
+        dbRoot.Child("matches").Child(matchId).RemoveValueAsync();
     }
 
-    // Empties the slot only if it still holds this player - by now someone may
-    // have taken them out of it, or someone else may be waiting there.
-    private void LeaveQuickSlot()
+    private void QuickGameFailed(string reason, bool rulesMayBeTheCause = false)
     {
-        if (auth == null || auth.CurrentUser == null)
-            return;
+        Debug.LogError("[QUICK] FAILED: " + reason);
 
-        string myUid = auth.CurrentUser.UserId;
-
-        QuickSlot.RunTransaction(data =>
-        {
-            var current = data.Value as Dictionary<string, object>;
-
-            if (current == null)
-                return TransactionResult.Success(data);
-
-            if (Text(current, "uid") != myUid)
-                return TransactionResult.Abort();
-
-            data.Value = null;
-            return TransactionResult.Success(data);
-        });
+        SetQuickGameBusy(false);
+        ShowStatus(rulesMayBeTheCause
+            ? "Quick game is not available right now."
+            : "Could not start a quick game. Try again.");
     }
 
-    // Removes the waiting room - unless someone has already joined it, in
-    // which case the match is starting and is left to start.
-    private void DeleteQuickRoom()
+    private void SetQuickGameBusy(bool busy)
     {
-        string code = quickRoomCode;
-        quickRoomCode = null;
+        quickBusy = busy;
 
-        if (string.IsNullOrEmpty(code) || dbRoot == null)
-            return;
-
-        dbRoot.Child("rooms").Child(code).RunTransaction(data =>
-        {
-            var current = data.Value as Dictionary<string, object>;
-
-            if (current == null)
-                return TransactionResult.Success(data);
-
-            if (!string.IsNullOrEmpty(Text(current, "guestUid")))
-                return TransactionResult.Abort();
-
-            data.Value = null;
-            return TransactionResult.Success(data);
-        })
-        .ContinueWithOnMainThread(task =>
-        {
-            if (!task.IsFaulted && !task.IsCanceled)
-                RemoveRoomsFromCurrentUser(new List<string> { code });
-        });
-    }
-
-    private void StopQuickGame(string message)
-    {
-        CancelQuickGame(false);
-        ShowStatus(message);
-    }
-
-    private void SetQuickGameLabel(bool searching)
-    {
         if (quickGameButton == null)
             return;
+
+        quickGameButton.interactable = !busy;
 
         TMP_Text label = quickGameButton.GetComponentInChildren<TMP_Text>(true);
 
         if (label != null)
-            label.text = searching ? "Cancel" : "Quick game";
+            label.text = busy ? "Starting..." : "Quick game";
     }
 
     private string MyQuickGameName()
     {
         string name = auth.CurrentUser.DisplayName;
         return string.IsNullOrWhiteSpace(name) ? auth.CurrentUser.Email : name;
+    }
+
+    private static string DescribeSlot(object raw, Dictionary<string, object> map, long now)
+    {
+        if (raw == null)
+            return "EMPTY";
+
+        if (map == null)
+            return "UNREADABLE (" + raw.GetType().Name + ")";
+
+        return "uid=" + Text(map, "uid") + " name=" + Text(map, "name") +
+               " matchId=" + Text(map, "matchId") +
+               " age=" + ((now - Number(map, "createdAt")) / 1000) + "s";
     }
 
     private static string Text(Dictionary<string, object> map, string key)
