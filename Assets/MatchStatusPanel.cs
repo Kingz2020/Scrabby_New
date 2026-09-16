@@ -8,7 +8,7 @@ using Firebase.Database;
 using Firebase.Extensions;
 using System;
 
-public class MatchStatusPanel : MonoBehaviour
+public partial class MatchStatusPanel : MonoBehaviour
 {
     [Header("Texts")]
     [SerializeField] private TMP_Text matchInfoText;
@@ -124,6 +124,8 @@ public class MatchStatusPanel : MonoBehaviour
 
         if (inviteButton != null)
             inviteButton.onClick.AddListener(OnInviteButtonPressed);
+
+        WireQuickGame();
     }
 
     private void Start()
@@ -215,6 +217,12 @@ public class MatchStatusPanel : MonoBehaviour
     private void OnDisable()
     {
         StopWatchingUser();
+
+        // Leaving the panel stops the search, so nobody is left sitting in the
+        // queue from a screen they have walked away from. If a match is already
+        // starting this does nothing to it - the room is left alone once
+        // somebody has joined.
+        CancelQuickGame(false);
     }
 
     public void UpdateLoginNameDisplay()
