@@ -94,6 +94,11 @@ public class UIManager : MonoBehaviour
     [SerializeField] private Color turnBusyInk = Color.white;
     [SerializeField] private TextMeshProUGUI humanScoreText;
     [SerializeField] private TextMeshProUGUI aiScoreText;
+
+    // The names over the two scores. They said HUMAN and AI in every mode,
+    // including a game against a friend, where neither was true.
+    [SerializeField] private TextMeshProUGUI playerNameLabel;
+    [SerializeField] private TextMeshProUGUI opponentNameLabel;
     [SerializeField] private TextMeshProUGUI roundText;
 
     [Header("Validated Score Popup")]
@@ -114,6 +119,42 @@ public class UIManager : MonoBehaviour
         humanScoreText = human;
         aiScoreText = ai;
         roundText = round;
+    }
+
+    public void SetScoreNames(string mine, string theirs)
+    {
+        if (playerNameLabel != null)
+            playerNameLabel.text = ScoreName(mine, "YOU");
+
+        if (opponentNameLabel != null)
+            opponentNameLabel.text = ScoreName(theirs, "OPPONENT");
+    }
+
+    // Whoever is signed in, whatever is being played.
+    public static string LocalPlayerName()
+    {
+        var user = FirebaseInit.Auth != null ? FirebaseInit.Auth.CurrentUser : null;
+
+        if (user == null)
+            return "";
+
+        return string.IsNullOrWhiteSpace(user.DisplayName) ? user.Email : user.DisplayName;
+    }
+
+    private static string ScoreName(string name, string fallback)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+            return fallback;
+
+        // A player without an alias is known by their email, and an address
+        // over a score reads as an address. The part before the @ reads as a
+        // name.
+        int at = name.IndexOf('@');
+
+        if (at > 0)
+            name = name.Substring(0, at);
+
+        return name.Trim().ToUpperInvariant();
     }
 
     public void AddTileToHand(LetterInfo tileInfo)

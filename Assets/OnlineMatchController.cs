@@ -1539,6 +1539,18 @@ public class OnlineMatchController : MonoBehaviour
 
         bool isPlayer1 = currentMatch.player1Uid == uid;
 
+        if (Singleton.Instance != null && Singleton.Instance.UIManager != null)
+        {
+            string mine = isPlayer1 ? currentMatch.player1DisplayName : currentMatch.player2DisplayName;
+            string theirs = isPlayer1 ? currentMatch.player2DisplayName : currentMatch.player1DisplayName;
+
+            // A quick game whose second seat nobody has taken yet.
+            if (string.IsNullOrEmpty(currentMatch.player2Uid))
+                theirs = "Waiting...";
+
+            Singleton.Instance.UIManager.SetScoreNames(mine, theirs);
+        }
+
         List<LetterInfo> localRack = ParseRackJson(currentMatch.sharedrackjson);
         if (localRack == null)
             localRack = new List<LetterInfo>();

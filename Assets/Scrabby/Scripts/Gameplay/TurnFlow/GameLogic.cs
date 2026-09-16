@@ -886,6 +886,9 @@ public partial class GameLogic : MonoBehaviour
 
     private void InitSoloState()
     {
+        if (Singleton.Instance != null && Singleton.Instance.UIManager != null)
+            Singleton.Instance.UIManager.SetScoreNames(UIManager.LocalPlayerName(), "AI");
+
         if (bonusTileBag != null && bonusBag != null)
             bonusTileBag.ResetBonusBag(bonusBag);
 
