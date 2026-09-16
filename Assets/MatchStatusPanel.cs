@@ -438,6 +438,11 @@ public class MatchStatusPanel : MonoBehaviour
         List<MatchListItemData> completedItems = new List<MatchListItemData>();
         List<MatchListItemData> inviteItems = new List<MatchListItemData>();
 
+        // Invitations this player sent that were turned down. Taken off the
+        // list, and off the player's rooms so they are not fetched again.
+        List<string> declinedRooms = new List<string>();
+        List<string> declinedBy = new List<string>();
+
         //
         // ROOMS
         //
@@ -479,6 +484,16 @@ public class MatchStatusPanel : MonoBehaviour
             bool declined = sentByMe && room.status == "declined";
             bool pending = sentByMe && !declined;
 
+            // A declined invitation has nothing left to show. It is dropped
+            // here rather than drawn, and said once in the status line, so it
+            // does not simply vanish without explanation.
+            if (declined)
+            {
+                declinedRooms.Add(room.code);
+                declinedBy.Add(room.invitedDisplayName);
+                continue;
+            }
+
             if (string.IsNullOrEmpty(opponentName))
                 opponentName = sentByMe ? room.invitedDisplayName : "(waiting)";
 
@@ -487,10 +502,9 @@ public class MatchStatusPanel : MonoBehaviour
                 {
                     isRoom = true,
                     isPendingInvite = pending,
-                    isDeclinedInvite = declined,
                     roomCode = room.code,
                     opponentDisplayName = opponentName,
-                    status = declined ? "Declined" : pending ? "Waiting" : room.status
+                    status = pending ? "Waiting" : room.status
                 });
         }
 
@@ -742,6 +756,46 @@ public class MatchStatusPanel : MonoBehaviour
         {
             ShowStatus($"{total} games found");
         }
+
+        if (declinedRooms.Count > 0)
+        {
+            ShowStatus(declinedRooms.Count == 1
+                ? declinedBy[0] + " declined your invitation."
+                : declinedRooms.Count + " invitations were declined.");
+
+            RemoveRoomsFromCurrentUser(declinedRooms);
+        }
+    }
+
+    // The counterpart to AddRoomToCurrentUser. Only the player can write their
+    // own rooms, so the one who declined could not tidy this up - it happens
+    // here, the next time the sender's list is loaded.
+    private void RemoveRoomsFromCurrentUser(List<string> roomCodes)
+    {
+        if (auth == null || auth.CurrentUser == null || dbRoot == null)
+            return;
+
+        string uid = auth.CurrentUser.UserId;
+
+        dbRoot.Child("users").Child(uid).Child("activeRoomIds").GetValueAsync()
+            .ContinueWithOnMainThread(task =>
+            {
+                if (task.IsCanceled || task.IsFaulted || task.Result == null)
+                    return;
+
+                List<string> roomIds = new List<string>();
+
+                foreach (DataSnapshot child in task.Result.Children)
+                {
+                    string code = child.Value != null ? child.Value.ToString() : null;
+
+                    if (!string.IsNullOrEmpty(code) && !roomCodes.Contains(code))
+                        roomIds.Add(code);
+                }
+
+                dbRoot.Child("users").Child(uid).Child("activeRoomIds")
+                    .SetValueAsync(roomIds);
+            });
     }
 
 

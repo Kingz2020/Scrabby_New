@@ -27,7 +27,4 @@ public class MatchListItemData
 
     // An invitation this player sent, not yet answered.
     public bool isPendingInvite;
-
-    // An invitation this player sent that was turned down.
-    public bool isDeclinedInvite;
 }
