@@ -52,6 +52,8 @@ public class MatchStatusRow : MonoBehaviour
 
 
         actionButtonText.text =
+            data.isDeclinedInvite ? "Declined" :
+            data.isPendingInvite ? "Waiting..." :
             data.isInvite ? "Accept" :
             data.isRoom ? "Open" :
             isCompleted ? "View Results" :
@@ -59,7 +61,15 @@ public class MatchStatusRow : MonoBehaviour
             "Resume";
 
 
-        if (data.isRoom || isCompleted || data.isInvite)
+        if (data.isPendingInvite || data.isDeclinedInvite)
+        {
+            // Nothing to do but wait for them. Shown, so it is plain the
+            // invitation went through; not pressable, because there is nothing
+            // behind it yet.
+            actionButton.interactable = false;
+            actionButton.image.color = Color.gray;
+        }
+        else if (data.isRoom || isCompleted || data.isInvite)
         {
             actionButton.interactable = true;
             actionButton.image.color = data.isInvite ? Color.green : Color.white;

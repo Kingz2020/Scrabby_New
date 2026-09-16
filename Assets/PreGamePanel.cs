@@ -970,6 +970,13 @@ public class PreGamePanel : MonoBehaviour
         if (auth != null && auth.CurrentUser != null)
         {
             dbRoot.Child("users").Child(auth.CurrentUser.UserId).Child("invites").Child(roomCode).RemoveValueAsync();
+
+            // The sender's own list now shows the invitation it sent. Removing
+            // it only from this side left the room saying "waiting" for good,
+            // so the sender would wait on an answer that had already been
+            // given. Joining overwrites this same room, so writing to it here
+            // is within what an invitee may do.
+            dbRoot.Child("rooms").Child(roomCode).Child("status").SetValueAsync("declined");
         }
 
         if (matchStatusPanel != null)

@@ -464,21 +464,33 @@ public class MatchStatusPanel : MonoBehaviour
             if (room == null)
                 continue;
 
-            string opponentName =
-                room.hostUid == myUid
+            bool hosting = room.hostUid == myUid;
+
+            string opponentName = hosting
                 ? room.guestDisplayName
                 : room.hostDisplayName;
 
+            // Sent by this player, and nobody has joined yet: say who it is
+            // waiting on, rather than a bare "(waiting)".
+            bool sentByMe = hosting &&
+                            string.IsNullOrEmpty(room.guestUid) &&
+                            !string.IsNullOrEmpty(room.invitedDisplayName);
+
+            bool declined = sentByMe && room.status == "declined";
+            bool pending = sentByMe && !declined;
+
             if (string.IsNullOrEmpty(opponentName))
-                opponentName = "(waiting)";
+                opponentName = sentByMe ? room.invitedDisplayName : "(waiting)";
 
             activeItems.Add(
                 new MatchListItemData
                 {
                     isRoom = true,
+                    isPendingInvite = pending,
+                    isDeclinedInvite = declined,
                     roomCode = room.code,
                     opponentDisplayName = opponentName,
-                    status = room.status
+                    status = declined ? "Declined" : pending ? "Waiting" : room.status
                 });
         }
 
@@ -1201,12 +1213,20 @@ public class MatchStatusPanel : MonoBehaviour
                   }
 
                   string targetUid = null;
+                  string targetName = null;
 
                   foreach (DataSnapshot userSnapshot in snapshot.Children)
                   {
                       targetUid = userSnapshot.Key;
+
+                      // Already fetched with the uid - kept so the sender's
+                      // own list can say who the invitation is waiting on.
+                      targetName = userSnapshot.Child("displayName").Value as string;
                       break;
                   }
+
+                  if (string.IsNullOrWhiteSpace(targetName))
+                      targetName = invitedEmail;
 
                   if (string.IsNullOrEmpty(targetUid))
                   {
@@ -1225,11 +1245,11 @@ public class MatchStatusPanel : MonoBehaviour
                   }
 
                   Debug.Log("[INVITE] Target UID = " + targetUid);
-                  EnsureRoomThenSendInvite(targetUid);
+                  EnsureRoomThenSendInvite(targetUid, targetName);
               });
     }
 
-    private void EnsureRoomThenSendInvite(string targetUid)
+    private void EnsureRoomThenSendInvite(string targetUid, string targetName)
     {
         if (auth == null || auth.CurrentUser == null || dbRoot == null)
         {
@@ -1255,6 +1275,8 @@ public class MatchStatusPanel : MonoBehaviour
             hostDisplayName = displayName,
             guestUid = "",
             guestDisplayName = "",
+            invitedUid = targetUid,
+            invitedDisplayName = targetName,
             status = "waiting",
             createdAtUnix = DateTimeOffset.UtcNow.ToUnixTimeSeconds(),
 
@@ -1316,13 +1338,22 @@ public class MatchStatusPanel : MonoBehaviour
 
                             Debug.Log("[INVITE] Invite written successfully.");
 
-                            ShowStatus("Invitation sent to " + inviteInput.text.Trim() + ".");
+                            ShowStatus("Invitation sent to " + targetName + ".");
 
                             if (inviteInput != null)
                                 inviteInput.SetTextWithoutNotify("");
 
                             if (inviteButton != null)
                                 inviteButton.interactable = true;
+
+                            // The room was being created and the invitation
+                            // written, but never added to the sender's own
+                            // rooms - and the list is built from those. So the
+                            // invitation reached the other player and left no
+                            // trace here, even after a refresh, and the only
+                            // way to find out whether it had worked was to
+                            // press Invite again.
+                            AddRoomToCurrentUser(roomCode, RefreshMatchState);
                         });
               });
     }
