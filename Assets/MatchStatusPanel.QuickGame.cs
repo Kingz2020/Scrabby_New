@@ -85,6 +85,9 @@ public partial class MatchStatusPanel
         SetQuickGameLabel(true);
         ShowStatus("Looking for an opponent...");
 
+        Debug.Log("[QUICK] Pressed. uid=" + auth.CurrentUser.UserId +
+                  " name=" + MyQuickGameName());
+
         if (quickCountdown != null)
             StopCoroutine(quickCountdown);
 
@@ -126,6 +129,8 @@ public partial class MatchStatusPanel
                     return;
                 }
 
+                Debug.Log("[QUICK] Room created: rooms/" + code);
+
                 quickRoomCode = code;
                 ClaimOrQueue();
             });
@@ -159,6 +164,12 @@ public partial class MatchStatusPanel
             clearedStale = false;
 
             var current = data.Value as Dictionary<string, object>;
+
+            Debug.Log("[QUICK] Transaction run. slot=" +
+                      (data.Value == null ? "EMPTY"
+                       : current == null ? "UNREADABLE type=" + data.Value.GetType().Name
+                       : "uid=" + Text(current, "uid") + " room=" + Text(current, "roomCode") +
+                         " age=" + (now - Number(current, "createdAt")) + "ms"));
 
             if (current != null)
             {
@@ -204,6 +215,11 @@ public partial class MatchStatusPanel
         })
         .ContinueWithOnMainThread(task =>
         {
+            Debug.Log("[QUICK] Transaction done. faulted=" + task.IsFaulted +
+                      " canceled=" + task.IsCanceled + " claimed=" + claimedRoom +
+                      " queued=" + queued + " clearedStale=" + clearedStale +
+                      " stillSearching=" + quickSearching);
+
             if (task.IsCanceled || task.IsFaulted)
             {
                 Debug.LogError("[QUICK] Queue transaction failed: " + task.Exception);
@@ -239,6 +255,8 @@ public partial class MatchStatusPanel
                 SetQuickGameLabel(false);
                 ShowStatus("Opponent found - starting...");
 
+                Debug.Log("[QUICK] Claimed a waiting player. Joining rooms/" + claimedRoom);
+
                 preGamePanel.JoinRoomByCode(claimedRoom);
                 return;
             }
@@ -247,6 +265,9 @@ public partial class MatchStatusPanel
             {
                 // If this app goes away while waiting, Firebase empties the
                 // slot, so nobody joins a room nobody will play in.
+                Debug.Log("[QUICK] Nobody waiting. Queued in quickQueue/waiting with rooms/" +
+                          quickRoomCode + ", now watching it.");
+
                 QuickSlot.OnDisconnect().RemoveValue();
 
                 // Not added to this player's own rooms: with nobody invited it
@@ -284,6 +305,7 @@ public partial class MatchStatusPanel
 
         // Nobody came. Back to the matches, rather than leaving the player on
         // New Match wondering whether to press again.
+        Debug.Log("[QUICK] Timed out after " + QuickGameWaitSeconds + "s with no opponent.");
         CancelQuickGame(false);
         ShowMatchesTab();
         ShowStatus("Nobody was looking for a game just now. Try again in a bit.");
@@ -301,6 +323,8 @@ public partial class MatchStatusPanel
                 return;
 
             string guest = args.Snapshot.Value as string;
+
+            Debug.Log("[QUICK] Waiting room guestUid changed: '" + guest + "'");
 
             if (string.IsNullOrEmpty(guest))
                 return;
@@ -334,6 +358,8 @@ public partial class MatchStatusPanel
     {
         if (!quickSearching && string.IsNullOrEmpty(quickRoomCode))
             return;
+
+        Debug.Log("[QUICK] Search ended. room=" + quickRoomCode);
 
         quickSearching = false;
         SetQuickGameLabel(false);
