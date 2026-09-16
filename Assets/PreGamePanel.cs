@@ -1789,6 +1789,9 @@ public class PreGamePanel : MonoBehaviour
     {
         BagStateData bag = CreateInitialBag();
         RackStateData rack = DrawTiles(bag, OnlineMatchController.HandSize);
+
+        OnlineMatchController.EnsurePlayableRack(
+            rack, bag, gameLogic, "new match " + matchId);
         BoardStateData board = CreateInitialBoard();
 
         string bonusBoardJson = "";

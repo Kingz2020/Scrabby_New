@@ -157,6 +157,74 @@ public class OnlineMatchController : MonoBehaviour
     // now, so the three cannot drift apart again.
     public const int HandSize = 6;
 
+    // How many times a shared rack may be redealt looking for a playable one,
+    // matching solo. Near the end of a game the bag may simply not hold a
+    // playable six, and it has to stop somewhere.
+    private const int MaxRackRedraws = 10;
+
+    // Solo never deals a hand nobody can play; online did not check, so a
+    // match could open on six consonants with nothing either player could do.
+    // Used wherever the shared rack is dealt: when a match is made, and when
+    // the rack is refilled after a round.
+    //
+    // An unplayable rack goes back on the END of the bag and six are dealt
+    // from the front. The bag is drawn from the front, so putting them back
+    // there would just deal the same letters again.
+    public static void EnsurePlayableRack(
+        RackStateData rack, BagStateData bag, GameLogic logic, string context)
+    {
+        if (rack == null || rack.tiles == null || bag == null || bag.tiles == null)
+            return;
+
+        if (logic == null)
+        {
+            Debug.LogWarning("[RACK] " + context + ": no GameLogic, so the rack could " +
+                             "not be checked for a playable word.");
+            return;
+        }
+
+        logic.EnsureDictionaryLoaded();
+
+        for (int attempt = 1; attempt <= MaxRackRedraws; attempt++)
+        {
+            List<string> letters = new List<string>();
+
+            foreach (TileData tile in rack.tiles)
+                if (tile != null)
+                    letters.Add(tile.letter);
+
+            if (logic.RackHasPlayableWord(letters))
+            {
+                Debug.Log("[RACK] " + context + ": [" + string.Join(" ", letters) +
+                          "] is playable" + (attempt > 1 ? " after " + (attempt - 1) +
+                          " redraw(s)" : "") + ".");
+                return;
+            }
+
+            if (bag.tiles.Count == 0)
+            {
+                Debug.LogWarning("[RACK] " + context + ": [" + string.Join(" ", letters) +
+                                 "] has no word and the bag is empty; leaving it.");
+                return;
+            }
+
+            Debug.Log("[RACK] " + context + ": [" + string.Join(" ", letters) +
+                      "] makes no word - redrawing (attempt " + attempt + ").");
+
+            bag.tiles.AddRange(rack.tiles);
+            rack.tiles.Clear();
+
+            while (rack.tiles.Count < HandSize && bag.tiles.Count > 0)
+            {
+                rack.tiles.Add(bag.tiles[0]);
+                bag.tiles.RemoveAt(0);
+            }
+        }
+
+        Debug.LogWarning("[RACK] " + context + ": still no playable rack after " +
+                         MaxRackRedraws + " redraws; leaving the last one.");
+    }
+
     public void WatchMatch(string matchId, bool enterWhenReady)
     {
         if (!EnsureFirebaseReady())
@@ -1050,6 +1118,9 @@ public class OnlineMatchController : MonoBehaviour
             sharedRack.tiles.Add(bag.tiles[0]);
             bag.tiles.RemoveAt(0);
         }
+
+        EnsurePlayableRack(sharedRack, bag, gameLogic,
+                           "match " + liveMatch.matchId + " refill after round " + roundNumber);
 
         VerboseLog("[OnlineMatchController] ResolveRoundNow refilled rack from " +
                   beforeRefill + " to " + sharedRack.tiles.Count +

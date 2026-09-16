@@ -4331,18 +4331,40 @@ public partial class GameLogic : MonoBehaviour
     }
     private bool InitialRackHasPlayableWord()
     {
-        if (playerHandTiles == null || playerHandTiles.Count == 0 || scrabbleWords == null || scrabbleWords.Count == 0)
+        if (playerHandTiles == null)
             return false;
+
+        List<string> letters = new List<string>();
+
+        foreach (LetterInfo tile in playerHandTiles)
+            if (tile != null)
+                letters.Add(tile.letter);
+
+        return RackHasPlayableWord(letters);
+    }
+
+    // Whether any word in the dictionary can be made from these letters alone.
+    //
+    // Solo has always refused to deal a hand nobody could play; this is that
+    // check, taking the letters rather than reading them off the solo hand, so
+    // online play can apply the same rule to its shared rack instead of having
+    // a second copy of it.
+    public bool RackHasPlayableWord(IList<string> letters)
+    {
+        if (letters == null || letters.Count == 0 ||
+            scrabbleWords == null || scrabbleWords.Count == 0)
+        {
+            return false;
+        }
 
         Dictionary<char, int> rackCounts = new Dictionary<char, int>();
 
-        for (int i = 0; i < playerHandTiles.Count; i++)
+        foreach (string letter in letters)
         {
-            LetterInfo tile = playerHandTiles[i];
-            if (tile == null || string.IsNullOrEmpty(tile.letter))
+            if (string.IsNullOrEmpty(letter))
                 continue;
 
-            char c = char.ToUpper(tile.letter[0]);
+            char c = char.ToUpper(letter[0]);
 
             if (!rackCounts.ContainsKey(c))
                 rackCounts[c] = 0;
@@ -4358,7 +4380,7 @@ public partial class GameLogic : MonoBehaviour
 
             word = word.Trim().ToUpperInvariant();
 
-            if (word.Length < 2 || word.Length > playerHandTiles.Count)
+            if (word.Length < 2 || word.Length > letters.Count)
                 continue;
 
             if (CanBuildWordFromRackCounts(word, rackCounts))
@@ -4366,6 +4388,14 @@ public partial class GameLogic : MonoBehaviour
         }
 
         return false;
+    }
+
+    // A match can be created from a menu, before any game has loaded the
+    // dictionary - and the check above answers "no" to everything without it.
+    public void EnsureDictionaryLoaded()
+    {
+        if (scrabbleWords == null || scrabbleWords.Count == 0)
+            LoadDictionaryIfNeeded();
     }
 
     private IEnumerator EnsurePlayableInitialRack(float refillDuration = 2f, int maxAttempts = 10)
