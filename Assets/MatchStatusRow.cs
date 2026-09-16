@@ -28,7 +28,9 @@ public class MatchStatusRow : MonoBehaviour
         matchId = data.matchId;
         isCompleted = !data.isRoom && data.status == "completed";
 
-        opponentText.text = data.isInvite ? (data.opponentDisplayName + " invited you") : data.opponentDisplayName;
+        // Just the name. "Invited you" said again what the status column beside
+        // it already says, and on a phone it was the part that ran out of room.
+        opponentText.text = data.opponentDisplayName;
         statusText.text = data.isInvite ? "Invite" : data.status;
 
         if (data.isRoom || data.isInvite)
