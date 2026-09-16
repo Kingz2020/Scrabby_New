@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using Firebase.Database;
 using Firebase.Extensions;
@@ -27,13 +28,19 @@ public partial class MatchStatusPanel
     private const int QuickGameRounds = 4;
     private const int QuickGameTurnMinutes = 5;
 
-    // A waiting player older than this is treated as gone. Their app clearing
-    // the slot on disconnect is what normally handles it; this is for when
-    // that did not happen.
-    private const long QuickGameStaleMs = 120000;
+    // How long to look before giving up. Long enough for someone to turn up,
+    // short enough that nobody sits staring at a search that is not coming.
+    private const int QuickGameWaitSeconds = 60;
+
+    // A waiting player older than this is treated as gone. Nobody legitimately
+    // waits longer than QuickGameWaitSeconds, so this sits a little above it.
+    // The slot clearing itself when an app disconnects is what normally
+    // handles a vanished player; this is for when that did not happen.
+    private const long QuickGameStaleMs = 90000;
 
     private bool quickSearching;
     private string quickRoomCode;
+    private Coroutine quickCountdown;
 
     private DatabaseReference quickGuestRef;
     private EventHandler<ValueChangedEventArgs> quickGuestWatcher;
@@ -77,6 +84,11 @@ public partial class MatchStatusPanel
         quickSearching = true;
         SetQuickGameLabel(true);
         ShowStatus("Looking for an opponent...");
+
+        if (quickCountdown != null)
+            StopCoroutine(quickCountdown);
+
+        quickCountdown = StartCoroutine(QuickGameCountdown());
 
         CreateQuickRoomThenQueue();
     }
@@ -247,9 +259,34 @@ public partial class MatchStatusPanel
                 // it creates the match and takes both players into it.
                 preGamePanel.WatchRoom(quickRoomCode);
 
-                ShowStatus("Waiting for an opponent...");
             }
         });
+    }
+
+    // Counts down on the status line, and gives up when it reaches zero. It
+    // checks the search is still on before every tick, so a match found or a
+    // cancel pressed ends it without anything having to stop it from outside.
+    private IEnumerator QuickGameCountdown()
+    {
+        for (int left = QuickGameWaitSeconds; left > 0; left--)
+        {
+            if (!quickSearching)
+                yield break;
+
+            ShowStatus("Looking for an opponent... " + left + "s");
+            yield return new WaitForSeconds(1f);
+        }
+
+        quickCountdown = null;
+
+        if (!quickSearching)
+            yield break;
+
+        // Nobody came. Back to the matches, rather than leaving the player on
+        // New Match wondering whether to press again.
+        CancelQuickGame(false);
+        ShowMatchesTab();
+        ShowStatus("Nobody was looking for a game just now. Try again in a bit.");
     }
 
     private void WatchQuickRoomForGuest(string code)
