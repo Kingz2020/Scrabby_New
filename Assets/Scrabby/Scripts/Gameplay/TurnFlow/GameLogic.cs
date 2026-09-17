@@ -1842,6 +1842,16 @@ public partial class GameLogic : MonoBehaviour
         }
     }
 
+    private string OpponentPossessive()
+    {
+        switch (gameMode)
+        {
+            case GameMode.HumanVsHumanLocal: return "Player 2's";
+            case GameMode.HumanVsHumanOnline: return "Opponent's";
+            default: return "AI's";
+        }
+    }
+
     private void AdvanceRoundReveal()
     {
         using (AdvanceRoundRevealMarker.Auto())
@@ -1926,15 +1936,29 @@ public partial class GameLogic : MonoBehaviour
 
                     if (Singleton.Instance != null && Singleton.Instance.UIManager != null)
                     {
-                        // A decided round says so on the board: the winning word stays
-                        // put and the header totals move. Only an undecided one needs
-                        // a word, because nothing visible changed.
-                        if (!sameWord &&
-                            !sameScore &&
-                            (pendingWinningMove == null || !pendingWinningMove.isValid))
-                        {
-                            Singleton.Instance.UIManager.ShowTurnState("No word this round", UIManager.TurnTone.Busy);
-                        }
+                        // The round is decided out loud before the word lands. The
+                        // board alone did show it - the winning word stays - but a
+                        // player new to a game where only one of two words survives
+                        // cannot tell that is why it is there. Saying whose word won
+                        // is what teaches the rule.
+                        //
+                        // Worded from the move actually kept, not recomputed, so it
+                        // cannot disagree with what stays on the board.
+                        UIManager ui = Singleton.Instance.UIManager;
+
+                        if (pendingWinningMove == null || !pendingWinningMove.isValid)
+                            ui.ShowTurnState("No word this round", UIManager.TurnTone.Busy);
+                        else if (sameWord)
+                            ui.ShowTurnState("Same word - it stays", UIManager.TurnTone.Busy);
+                        else if (pendingWinningMove.isHuman && sameScore)
+                            ui.ShowTurnState("Tie - your word stays", UIManager.TurnTone.Good);
+                        else if (pendingWinningMove.isHuman)
+                            ui.ShowTurnState("Your word is best", UIManager.TurnTone.Good);
+                        else
+                            // Neutral, not the red of a rejected word: losing a
+                            // round is not a mistake.
+                            ui.ShowTurnState(OpponentPossessive() + " word is best",
+                                             UIManager.TurnTone.Busy);
                     }
 
                     VerboseLog("Displayed final winner message.");
@@ -4248,6 +4272,8 @@ public partial class GameLogic : MonoBehaviour
         StartCoroutine(AutoAdvanceRoundFlow());
     }
 
+    private const float RoundDecisionPause = 1.3f;
+
     private IEnumerator AutoAdvanceRoundFlow()
     {
         yield return new WaitForSeconds(0.8f);
@@ -4261,7 +4287,10 @@ public partial class GameLogic : MonoBehaviour
 
             if (roundRevealStep >= 3)
             {
-                yield return new WaitForSeconds(0.8f);
+                // Longer than the other steps: this is the moment the winner is
+                // named, and the word landing straight on top of it would take
+                // the attention before it was read.
+                yield return new WaitForSeconds(RoundDecisionPause);
                 AdvanceRoundReveal();
                 yield break;
             }
