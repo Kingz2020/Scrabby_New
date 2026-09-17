@@ -16,8 +16,9 @@ FirebaseMessaging iOS and Android Dependencies.
     </androidPackage>
     <androidPackage spec="com.google.firebase:firebase-analytics:23.2.0">
     </androidPackage>
-    <androidPackage spec="com.google.firebase:firebase-iid:21.1.0">
-    </androidPackage>
+    <!-- firebase-iid was retired by Google and is no longer on Maven, but
+         the Unity SDK still asks for it, which fails the Android build.
+         firebase-messaging 25.x does not need it. -->
     <androidPackage spec="com.google.flatbuffers:flatbuffers-java:1.12.0">
     </androidPackage>
     <androidPackage spec="com.google.firebase:firebase-messaging-unity:13.14.0">

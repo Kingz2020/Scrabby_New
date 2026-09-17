@@ -77,3 +77,5 @@ crashlytics-build.properties
 functions/node_modules/
 Prototypes/
 firebase-debug.log
+Tools/cacerts
+Tools/avast-root.cer
