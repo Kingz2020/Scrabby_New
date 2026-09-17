@@ -10,6 +10,7 @@
 
 const { onValueCreated, onValueWritten } = require("firebase-functions/v2/database");
 const { initializeApp } = require("firebase-admin/app");
+const { getAuth } = require("firebase-admin/auth");
 const { getDatabase } = require("firebase-admin/database");
 const { getMessaging } = require("firebase-admin/messaging");
 const logger = require("firebase-functions/logger");
@@ -138,4 +139,134 @@ exports.onInvite = onValueCreated(
     const { uid, roomCode } = event.params;
 
     await notify(uid, `${shortName(invite.fromDisplayName)} invited you to a game.`, roomCode);
+  });
+
+// ---------------------------------------------------------------------------
+// The two jobs that used to force the database wide open.
+//
+// A phone may now touch only its own profile. But inviting somebody means
+// finding them by their email address and putting something in THEIR profile,
+// and starting a match means adding it to BOTH players' lists. Allowing a
+// phone to do either means allowing it to read and write every player's data.
+//
+// So the server does these two things instead. It has the whole database and
+// the account list, and it is the only thing that does.
+// ---------------------------------------------------------------------------
+
+// A player's list of games (or rooms), read, changed, written back in one
+// go, so two matches starting at once cannot overwrite each other's entry.
+// Unity writes these as JSON arrays, so they come back as arrays.
+async function editList(uid, list, change) {
+  const ref = db().ref(`users/${uid}/${list}`);
+
+  await ref.transaction((current) => {
+    const values = Array.isArray(current)
+      ? current.filter((v) => typeof v === "string")
+      : current && typeof current === "object"
+        ? Object.values(current).filter((v) => typeof v === "string")
+        : [];
+
+    const next = change(values);
+
+    // undefined aborts the transaction: nothing to change.
+    return next === null ? undefined : next;
+  });
+}
+
+const addTo = (id) => (values) => values.includes(id) ? null : values.concat([id]);
+const removeFrom = (id) => (values) =>
+  values.includes(id) ? values.filter((v) => v !== id) : null;
+
+// One player has been put in a match: it belongs on their list of games, and
+// the room that arranged it no longer belongs on their list of rooms.
+async function matchBelongsTo(uid, matchId) {
+  if (!uid) return;
+
+  await editList(uid, "activeMatchIds", addTo(matchId));
+
+  const roomCode = await read(`matches/${matchId}/roomCode`);
+
+  if (roomCode)
+    await editList(uid, "activeRoomIds", removeFrom(roomCode));
+
+  logger.info(`[LIST] match ${matchId} is on ${uid}'s list.`);
+}
+
+exports.onPlayer1Set = onValueWritten(
+  on("/matches/{matchId}/player1Uid"),
+  async (event) => {
+    const uid = event.data.after.val();
+
+    if (uid && uid !== event.data.before.val())
+      await matchBelongsTo(uid, event.params.matchId);
+  });
+
+exports.onPlayer2Set = onValueWritten(
+  on("/matches/{matchId}/player2Uid"),
+  async (event) => {
+    const uid = event.data.after.val();
+
+    if (uid && uid !== event.data.before.val())
+      await matchBelongsTo(uid, event.params.matchId);
+  });
+
+// An invitation, asked for by the sender and delivered by us.
+//
+// The game writes what it wants to inviteRequests (it may only write its own
+// name on it, by the rules), and we turn the email address into a player and
+// put the invitation in their profile. The answer goes back on the request,
+// so the sender can be told "sent to Ada" or "nobody has that address".
+exports.onInviteRequest = onValueCreated(
+  on("/inviteRequests/{requestId}"),
+  async (event) => {
+    const request = event.data.val() || {};
+    const { requestId } = event.params;
+    const answer = db().ref(`inviteRequests/${requestId}/result`);
+
+    const { fromUid, fromDisplayName, roomCode } = request;
+    const toEmail = (request.toEmail || "").trim();
+
+    if (!fromUid || !roomCode || (!toEmail && !request.toUid)) {
+      await answer.set({ status: "error", message: "Incomplete request." });
+      return;
+    }
+
+    // A rematch names the other player directly; an invitation by email has
+    // to be looked up.
+    let toUid = request.toUid || "";
+
+    if (!toUid) {
+      try {
+        toUid = (await getAuth().getUserByEmail(toEmail)).uid;
+      } catch (err) {
+        logger.info(`[INVITE] no account for ${toEmail}: ${err.code}`);
+        await answer.set({ status: "no-user" });
+        return;
+      }
+    }
+
+    if (toUid === fromUid) {
+      await answer.set({ status: "self" });
+      return;
+    }
+
+    // Their alias if they have one, otherwise the address, so the sender's own
+    // list can say who it is waiting for.
+    const profileName = await read(`users/${toUid}/displayName`);
+    const toName = profileName || shortName(toEmail);
+
+    await db().ref(`users/${toUid}/invites/${roomCode}`).set({
+      roomCode,
+      fromUid,
+      fromDisplayName: fromDisplayName || "",
+      createdAtUnix: Date.now(),
+    });
+
+    await db().ref(`rooms/${roomCode}`).update({
+      invitedUid: toUid,
+      invitedDisplayName: toName,
+    });
+
+    logger.info(`[INVITE] ${fromUid} -> ${toUid} for room ${roomCode}.`);
+    await answer.set({ status: "sent", toUid, toName });
   });

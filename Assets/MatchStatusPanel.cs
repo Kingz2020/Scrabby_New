@@ -1214,7 +1214,6 @@ public partial class MatchStatusPanel : MonoBehaviour
 
         ScrabbyLog.Trace("[INVITE] Inviter UID = " + auth.CurrentUser.UserId);
         ScrabbyLog.Trace("[INVITE] Target email = " + invitedEmail);
-        // targetUid and roomCode are not known yet; log them later in EnsureRoomThenSendInvite / SendInviteToUser
 
         if (string.IsNullOrWhiteSpace(invitedEmail))
         {
@@ -1248,82 +1247,16 @@ public partial class MatchStatusPanel : MonoBehaviour
             return;
         }
 
-        ShowStatus("Finding player...");
-
-        dbRoot.Child("users")
-              .OrderByChild("email")
-              .EqualTo(invitedEmail)
-              .GetValueAsync()
-              .ContinueWithOnMainThread(task =>
-              {
-                  if (task.IsCanceled || task.IsFaulted)
-                  {
-                      Debug.LogError("[MATCH STATUS] User lookup failed: " + task.Exception);
-                      ShowStatus("Could not find that player.");
-                      if (inviteButton != null)
-                          inviteButton.interactable = true;
-                      return;
-                  }
-
-                  DataSnapshot snapshot = task.Result;
-
-                  if (snapshot == null || !snapshot.Exists || !snapshot.Children.GetEnumerator().MoveNext())
-                  {
-                      ShowStatus("No registered player found with that email.");
-                      if (inviteButton != null)
-                          inviteButton.interactable = true;
-                      return;
-                  }
-
-                  string targetUid = null;
-                  string targetName = null;
-
-                  foreach (DataSnapshot userSnapshot in snapshot.Children)
-                  {
-                      targetUid = userSnapshot.Key;
-
-                      // Already fetched with the uid - kept so the sender's
-                      // own list can say who the invitation is waiting on.
-                      targetName = userSnapshot.Child("displayName").Value as string;
-                      break;
-                  }
-
-                  if (string.IsNullOrWhiteSpace(targetName))
-                      targetName = invitedEmail;
-
-                  if (string.IsNullOrEmpty(targetUid))
-                  {
-                      ShowStatus("No registered player found with that email.");
-                      if (inviteButton != null)
-                          inviteButton.interactable = true;
-                      return;
-                  }
-
-                  if (targetUid == auth.CurrentUser.UserId)
-                  {
-                      ShowStatus("You cannot invite yourself.");
-                      if (inviteButton != null)
-                          inviteButton.interactable = true;
-                      return;
-                  }
-
-                  ScrabbyLog.Trace("[INVITE] Target UID = " + targetUid);
-                  EnsureRoomThenSendInvite(targetUid, targetName);
-              });
+        // The server finds the player and delivers the invitation; the game
+        // is not allowed to read other people's profiles any more, and does
+        // not need to. See MatchStatusPanel.Invites.cs.
+        CreateRoomThenAskForInvite(invitedEmail);
     }
 
-    private void EnsureRoomThenSendInvite(string targetUid, string targetName)
+    // The room is ours to make - we host it. Only the delivery needs the
+    // server.
+    private void CreateRoomThenAskForInvite(string invitedEmail)
     {
-        if (auth == null || auth.CurrentUser == null || dbRoot == null)
-        {
-            ShowStatus("Firebase is not ready.");
-
-            if (inviteButton != null)
-                inviteButton.interactable = true;
-
-            return;
-        }
-
         string roomCode = GenerateRoomCode();
         string myUid = auth.CurrentUser.UserId;
 
@@ -1338,8 +1271,11 @@ public partial class MatchStatusPanel : MonoBehaviour
             hostDisplayName = displayName,
             guestUid = "",
             guestDisplayName = "",
-            invitedUid = targetUid,
-            invitedDisplayName = targetName,
+            // Filled in by the server once it knows who the address belongs
+            // to; the address stands in until then, so the sender's own list
+            // has something to show.
+            invitedUid = "",
+            invitedDisplayName = invitedEmail,
             status = "waiting",
             createdAtUnix = DateTimeOffset.UtcNow.ToUnixTimeSeconds(),
 
@@ -1348,120 +1284,46 @@ public partial class MatchStatusPanel : MonoBehaviour
             turnTimeMinutes = GetTurnTimeMinutes()
         };
 
-        PreGamePanel.RoomInviteData invite =
-            new PreGamePanel.RoomInviteData
-            {
-                roomCode = roomCode,
-                fromUid = myUid,
-                fromDisplayName = displayName,
-                createdAtUnix = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
-            };
-
-        ScrabbyLog.Trace("[INVITE] Generated new invitation room code: " + roomCode);
-        ScrabbyLog.Trace("[INVITE] Creating room: rooms/" + roomCode);
-
-        dbRoot.Child("rooms")
-              .Child(roomCode)
+        dbRoot.Child("rooms").Child(roomCode)
               .SetRawJsonValueAsync(JsonUtility.ToJson(room))
               .ContinueWithOnMainThread(roomTask =>
-              {
-                  if (roomTask.IsCanceled || roomTask.IsFaulted)
-                  {
-                      Debug.LogError("[INVITE] Room write failed: " + roomTask.Exception);
-                      ShowStatus("Could not create invitation room.");
-
-                      if (inviteButton != null)
-                          inviteButton.interactable = true;
-
-                      return;
-                  }
-
-                  ScrabbyLog.Trace("[INVITE] Room created. Now writing invite to: users/" +
-                            targetUid + "/invites/" + roomCode);
-
-                  dbRoot.Child("users")
-                        .Child(targetUid)
-                        .Child("invites")
-                        .Child(roomCode)
-                        .SetRawJsonValueAsync(JsonUtility.ToJson(invite))
-                        .ContinueWithOnMainThread(inviteTask =>
-                        {
-                            if (inviteTask.IsCanceled || inviteTask.IsFaulted)
-                            {
-                                Debug.LogError("[INVITE] Invite write failed: " +
-                                               inviteTask.Exception);
-
-                                ShowStatus("Room created, but invitation could not be sent.");
-
-                                if (inviteButton != null)
-                                    inviteButton.interactable = true;
-
-                                return;
-                            }
-
-                            ScrabbyLog.Trace("[INVITE] Invite written successfully.");
-
-                            ShowStatus("Invitation sent to " + targetName + ".");
-
-                            if (inviteInput != null)
-                                inviteInput.SetTextWithoutNotify("");
-
-                            if (inviteButton != null)
-                                inviteButton.interactable = true;
-
-                            // The room was being created and the invitation
-                            // written, but never added to the sender's own
-                            // rooms - and the list is built from those. So the
-                            // invitation reached the other player and left no
-                            // trace here, even after a refresh, and the only
-                            // way to find out whether it had worked was to
-                            // press Invite again.
-                            AddRoomToCurrentUser(roomCode, RefreshMatchState);
-                        });
-              });
-    }
-
-    private void SendInviteToUser(string targetUid, string roomCode)
-    {
-        string displayName = string.IsNullOrWhiteSpace(auth.CurrentUser.DisplayName)
-            ? auth.CurrentUser.Email
-            : auth.CurrentUser.DisplayName;
-
-        PreGamePanel.RoomInviteData invite = new PreGamePanel.RoomInviteData
         {
-            roomCode = roomCode,
-            fromUid = auth.CurrentUser.UserId,
-            fromDisplayName = displayName,
-            createdAtUnix = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
-        };
+            if (roomTask.IsCanceled || roomTask.IsFaulted)
+            {
+                Debug.LogError("[INVITE] Room write failed: " + roomTask.Exception);
+                ShowStatus("Could not create the invitation.");
 
-        ScrabbyLog.Trace("[INVITE] Writing invite to: users/" + targetUid + "/invites/" + roomCode);
+                if (inviteButton != null)
+                    inviteButton.interactable = true;
 
-        dbRoot.Child("users")
-              .Child(targetUid)
-              .Child("invites")
-              .Child(roomCode)
-              .SetRawJsonValueAsync(JsonUtility.ToJson(invite))
-              .ContinueWithOnMainThread(task =>
-              {
-                  if (task.IsCanceled || task.IsFaulted)
-                  {
-                      Debug.LogError("[INVITE] Write failed: " + task.Exception);
-                      ShowStatus("Could not send invitation.");
-                      if (inviteButton != null)
-                          inviteButton.interactable = true;
-                      return;
-                  }
+                return;
+            }
 
-                  ScrabbyLog.Trace("[INVITE] Room code = " + roomCode);
-                  ScrabbyLog.Trace("[INVITE] Invite written successfully.");
+            SendInviteRequest(roomCode, invitedEmail, null, (ok, message, invitedName) =>
+            {
+                ShowStatus(message);
 
-                  ShowStatus("Invitation sent to " + inviteInput.text.Trim() + ".");
-                  inviteInput.SetTextWithoutNotify("");
-                  if (inviteButton != null)
-                      inviteButton.interactable = true;
-              });
+                if (inviteButton != null)
+                    inviteButton.interactable = true;
+
+                if (!ok)
+                {
+                    // Nothing came of it, so the room should not sit in
+                    // anybody's list.
+                    dbRoot.Child("rooms").Child(roomCode).RemoveValueAsync();
+                    return;
+                }
+
+                if (inviteInput != null)
+                    inviteInput.SetTextWithoutNotify("");
+
+                // The sender's own list is built from their rooms; without
+                // this the invitation left no trace at this end.
+                AddRoomToCurrentUser(roomCode, RefreshMatchState);
+            });
+        });
     }
+
 
     private void AddRoomToCurrentUser(string roomCode, Action completed)
     {

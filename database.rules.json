@@ -1,0 +1,47 @@
+{
+  "rules": {
+
+    "users": {
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid",
+        ".write": "auth != null && auth.uid === $uid"
+      }
+    },
+
+    "pushTokens": {
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid",
+        ".write": "auth != null && auth.uid === $uid"
+      }
+    },
+
+    "inviteRequests": {
+      "$requestId": {
+        ".read": "auth != null && data.child('fromUid').val() === auth.uid",
+        ".write": "auth != null && ((!data.exists() && newData.child('fromUid').val() === auth.uid) || (data.exists() && data.child('fromUid').val() === auth.uid && !newData.exists()))",
+        ".validate": "newData.hasChildren(['fromUid', 'roomCode']) && (newData.child('toEmail').val() !== '' || newData.child('toUid').val() !== '')"
+      }
+    },
+
+    "rooms": {
+      "$roomCode": {
+        ".read": "auth != null && (data.child('hostUid').val() === auth.uid || data.child('invitedUid').val() === auth.uid || data.child('guestUid').val() === auth.uid || data.child('guestUid').val() === '')",
+        ".write": "auth != null && ((!data.exists() && newData.child('hostUid').val() === auth.uid) || data.child('hostUid').val() === auth.uid || data.child('invitedUid').val() === auth.uid || data.child('guestUid').val() === auth.uid || (data.child('guestUid').val() === '' && newData.child('guestUid').val() === auth.uid))"
+      }
+    },
+
+    "matches": {
+      "$matchId": {
+        ".read": "auth != null && (data.child('player1Uid').val() === auth.uid || data.child('player2Uid').val() === auth.uid || data.child('player2Uid').val() === '')",
+        ".write": "auth != null && ((!data.exists() && (newData.child('player1Uid').val() === auth.uid || newData.child('player2Uid').val() === auth.uid)) || data.child('player1Uid').val() === auth.uid || data.child('player2Uid').val() === auth.uid || (data.child('player2Uid').val() === '' && newData.child('player2Uid').val() === auth.uid))"
+      }
+    },
+
+    "quickQueue": {
+      "waiting": {
+        ".read": "auth != null",
+        ".write": "auth != null && (!newData.exists() || (newData.child('uid').val() === auth.uid && (!data.exists() || data.child('uid').val() === auth.uid)))"
+      }
+    }
+  }
+}

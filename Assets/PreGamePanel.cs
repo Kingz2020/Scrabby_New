@@ -939,22 +939,6 @@ public partial class PreGamePanel : MonoBehaviour
         }, uiScheduler);
     }
 
-    public void SendRoomInvite(string toUid, string roomCode)
-    {
-        if (string.IsNullOrEmpty(toUid) || auth == null || auth.CurrentUser == null)
-            return;
-
-        PreGamePanel.RoomInviteData invite = new PreGamePanel.RoomInviteData
-        {
-            roomCode = roomCode,
-            fromUid = auth.CurrentUser.UserId,
-            fromDisplayName = GetBestDisplayName(),
-            createdAtUnix = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
-        };
-
-        dbRoot.Child("users").Child(toUid).Child("invites").Child(roomCode)
-            .SetRawJsonValueAsync(JsonUtility.ToJson(invite));
-    }
     public void AcceptRoomInvite(string roomCode)
     {
         // remove the invite record, then join normally
@@ -1011,7 +995,17 @@ public partial class PreGamePanel : MonoBehaviour
                 if (task.IsFaulted) { SetStatus("Rematch failed."); return; }
 
                 AddRoomToUser(roomCode);
-                SendRoomInvite(opponentUid, roomCode);
+                // Delivered by the server, like any other invitation.
+                if (matchStatusPanel != null)
+                {
+                    matchStatusPanel.SendInviteRequest(
+                        roomCode, null, opponentUid,
+                        (ok, message, name) => SetStatus(message));
+                }
+                else
+                {
+                    Debug.LogWarning("[INVITE] No match status panel to send the rematch through.");
+                }
                 SetStatus("Rematch invite sent!");
                 ShowPregamePanel(); // or wherever makes sense post-gameover
             });
@@ -1751,15 +1745,24 @@ public partial class PreGamePanel : MonoBehaviour
 
                             ScrabbyLog.Trace("[PregamePanel] Match created: " + matchId);
 
-                            AddMatchToUser(updatedRoom.hostUid, matchId, () =>
-                            {
-                                RemoveRoomFromUser(updatedRoom.hostUid, roomCode);
-                            });
+                            // Both players' lists are brought up to date by the
+                            // server, which watches the match's two player
+                            // slots (functions/index.js, onPlayer1Set /
+                            // onPlayer2Set). A phone may only write its own
+                            // profile now, and writing the other player's is
+                            // what forced the database open in the first
+                            // place. Ours is done here anyway, so this screen
+                            // does not have to wait for the round trip.
+                            string mineNow = auth != null && auth.CurrentUser != null
+                                ? auth.CurrentUser.UserId : "";
 
-                            AddMatchToUser(updatedRoom.guestUid, matchId, () =>
+                            if (!string.IsNullOrEmpty(mineNow))
                             {
-                                RemoveRoomFromUser(updatedRoom.guestUid, roomCode);
-                            });
+                                AddMatchToUser(mineNow, matchId, () =>
+                                {
+                                    RemoveRoomFromUser(mineNow, roomCode);
+                                });
+                            }
 
                             // After AddMatchToUser host + guest callbacks have run
                             var authInstance = FirebaseAuth.DefaultInstance;
