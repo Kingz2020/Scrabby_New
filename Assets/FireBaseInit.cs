@@ -46,6 +46,7 @@ public class FirebaseInit : MonoBehaviour
             IsReady = true;
 
             Debug.Log("Firebase ready.");
+            PushNotifications.Begin();
             AuthStateChanged(this, EventArgs.Empty);
         });
     }
@@ -64,7 +65,10 @@ public class FirebaseInit : MonoBehaviour
             currentUser = Auth.CurrentUser;
 
             if (signedIn)
+            {
                 Debug.Log("Auth state signed in: " + currentUser.Email + " | " + currentUser.UserId);
+                PushNotifications.OnSignedIn();
+            }
             else
                 Debug.Log("Auth state: no user signed in.");
         }

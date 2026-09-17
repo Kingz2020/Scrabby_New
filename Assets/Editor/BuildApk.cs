@@ -36,6 +36,8 @@ public static class BuildApk
             return;
         }
 
+        AppIconSetup.Apply();
+
         Directory.CreateDirectory(OutputDirectory);
 
         // Named by version and date so two builds on a phone are tellable
