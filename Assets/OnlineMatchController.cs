@@ -505,24 +505,34 @@ public class OnlineMatchController : MonoBehaviour
         else
             finalMessage = "It's a tie!";
 
-        string roundSummary =
-            $"Final score: {myScore} - {opponentName} {opponentScore} " +
-            $"(played {match.totalRounds} rounds)";
+        // Two lines, and no more. The rows underneath give every round in
+        // full - both words, both scores, who took it, and a button to watch
+        // it again - so listing the rounds here as well said the same thing
+        // twice and, being longer than its box, printed itself over the rows.
+        int myRounds = 0;
+        int opponentRounds = 0;
 
-        if (match.roundScores != null && match.roundScores.Count > 0)
+        if (match.roundScores != null)
         {
-            roundSummary += "\n\nRound scores";
-
             foreach (RoundScoreLine round in match.roundScores)
             {
-                int myRoundScore = amPlayer1 ? round.player1Score : round.player2Score;
-                int opponentRoundScore = amPlayer1 ? round.player2Score : round.player1Score;
+                if (round.roundNumber <= 0)
+                    continue;
 
-                roundSummary +=
-                    $"\nRound {round.roundNumber}: " +
-                    $"You {myRoundScore} - {opponentName} {opponentRoundScore}";
+                int mine = amPlayer1 ? round.player1Score : round.player2Score;
+                int theirs = amPlayer1 ? round.player2Score : round.player1Score;
+
+                if (mine > theirs)
+                    myRounds++;
+                else if (theirs > mine)
+                    opponentRounds++;
             }
         }
+
+        string roundSummary =
+            $"Final score: {myScore} - {opponentName} {opponentScore}" +
+            $"\nRounds won: you {myRounds}, {opponentName} {opponentRounds}";
+
 
         uiManager.ShowGameOverPanel(finalMessage, roundSummary);
 

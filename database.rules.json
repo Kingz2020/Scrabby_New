@@ -40,7 +40,7 @@
     "quickQueue": {
       "waiting": {
         ".read": "auth != null",
-        ".write": "auth != null && (!newData.exists() || (newData.child('uid').val() === auth.uid && (!data.exists() || data.child('uid').val() === auth.uid)))"
+        ".write": "auth != null && (!newData.exists() || newData.child('uid').val() === auth.uid)"
       }
     }
   }
