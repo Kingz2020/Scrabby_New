@@ -29,7 +29,8 @@ public class OnlineMatchController : MonoBehaviour
 
     private static void VerboseLog(object message)
     {
-        if (Verbose)
+        // Either this switch or the project-wide one (Scrabby > Logs).
+        if (Verbose || ScrabbyLog.Verbose)
             UnityEngine.Debug.Log(message);
     }
 

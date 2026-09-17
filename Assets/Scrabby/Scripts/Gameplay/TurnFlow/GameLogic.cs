@@ -31,7 +31,8 @@ public partial class GameLogic : MonoBehaviour
 
     private static void VerboseLog(object message)
     {
-        if (Verbose)
+        // Either this switch or the project-wide one (Scrabby > Logs).
+        if (Verbose || ScrabbyLog.Verbose)
             UnityEngine.Debug.Log(message);
     }
 
@@ -5597,28 +5598,15 @@ public partial class GameLogic : MonoBehaviour
         ClearBoardForNewGame();
         InitGame(maxHandSize, boardSizeX, boardSizeY, GameInitMode.Online);
 
-        // NEW: apply persisted board state from match
-        if (!string.IsNullOrEmpty(boardStateJson))
-        {
-            BoardStateData savedBoard = JsonUtility.FromJson<BoardStateData>(boardStateJson);
-            if (savedBoard != null && savedBoard.cells != null)
-            {
-                ApplyBoardStateToScene(savedBoard);
-            }
-            else
-            {
-                Debug.LogWarning("[ONLINE] boardStateJson could not be parsed, starting from empty board.");
-            }
-        }
-        else
-        {
-            VerboseLog("[ONLINE] boardStateJson empty, starting from empty board.");
-        }
-
-        // Existing: bonus board JSON (multipliers etc.)
-        //StartCoroutine(ApplyBonusBoardDelayed(bonusBoardJson));
-
-        StartCoroutine(BeginOnlineRoundIntro(bonusBoardJson,lastRoundResultJson));
+        // The board squares may not exist yet: entering a match from the
+        // matches list switches the gameplay panel on, and BoardGen builds the
+        // squares in its own Start, which runs after this. Placing the
+        // previous round's winning word before then put every tile nowhere -
+        // "could not find GhostTile at row 4, col 8" - so the word that won
+        // round one was simply missing from round two, and a new word had
+        // nothing to join onto.
+        StartCoroutine(ApplyOnlineBoardWhenReady(
+            boardStateJson, bonusBoardJson, lastRoundResultJson));
 
         if (localRack == null)
             localRack = new List<LetterInfo>();
@@ -5637,7 +5625,6 @@ public partial class GameLogic : MonoBehaviour
         currentState = TurnState.PlayerTurn;
 
         RebuildHandUIFromLogicalHand();
-        SaveCurrentRoundSnapshot();
 
         if (Singleton.Instance != null && Singleton.Instance.UIManager != null)
         {
@@ -5649,6 +5636,41 @@ public partial class GameLogic : MonoBehaviour
         }
 
         VerboseLog("[ONLINE] Local hydrated rack count = " + playerHandTiles.Count);
+    }
+
+    // Waits for the board to exist, then puts the match's board on it: the
+    // words already played, the bonus squares, and the replay of the word that
+    // won the last round.
+    private IEnumerator ApplyOnlineBoardWhenReady(
+        string boardStateJson, string bonusBoardJson, string lastRoundResultJson)
+    {
+        yield return StartCoroutine(WaitForBoardCells());
+
+        if (!string.IsNullOrEmpty(boardStateJson))
+        {
+            BoardStateData savedBoard = JsonUtility.FromJson<BoardStateData>(boardStateJson);
+
+            if (savedBoard != null && savedBoard.cells != null)
+            {
+                ApplyBoardStateToScene(savedBoard);
+                VerboseLog("[ONLINE] Board state applied to " +
+                           (savedBoard.cells != null ? savedBoard.cells.Count : 0) + " cells.");
+            }
+            else
+            {
+                Debug.LogWarning("[ONLINE] boardStateJson could not be parsed, starting from empty board.");
+            }
+        }
+        else
+        {
+            VerboseLog("[ONLINE] boardStateJson empty, starting from empty board.");
+        }
+
+        // Taken now rather than before the board was applied, because this is
+        // what the round is restored from.
+        SaveCurrentRoundSnapshot();
+
+        yield return StartCoroutine(BeginOnlineRoundIntro(bonusBoardJson, lastRoundResultJson));
     }
 
     private IEnumerator BeginOnlineRoundIntro(
