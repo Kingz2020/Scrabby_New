@@ -35,6 +35,13 @@ public static class PushNotifications
         FirebaseMessaging.RequestPermissionAsync().ContinueWithOnMainThread(task =>
             ScrabbyLog.Trace("[PUSH] Permission request " + (task.IsFaulted ? "failed: " + task.Exception : "done.")));
 
+        // A notification says "your move" or "the round is decided". Once the
+        // game is open, it has been read, whether it was tapped or the player
+        // came in by the icon - and Android only clears the one that was
+        // tapped. So they go when the game comes to the front.
+        ClearShownNotifications();
+        Application.focusChanged += OnFocusChanged;
+
         FirebaseMessaging.GetTokenAsync().ContinueWithOnMainThread(task =>
         {
             if (task.IsFaulted || task.IsCanceled)
@@ -45,6 +52,35 @@ public static class PushNotifications
 
             Save(task.Result);
         });
+    }
+
+    private static void OnFocusChanged(bool focused)
+    {
+        if (focused)
+            ClearShownNotifications();
+    }
+
+    // Takes down every notification this app has shown. There is nothing left
+    // to tell the player: they are looking at the game, and the list of
+    // matches says which are waiting on them.
+    public static void ClearShownNotifications()
+    {
+#if UNITY_ANDROID && !UNITY_EDITOR
+        try
+        {
+            using (AndroidJavaClass player = new AndroidJavaClass("com.unity3d.player.UnityPlayer"))
+            using (AndroidJavaObject activity = player.GetStatic<AndroidJavaObject>("currentActivity"))
+            using (AndroidJavaObject manager = activity.Call<AndroidJavaObject>("getSystemService", "notification"))
+            {
+                if (manager != null)
+                    manager.Call("cancelAll");
+            }
+        }
+        catch (System.Exception e)
+        {
+            Debug.LogWarning("[PUSH] Could not clear notifications: " + e.Message);
+        }
+#endif
     }
 
     // A token can arrive before anyone has signed in, so it is saved again once
