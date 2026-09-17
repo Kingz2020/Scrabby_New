@@ -9,7 +9,7 @@ public class FireBaseAuthTest : MonoBehaviour
 
     void Start()
     {
-        Debug.Log("FireBaseAuthTest Start on " + gameObject.name);
+        ScrabbyLog.Trace("FireBaseAuthTest Start on " + gameObject.name);
 
        // Invoke(nameof(TestLogin), 2f);
     }
@@ -40,7 +40,7 @@ public class FireBaseAuthTest : MonoBehaviour
                 }
 
                 var user = task.Result.User;
-                Debug.Log("User created successfully: " + user.Email + " | " + user.UserId);
+                ScrabbyLog.Trace("User created successfully: " + user.Email + " | " + user.UserId);
             });
     }
 
@@ -54,11 +54,11 @@ public class FireBaseAuthTest : MonoBehaviour
 
         var auth = FirebaseInit.Auth;
 
-        Debug.Log("Before sign-in, CurrentUser = " + auth.CurrentUser?.UserId);
+        ScrabbyLog.Trace("Before sign-in, CurrentUser = " + auth.CurrentUser?.UserId);
 
         if (auth.CurrentUser != null)
         {
-            Debug.Log("User already signed in: " + auth.CurrentUser.Email + " | " + auth.CurrentUser.UserId);
+            ScrabbyLog.Trace("User already signed in: " + auth.CurrentUser.Email + " | " + auth.CurrentUser.UserId);
             return;
         }
 
@@ -78,8 +78,8 @@ public class FireBaseAuthTest : MonoBehaviour
                 }
 
                 var user = task.Result.User;
-                Debug.Log("Signed in successfully: " + user.Email + " | " + user.UserId);
-                Debug.Log("After sign-in, CurrentUser = " + auth.CurrentUser?.UserId);
+                ScrabbyLog.Trace("Signed in successfully: " + user.Email + " | " + user.UserId);
+                ScrabbyLog.Trace("After sign-in, CurrentUser = " + auth.CurrentUser?.UserId);
             });
     }
 } 

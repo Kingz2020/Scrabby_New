@@ -477,7 +477,7 @@ public partial class GameLogic
             boardSizeX = board.RowX;
             boardSizeY = board.RowY;
 
-            Debug.Log("[DAILY] Generating on a " + boardSizeX + " x " +
+            ScrabbyLog.Trace("[DAILY] Generating on a " + boardSizeX + " x " +
                       boardSizeY + " board (" + board.name + ").");
         }
 

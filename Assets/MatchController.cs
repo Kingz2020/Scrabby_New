@@ -216,7 +216,7 @@ public class MatchController : MonoBehaviour
                         return;
                     }
 
-                    Debug.Log("[MatchController] Round " + roundNumber + " resolved.");
+                    ScrabbyLog.Trace("[MatchController] Round " + roundNumber + " resolved.");
                 });
             });
     }

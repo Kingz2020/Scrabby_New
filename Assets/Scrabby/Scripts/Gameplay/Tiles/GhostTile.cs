@@ -62,7 +62,7 @@ public class GhostTile : MonoBehaviour, IPointerEnterHandler, IPointerExitHandle
     {
         letterPosition.RowX = x;
         letterPosition.ColY = y;
-        Debug.Log($"[GHOST] {name} SetLocation => RowX={x}, ColY={y}");
+        ScrabbyLog.Trace($"[GHOST] {name} SetLocation => RowX={x}, ColY={y}");
     }
 
     // The grid sizes each cell to match the board art's cavity, but a child

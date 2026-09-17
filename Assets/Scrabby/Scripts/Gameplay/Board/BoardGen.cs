@@ -74,7 +74,7 @@ public class BoardGen : MonoBehaviour {
         float height = padY * 2f + cell * RowY + gap * (RowY - 1);
         rect.sizeDelta = new Vector2(rect.sizeDelta.x, height);
 
-        Debug.Log($"[BOARD] width={width:F2} cell={cell:F2} gap={gap:F2} " +
+        ScrabbyLog.Trace($"[BOARD] width={width:F2} cell={cell:F2} gap={gap:F2} " +
                   $"padX={padX:F2} padY={padY:F2} height={height:F2} " +
                   $"rectAfter={rect.rect.width:F2}x{rect.rect.height:F2}");
     }

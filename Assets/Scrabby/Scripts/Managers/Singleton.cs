@@ -14,8 +14,8 @@ public class Singleton : MonoBehaviour
 
     private void Awake()
     {
-        Debug.Log("[SINGLETON] Awake ran on " + gameObject.name + " frame " + Time.frameCount);
-        Debug.Log("[SINGLETON] Awake on " + gameObject.name);
+        ScrabbyLog.Trace("[SINGLETON] Awake ran on " + gameObject.name + " frame " + Time.frameCount);
+        ScrabbyLog.Trace("[SINGLETON] Awake on " + gameObject.name);
 
         if (Instance != null && Instance != this)
         {
@@ -34,9 +34,9 @@ public class Singleton : MonoBehaviour
         WordLookupLogic = GetComponentInChildren<WordLookupLogic>(true);
         OnlineMatchController = GetComponentInChildren<OnlineMatchController>(true);
 
-        Debug.Log("[SINGLETON] Instance assigned. UIManager null? " + (UIManager == null));
-        Debug.Log("[SINGLETON] GameLogic null? " + (GameLogic == null));
-        Debug.Log("[SINGLETON] OnlineMatchController null? " + (OnlineMatchController == null));
+        ScrabbyLog.Trace("[SINGLETON] Instance assigned. UIManager null? " + (UIManager == null));
+        ScrabbyLog.Trace("[SINGLETON] GameLogic null? " + (GameLogic == null));
+        ScrabbyLog.Trace("[SINGLETON] OnlineMatchController null? " + (OnlineMatchController == null));
 
         if (OnlineMatchController == null)
             Debug.LogError("[SINGLETON] OnlineMatchController was not found under Manager.");

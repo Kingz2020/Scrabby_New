@@ -84,7 +84,7 @@ public class MatchStatusRow : MonoBehaviour
 
         actionButton.onClick.AddListener(() =>
         {
-            Debug.Log(
+            ScrabbyLog.Trace(
                 "[MATCH ROW CLICK] roomCode=" + roomCode +
                 " | matchId=" + matchId +
                 " | isCompleted=" + isCompleted

@@ -29,11 +29,11 @@ public static class PushNotifications
         // A notification that arrives while the game is open is not shown by
         // Android; the player is already looking at the game.
         FirebaseMessaging.MessageReceived += (sender, e) =>
-            Debug.Log("[PUSH] Received while open: " +
+            ScrabbyLog.Trace("[PUSH] Received while open: " +
                       (e.Message.Notification != null ? e.Message.Notification.Body : "(data only)"));
 
         FirebaseMessaging.RequestPermissionAsync().ContinueWithOnMainThread(task =>
-            Debug.Log("[PUSH] Permission request " + (task.IsFaulted ? "failed: " + task.Exception : "done.")));
+            ScrabbyLog.Trace("[PUSH] Permission request " + (task.IsFaulted ? "failed: " + task.Exception : "done.")));
 
         FirebaseMessaging.GetTokenAsync().ContinueWithOnMainThread(task =>
         {

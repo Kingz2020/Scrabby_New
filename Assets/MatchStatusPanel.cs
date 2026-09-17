@@ -95,7 +95,7 @@ public partial class MatchStatusPanel : MonoBehaviour
         if (newMatchTabButton != null)
             newMatchTabButton.onClick.AddListener(ShowNewMatchTab);
 
-        Debug.Log("[WIRING CHECK] loginButton=" + (loginButton != null ? loginButton.name : "NULL") +
+        ScrabbyLog.Trace("[WIRING CHECK] loginButton=" + (loginButton != null ? loginButton.name : "NULL") +
                " | logoutbutton=" + (logoutbutton != null ? logoutbutton.name : "NULL"));
 
         //if (onlineMatchController == null)
@@ -202,7 +202,7 @@ public partial class MatchStatusPanel : MonoBehaviour
 
     public void OnLogoutButtonPressed()
     {
-        Debug.Log("[MATCH STATUS] Logout button pressed");
+        ScrabbyLog.Trace("[MATCH STATUS] Logout button pressed");
 
         if (preGamePanel == null)
         {
@@ -301,7 +301,7 @@ public partial class MatchStatusPanel : MonoBehaviour
 
     private void OnCreateRoomPressed()
     {
-        Debug.Log(
+        ScrabbyLog.Trace(
             "[MATCH STATUS] Create Room | Players=" +
             GetPlayerCount() +
             " Rounds=" +
@@ -323,7 +323,7 @@ public partial class MatchStatusPanel : MonoBehaviour
 
         string roomCode = roomCodeText.text.Trim().ToUpper();
 
-        Debug.Log("[MATCH STATUS] OnJoinRoomPressed — raw input='" + roomCodeText.text +
+        ScrabbyLog.Trace("[MATCH STATUS] OnJoinRoomPressed — raw input='" + roomCodeText.text +
                   "' | normalized roomCode='" + roomCode + "' | length=" + roomCode.Length);
 
         if (string.IsNullOrWhiteSpace(roomCode))
@@ -347,7 +347,7 @@ public partial class MatchStatusPanel : MonoBehaviour
 
     private void OnResumeMatchPressed()
     {
-        Debug.Log("[MATCH STATUS] Resume Match");
+        ScrabbyLog.Trace("[MATCH STATUS] Resume Match");
 
         ShowStatus("Loading match...");
     }
@@ -355,7 +355,7 @@ public partial class MatchStatusPanel : MonoBehaviour
 
     private void RefreshMatchState()
     {
-        Debug.Log("[MATCH STATUS] RefreshMatchState (legacy) called");
+        ScrabbyLog.Trace("[MATCH STATUS] RefreshMatchState (legacy) called");
 
         if (dbRoot == null)
         {
@@ -383,8 +383,8 @@ public partial class MatchStatusPanel : MonoBehaviour
 
         string uid = auth.CurrentUser.UserId;
 
-        Debug.Log("[MATCH STATUS] uid=" + uid);
-        Debug.Log("[MATCH STATUS] path=users/" + uid);
+        ScrabbyLog.Trace("[MATCH STATUS] uid=" + uid);
+        ScrabbyLog.Trace("[MATCH STATUS] path=users/" + uid);
 
         WatchCurrentUser(uid);
 
@@ -516,7 +516,7 @@ public partial class MatchStatusPanel : MonoBehaviour
         //
         foreach (string matchId in matchIds)
         {
-            Debug.Log(
+            ScrabbyLog.Trace(
                 "[MATCH LIST] Loading match"
                 + " | uid=" + myUid
                 + " | matchId=" + matchId
@@ -551,7 +551,7 @@ public partial class MatchStatusPanel : MonoBehaviour
                 {
                     matchSnapshot = matchTask.Result;
 
-                    Debug.Log(
+                    ScrabbyLog.Trace(
                         "[MATCH LIST] Match became available"
                         + " | matchId=" + matchId
                         + " | attempt=" + (attempt + 1)
@@ -560,7 +560,7 @@ public partial class MatchStatusPanel : MonoBehaviour
                     break;
                 }
 
-                Debug.Log(
+                ScrabbyLog.Trace(
                     "[MATCH LIST] Match not available yet; retrying"
                     + " | matchId=" + matchId
                     + " | attempt=" + (attempt + 1)
@@ -581,7 +581,7 @@ public partial class MatchStatusPanel : MonoBehaviour
 
             string rawMatchJson = matchSnapshot.GetRawJsonValue();
 
-            Debug.Log(
+            ScrabbyLog.Trace(
                 "[MATCH LIST] Match JSON"
                 + " | matchId=" + matchId
                 + " | length=" + (rawMatchJson == null ? 0 : rawMatchJson.Length)
@@ -600,7 +600,7 @@ public partial class MatchStatusPanel : MonoBehaviour
                 continue;
             }
 
-            Debug.Log(
+            ScrabbyLog.Trace(
                 "[MATCH LIST] Match parsed"
                 + " | matchId=" + match.matchId
                 + " | status=" + match.status
@@ -689,7 +689,7 @@ public partial class MatchStatusPanel : MonoBehaviour
                     );
                 }
 
-               /* Debug.Log(
+               /* ScrabbyLog.Trace(
                     "[MATCH STATUS] Per-user submission check" +
                     " | uid=" + myUid +
                     " | matchId=" + match.matchId +
@@ -721,13 +721,13 @@ public partial class MatchStatusPanel : MonoBehaviour
             invitesTask.Result != null &&
             invitesTask.Result.Exists)
         {
-            Debug.Log("[MATCH STATUS] Invites node exists, children count = " +
+            ScrabbyLog.Trace("[MATCH STATUS] Invites node exists, children count = " +
               invitesTask.Result.ChildrenCount);
 
             foreach (var child in invitesTask.Result.Children)
             {
-                Debug.Log("[MATCH STATUS] Invite child key = " + child.Key);
-                Debug.Log("[MATCH STATUS] Invite raw JSON = " + child.GetRawJsonValue());
+                ScrabbyLog.Trace("[MATCH STATUS] Invite child key = " + child.Key);
+                ScrabbyLog.Trace("[MATCH STATUS] Invite raw JSON = " + child.GetRawJsonValue());
 
                 string raw = child.GetRawJsonValue();
                 if (string.IsNullOrEmpty(raw))
@@ -749,7 +749,7 @@ public partial class MatchStatusPanel : MonoBehaviour
         }
         /*else
         {
-            Debug.Log("[MATCH STATUS] No invites found or error: " +
+            ScrabbyLog.Trace("[MATCH STATUS] No invites found or error: " +
                       (invitesTask.IsFaulted ? invitesTask.Exception?.ToString() : "none"));
         }
         */
@@ -813,7 +813,7 @@ public partial class MatchStatusPanel : MonoBehaviour
         //ClearRows();
         //ShowStatus("Loading matches...");
 
-        Debug.Log("[MATCH STATUS] RefreshMatchStateForUser called with uid=" + uid);
+        ScrabbyLog.Trace("[MATCH STATUS] RefreshMatchStateForUser called with uid=" + uid);
 
         if (dbRoot == null)
         {
@@ -858,10 +858,10 @@ public partial class MatchStatusPanel : MonoBehaviour
                       return;
                   }
 
-                  Debug.Log("[MATCH STATUS] user.activeRoomIds=" +
+                  ScrabbyLog.Trace("[MATCH STATUS] user.activeRoomIds=" +
           (user.activeRoomIds == null ? "NULL" : string.Join(",", user.activeRoomIds)));
 
-                  Debug.Log("[MATCH STATUS] user.activeMatchIds=" +
+                  ScrabbyLog.Trace("[MATCH STATUS] user.activeMatchIds=" +
                             (user.activeMatchIds == null ? "NULL" : string.Join(",", user.activeMatchIds)));
 
                   StartCoroutine(LoadMatchList(uid, user.activeRoomIds, user.activeMatchIds));
@@ -886,7 +886,7 @@ public partial class MatchStatusPanel : MonoBehaviour
 
     public void OnRefreshPressed()
     {
-        Debug.Log("[MATCH STATUS] Refresh requested");
+        ScrabbyLog.Trace("[MATCH STATUS] Refresh requested");
         ShowStatus("Checking for active matches...");
         RefreshMatchState();
     }
@@ -921,7 +921,7 @@ public partial class MatchStatusPanel : MonoBehaviour
 
     private void OnRowSelected(string roomCode, string matchId, bool isCompleted)
     {
-        Debug.Log(
+        ScrabbyLog.Trace(
                     "[MATCH STATUS ROW SELECTED] roomCode=" + roomCode +
                     " | matchId=" + matchId +
                     " | isCompleted=" + isCompleted
@@ -938,7 +938,7 @@ public partial class MatchStatusPanel : MonoBehaviour
 
         if (!string.IsNullOrEmpty(matchId))
         {
-            Debug.Log(
+            ScrabbyLog.Trace(
                         "[MATCH STATUS] Calling ResumeMatch for matchId=" + matchId
                     );
             // Active match: resume gameplay flow
@@ -959,7 +959,7 @@ public partial class MatchStatusPanel : MonoBehaviour
     List<MatchListItemData> completedItems,
     List<MatchListItemData> inviteItems = null)
     {
-        Debug.Log(
+        ScrabbyLog.Trace(
             "[MATCH LIST BUILD]"
             + " active=" + activeItems.Count
             + " completed=" + completedItems.Count
@@ -981,7 +981,7 @@ public partial class MatchStatusPanel : MonoBehaviour
 
         foreach (var item in activeItems)
         {
-            Debug.Log(
+            ScrabbyLog.Trace(
                 "[MATCH LIST CREATE ACTIVE]"
                 + " matchId=" + item.matchId
                 + " submitted=" + item.hasSubmittedThisRound
@@ -1212,8 +1212,8 @@ public partial class MatchStatusPanel : MonoBehaviour
 
         string invitedEmail = inviteInput.text.Trim().ToLowerInvariant();
 
-        Debug.Log("[INVITE] Inviter UID = " + auth.CurrentUser.UserId);
-        Debug.Log("[INVITE] Target email = " + invitedEmail);
+        ScrabbyLog.Trace("[INVITE] Inviter UID = " + auth.CurrentUser.UserId);
+        ScrabbyLog.Trace("[INVITE] Target email = " + invitedEmail);
         // targetUid and roomCode are not known yet; log them later in EnsureRoomThenSendInvite / SendInviteToUser
 
         if (string.IsNullOrWhiteSpace(invitedEmail))
@@ -1307,7 +1307,7 @@ public partial class MatchStatusPanel : MonoBehaviour
                       return;
                   }
 
-                  Debug.Log("[INVITE] Target UID = " + targetUid);
+                  ScrabbyLog.Trace("[INVITE] Target UID = " + targetUid);
                   EnsureRoomThenSendInvite(targetUid, targetName);
               });
     }
@@ -1357,8 +1357,8 @@ public partial class MatchStatusPanel : MonoBehaviour
                 createdAtUnix = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
             };
 
-        Debug.Log("[INVITE] Generated new invitation room code: " + roomCode);
-        Debug.Log("[INVITE] Creating room: rooms/" + roomCode);
+        ScrabbyLog.Trace("[INVITE] Generated new invitation room code: " + roomCode);
+        ScrabbyLog.Trace("[INVITE] Creating room: rooms/" + roomCode);
 
         dbRoot.Child("rooms")
               .Child(roomCode)
@@ -1376,7 +1376,7 @@ public partial class MatchStatusPanel : MonoBehaviour
                       return;
                   }
 
-                  Debug.Log("[INVITE] Room created. Now writing invite to: users/" +
+                  ScrabbyLog.Trace("[INVITE] Room created. Now writing invite to: users/" +
                             targetUid + "/invites/" + roomCode);
 
                   dbRoot.Child("users")
@@ -1399,7 +1399,7 @@ public partial class MatchStatusPanel : MonoBehaviour
                                 return;
                             }
 
-                            Debug.Log("[INVITE] Invite written successfully.");
+                            ScrabbyLog.Trace("[INVITE] Invite written successfully.");
 
                             ShowStatus("Invitation sent to " + targetName + ".");
 
@@ -1435,7 +1435,7 @@ public partial class MatchStatusPanel : MonoBehaviour
             createdAtUnix = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
         };
 
-        Debug.Log("[INVITE] Writing invite to: users/" + targetUid + "/invites/" + roomCode);
+        ScrabbyLog.Trace("[INVITE] Writing invite to: users/" + targetUid + "/invites/" + roomCode);
 
         dbRoot.Child("users")
               .Child(targetUid)
@@ -1453,8 +1453,8 @@ public partial class MatchStatusPanel : MonoBehaviour
                       return;
                   }
 
-                  Debug.Log("[INVITE] Room code = " + roomCode);
-                  Debug.Log("[INVITE] Invite written successfully.");
+                  ScrabbyLog.Trace("[INVITE] Room code = " + roomCode);
+                  ScrabbyLog.Trace("[INVITE] Invite written successfully.");
 
                   ShowStatus("Invitation sent to " + inviteInput.text.Trim() + ".");
                   inviteInput.SetTextWithoutNotify("");

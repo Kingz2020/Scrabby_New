@@ -63,7 +63,7 @@ public class BoardDropDiagnostics : MonoBehaviour
 
         int expectedCount = boardGen.RowX * boardGen.RowY;
 
-        Debug.Log(
+        ScrabbyLog.Trace(
             "[DROP DIAGNOSTIC] START | expected=" +
             expectedCount +
             " | activeGhostTiles=" +
@@ -195,7 +195,7 @@ public class BoardDropDiagnostics : MonoBehaviour
             }
         }
 
-        Debug.Log(
+        ScrabbyLog.Trace(
             "[DROP DIAGNOSTIC] END | clear=" +
             clearCount +
             " | blocked=" +

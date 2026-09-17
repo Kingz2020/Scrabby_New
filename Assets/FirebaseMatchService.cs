@@ -36,7 +36,7 @@ public class FirebaseMatchService : MonoBehaviour
             .ContinueWithOnMainThread(task =>
             {
                 if (task.IsFaulted) Debug.LogError("CreateUserProfile failed: " + task.Exception);
-                else Debug.Log("User profile saved.");
+                else ScrabbyLog.Trace("User profile saved.");
             });
     }
 
@@ -60,7 +60,7 @@ public class FirebaseMatchService : MonoBehaviour
             .ContinueWithOnMainThread(task =>
             {
                 if (task.IsFaulted) Debug.LogError("CreateRoom failed: " + task.Exception);
-                else Debug.Log("Room created: " + roomCode);
+                else ScrabbyLog.Trace("Room created: " + roomCode);
             });
     }
 
@@ -106,7 +106,7 @@ public class FirebaseMatchService : MonoBehaviour
             roomRef.Child("status").SetValueAsync("full");
             db.Child("users").Child(user.UserId).Child("currentRoomId").SetValueAsync(roomCode);
 
-            Debug.Log("Joined room: " + roomCode);
+            ScrabbyLog.Trace("Joined room: " + roomCode);
 
             CreateMatch(roomCode, hostUid, user.UserId);
         });
@@ -144,7 +144,7 @@ public class FirebaseMatchService : MonoBehaviour
                 db.Child("users").Child(hostUid).Child("currentMatchId").SetValueAsync(matchId);
                 db.Child("users").Child(guestUid).Child("currentMatchId").SetValueAsync(matchId);
 
-                Debug.Log("Match created: " + matchId);
+                ScrabbyLog.Trace("Match created: " + matchId);
             });
     }
 

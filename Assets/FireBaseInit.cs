@@ -15,7 +15,7 @@ public class FirebaseInit : MonoBehaviour
 
     void Start()
     {
-        Debug.Log("FirebaseInit Start on " + gameObject.name);
+        ScrabbyLog.Trace("FirebaseInit Start on " + gameObject.name);
 
 
         FirebaseApp.CheckAndFixDependenciesAsync().ContinueWithOnMainThread(task =>
@@ -30,11 +30,11 @@ public class FirebaseInit : MonoBehaviour
             Auth = FirebaseAuth.DefaultInstance;
             //Database = FirebaseDatabase.DefaultInstance;
             Database = FirebaseDatabase.GetInstance("https://partyscrabby-default-rtdb.europe-west1.firebasedatabase.app/");
-            Debug.Log("Database object: " + Database);
+            ScrabbyLog.Trace("Database object: " + Database);
 
             if (Database != null)
             {
-                Debug.Log("RootReference: " + Database.RootReference);
+                ScrabbyLog.Trace("RootReference: " + Database.RootReference);
             }
             else
             {
@@ -60,17 +60,17 @@ public class FirebaseInit : MonoBehaviour
             bool signedIn = currentUser != Auth.CurrentUser && Auth.CurrentUser != null && Auth.CurrentUser.IsValid();
 
             if (!signedIn && currentUser != null)
-                Debug.Log("Signed out: " + currentUser.UserId);
+                ScrabbyLog.Trace("Signed out: " + currentUser.UserId);
 
             currentUser = Auth.CurrentUser;
 
             if (signedIn)
             {
-                Debug.Log("Auth state signed in: " + currentUser.Email + " | " + currentUser.UserId);
+                ScrabbyLog.Trace("Auth state signed in: " + currentUser.Email + " | " + currentUser.UserId);
                 PushNotifications.OnSignedIn();
             }
             else
-                Debug.Log("Auth state: no user signed in.");
+                ScrabbyLog.Trace("Auth state: no user signed in.");
         }
     }
 

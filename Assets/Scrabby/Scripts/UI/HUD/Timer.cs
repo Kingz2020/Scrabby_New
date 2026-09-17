@@ -36,7 +36,7 @@ public class Timer : MonoBehaviour
         {
             remainingTime = 0f;
             timerRunning = false;
-            Debug.Log("Time is up!");
+            ScrabbyLog.Trace("Time is up!");
         }
 
         UpdateTimerDisplay();

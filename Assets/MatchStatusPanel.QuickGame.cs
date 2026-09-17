@@ -39,7 +39,7 @@ public partial class MatchStatusPanel
     // back on - entering the game, submitting a round, waiting, resolving -
     // which is normally muted because it floods the console. Set to false once
     // quick game is known to work.
-    private const bool QuickGameTraceOnlineMatch = true;
+    private const bool QuickGameTraceOnlineMatch = false;
 
     private bool quickBusy;
 
@@ -67,7 +67,7 @@ public partial class MatchStatusPanel
     {
         if (quickBusy)
         {
-            Debug.Log("[QUICK] Pressed while already starting one - ignored.");
+            ScrabbyLog.Trace("[QUICK] Pressed while already starting one - ignored.");
             return;
         }
 
@@ -94,13 +94,13 @@ public partial class MatchStatusPanel
         SetQuickGameBusy(true);
         ShowStatus("Starting a quick game...");
 
-        Debug.Log("[QUICK] ===== Pressed | uid=" + auth.CurrentUser.UserId +
+        ScrabbyLog.Trace("[QUICK] ===== Pressed | uid=" + auth.CurrentUser.UserId +
                   " name=" + MyQuickGameName() + " =====");
 
         if (QuickGameTraceOnlineMatch)
         {
             OnlineMatchController.Verbose = true;
-            Debug.Log("[QUICK] Online match tracing switched on for this session " +
+            ScrabbyLog.Trace("[QUICK] Online match tracing switched on for this session " +
                       "([MATCHTRACE] and [OnlineMatchController] lines).");
         }
 
@@ -125,7 +125,7 @@ public partial class MatchStatusPanel
         SlotResult result = SlotResult.Empty;
         string foundMatch = null;
 
-        Debug.Log("[QUICK] Step 1 (attempt " + attempt + "): looking in quickQueue/waiting");
+        ScrabbyLog.Trace("[QUICK] Step 1 (attempt " + attempt + "): looking in quickQueue/waiting");
 
         QuickSlot.RunTransaction(data =>
         {
@@ -133,7 +133,7 @@ public partial class MatchStatusPanel
             foundMatch = null;
 
             var current = data.Value as Dictionary<string, object>;
-            Debug.Log("[QUICK]   step 1 run sees: " + DescribeSlot(data.Value, current, now));
+            ScrabbyLog.Trace("[QUICK]   step 1 run sees: " + DescribeSlot(data.Value, current, now));
 
             // Success, not abort, on an empty-looking slot: the first run is
             // often against a cache that has not heard from the server, and an
@@ -168,7 +168,7 @@ public partial class MatchStatusPanel
         })
         .ContinueWithOnMainThread(task =>
         {
-            Debug.Log("[QUICK] Step 1 done | faulted=" + task.IsFaulted +
+            ScrabbyLog.Trace("[QUICK] Step 1 done | faulted=" + task.IsFaulted +
                       " canceled=" + task.IsCanceled + " result=" + result +
                       " match=" + foundMatch);
 
@@ -181,13 +181,13 @@ public partial class MatchStatusPanel
             switch (result)
             {
                 case SlotResult.Own:
-                    Debug.Log("[QUICK] My own open game " + foundMatch +
+                    ScrabbyLog.Trace("[QUICK] My own open game " + foundMatch +
                               " is still waiting for an opponent - carrying on with it.");
                     EnterQuickGame(foundMatch);
                     break;
 
                 case SlotResult.Stale:
-                    Debug.Log("[QUICK] Cleared an expired or old-format entry; looking again.");
+                    ScrabbyLog.Trace("[QUICK] Cleared an expired or old-format entry; looking again.");
                     FindOpenGame(attempt + 1);
                     break;
 
@@ -196,7 +196,7 @@ public partial class MatchStatusPanel
                     break;
 
                 default:
-                    Debug.Log("[QUICK] Nobody's open game is waiting - starting a new one.");
+                    ScrabbyLog.Trace("[QUICK] Nobody's open game is waiting - starting a new one.");
                     CreateOpenGame(attempt);
                     break;
             }
@@ -209,7 +209,7 @@ public partial class MatchStatusPanel
         string myUid = auth.CurrentUser.UserId;
         DatabaseReference match = dbRoot.Child("matches").Child(matchId);
 
-        Debug.Log("[QUICK] Step 2a: joining matches/" + matchId);
+        ScrabbyLog.Trace("[QUICK] Step 2a: joining matches/" + matchId);
 
         // Checked first so a game that has since been removed is not recreated
         // as a stub by writing a player into it.
@@ -219,7 +219,7 @@ public partial class MatchStatusPanel
                 ? null
                 : readTask.Result.Value as string;
 
-            Debug.Log("[QUICK]   match player1Uid=" + (player1 ?? "(missing)") +
+            ScrabbyLog.Trace("[QUICK]   match player1Uid=" + (player1 ?? "(missing)") +
                       " readFaulted=" + readTask.IsFaulted);
 
             if (string.IsNullOrEmpty(player1))
@@ -259,7 +259,7 @@ public partial class MatchStatusPanel
             })
             .ContinueWithOnMainThread(seatTask =>
             {
-                Debug.Log("[QUICK]   seat transaction | faulted=" + seatTask.IsFaulted +
+                ScrabbyLog.Trace("[QUICK]   seat transaction | faulted=" + seatTask.IsFaulted +
                           " joined=" + joined);
 
                 if (seatTask.IsFaulted || seatTask.IsCanceled)
@@ -283,12 +283,12 @@ public partial class MatchStatusPanel
 
                 match.UpdateChildrenAsync(names).ContinueWithOnMainThread(nameTask =>
                 {
-                    Debug.Log("[QUICK]   seat 2 taken as " + MyQuickGameName() +
+                    ScrabbyLog.Trace("[QUICK]   seat 2 taken as " + MyQuickGameName() +
                               " | name write faulted=" + nameTask.IsFaulted);
 
                     preGamePanel.AddMatchToUser(myUid, matchId, () =>
                     {
-                        Debug.Log("[QUICK]   added " + matchId + " to my matches.");
+                        ScrabbyLog.Trace("[QUICK]   added " + matchId + " to my matches.");
                         EnterQuickGame(matchId);
                     });
                 });
@@ -308,13 +308,13 @@ public partial class MatchStatusPanel
             "", "",
             QuickGameRounds);
 
-        Debug.Log("[QUICK] Step 2b: writing new open game matches/" + matchId);
+        ScrabbyLog.Trace("[QUICK] Step 2b: writing new open game matches/" + matchId);
 
         dbRoot.Child("matches").Child(matchId)
             .SetRawJsonValueAsync(JsonUtility.ToJson(match))
             .ContinueWithOnMainThread(writeTask =>
             {
-                Debug.Log("[QUICK]   match write faulted=" + writeTask.IsFaulted);
+                ScrabbyLog.Trace("[QUICK]   match write faulted=" + writeTask.IsFaulted);
 
                 if (writeTask.IsFaulted || writeTask.IsCanceled)
                 {
@@ -342,7 +342,7 @@ public partial class MatchStatusPanel
         SlotResult result = SlotResult.Empty;
         string otherMatch = null;
 
-        Debug.Log("[QUICK] Step 3 (offer attempt " + offerAttempt + "): offering " + matchId);
+        ScrabbyLog.Trace("[QUICK] Step 3 (offer attempt " + offerAttempt + "): offering " + matchId);
 
         QuickSlot.RunTransaction(data =>
         {
@@ -350,7 +350,7 @@ public partial class MatchStatusPanel
             otherMatch = null;
 
             var current = data.Value as Dictionary<string, object>;
-            Debug.Log("[QUICK]   step 3 run sees: " + DescribeSlot(data.Value, current, now));
+            ScrabbyLog.Trace("[QUICK]   step 3 run sees: " + DescribeSlot(data.Value, current, now));
 
             if (current == null)
             {
@@ -395,7 +395,7 @@ public partial class MatchStatusPanel
         })
         .ContinueWithOnMainThread(task =>
         {
-            Debug.Log("[QUICK] Step 3 done | faulted=" + task.IsFaulted +
+            ScrabbyLog.Trace("[QUICK] Step 3 done | faulted=" + task.IsFaulted +
                       " canceled=" + task.IsCanceled + " result=" + result +
                       " other=" + otherMatch);
 
@@ -409,10 +409,10 @@ public partial class MatchStatusPanel
             switch (result)
             {
                 case SlotResult.Queued:
-                    Debug.Log("[QUICK] Offered " + matchId + " - playing round 1 while waiting.");
+                    ScrabbyLog.Trace("[QUICK] Offered " + matchId + " - playing round 1 while waiting.");
                     preGamePanel.AddMatchToUser(myUid, matchId, () =>
                     {
-                        Debug.Log("[QUICK]   added " + matchId + " to my matches.");
+                        ScrabbyLog.Trace("[QUICK]   added " + matchId + " to my matches.");
                         EnterQuickGame(matchId);
                     });
                     break;
@@ -438,7 +438,7 @@ public partial class MatchStatusPanel
     // The same way in as pressing Resume on a match in the list.
     private void EnterQuickGame(string matchId)
     {
-        Debug.Log("[QUICK] Entering match " + matchId + " via ResumeMatch.");
+        ScrabbyLog.Trace("[QUICK] Entering match " + matchId + " via ResumeMatch.");
 
         SetQuickGameBusy(false);
         ShowStatus("Starting...");
@@ -453,7 +453,7 @@ public partial class MatchStatusPanel
         if (string.IsNullOrEmpty(matchId))
             return;
 
-        Debug.Log("[QUICK] Discarding unused match " + matchId);
+        ScrabbyLog.Trace("[QUICK] Discarding unused match " + matchId);
         dbRoot.Child("matches").Child(matchId).RemoveValueAsync();
     }
 

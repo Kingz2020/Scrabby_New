@@ -9,7 +9,7 @@ using System.Threading.Tasks;
 using UnityEngine.UI;
 using System.Collections;
 
-public class PreGamePanel : MonoBehaviour
+public partial class PreGamePanel : MonoBehaviour
 {
     [Header("Inputs")]
     [SerializeField] private TMP_InputField emailInput;
@@ -144,15 +144,16 @@ public class PreGamePanel : MonoBehaviour
         if (gameplayPanel != null) gameplayPanel.SetActive(false);
         if (gameOverPanel != null) gameOverPanel.SetActive(false);
 
-
+        // "Forgot password?" and "Delete my account" (PreGamePanel.Account.cs)
+        BuildAccountLinks();
     }
 
 
     private void Start()
     {
-        Debug.Log("[PreGamePanel] Start() running on GameObject: " + gameObject.name + " (EntityId: " + gameObject.GetEntityId() + ")");
-        Debug.Log("[PreGamePanel] Start running");
-        //Debug.Log("[PreGamePanel] START instance = " + GetInstanceID());
+        ScrabbyLog.Trace("[PreGamePanel] Start() running on GameObject: " + gameObject.name + " (EntityId: " + gameObject.GetEntityId() + ")");
+        ScrabbyLog.Trace("[PreGamePanel] Start running");
+        //ScrabbyLog.Trace("[PreGamePanel] START instance = " + GetInstanceID());
 
         if (startGameButton != null)
         {
@@ -169,36 +170,36 @@ public class PreGamePanel : MonoBehaviour
     {
         if (!firebaseInitialized)
         {
-            Debug.Log("[PreGamePanel] ENABLED");
+            ScrabbyLog.Trace("[PreGamePanel] ENABLED");
             StartCoroutine(WaitForFirebaseThenInit());
         }
     }
 
     private IEnumerator WaitForFirebaseThenInit()
     {
-        Debug.Log("[PreGamePanel] WaitForFirebaseThenInit started");
+        ScrabbyLog.Trace("[PreGamePanel] WaitForFirebaseThenInit started");
 
         yield return new WaitUntil(() => FirebaseInit.IsReady);
 
-        Debug.Log("[PreGamePanel] Firebase became ready");
+        ScrabbyLog.Trace("[PreGamePanel] Firebase became ready");
 
         if (firebaseInitialized)
             yield break; // an earlier run already finished this
 
         auth = FirebaseInit.Auth;
 
-        Debug.Log("FirebaseInit.Database = " + FirebaseInit.Database);
-        Debug.Log("FirebaseInit.Auth = " + FirebaseInit.Auth);
+        ScrabbyLog.Trace("FirebaseInit.Database = " + FirebaseInit.Database);
+        ScrabbyLog.Trace("FirebaseInit.Auth = " + FirebaseInit.Auth);
 
         dbRoot = FirebaseInit.Database.RootReference;
 
-        Debug.Log("[PreGamePanel] dbRoot assigned = " + dbRoot);
+        ScrabbyLog.Trace("[PreGamePanel] dbRoot assigned = " + dbRoot);
 
         firebaseInitialized = true;
 
         
 
-        Debug.Log("[PreGamePanel] Firebase init complete. dbRoot assigned: " + (dbRoot != null));
+        ScrabbyLog.Trace("[PreGamePanel] Firebase init complete. dbRoot assigned: " + (dbRoot != null));
 
         auth.StateChanged += AuthStateChanged;
         AuthStateChanged(this, null);
@@ -206,7 +207,7 @@ public class PreGamePanel : MonoBehaviour
 
     public void OnRefreshPressed()
     {
-        Debug.Log("[MATCH STATUS] Refresh requested");
+        ScrabbyLog.Trace("[MATCH STATUS] Refresh requested");
         SetStatus("Refresh not implemented yet");
     }
     private void TraceMatch(string label)
@@ -217,7 +218,7 @@ public class PreGamePanel : MonoBehaviour
         string currentStatus = currentMatch == null ? "NULL" : currentMatch.status;
         string currentTurn = currentMatch == null ? "NULL" : currentMatch.currentRoundNumber.ToString();
 
-        Debug.Log(
+        ScrabbyLog.Trace(
             $"[MATCHTRACE #{matchTraceSeq}] {label} | " +
             $"watchedMatchId={watchedMatchId} | " +
             $"currentMatchId={currentMatchId} | " +
@@ -234,7 +235,7 @@ public class PreGamePanel : MonoBehaviour
 
     private void OnDisable()
     {
-        Debug.Log("[PreGamePanel] DISABLED");
+        ScrabbyLog.Trace("[PreGamePanel] DISABLED");
         StopWatchingRoom();
     }
 
@@ -332,7 +333,7 @@ public class PreGamePanel : MonoBehaviour
         string password = passwordInput.text;
         string displayName = displayNameInput.text.Trim();
 
-        Debug.Log("[PregamePanel] Register button pressed.");
+        ScrabbyLog.Trace("[PregamePanel] Register button pressed.");
 
         if (!EnsureFirebaseReady())
         {
@@ -362,7 +363,7 @@ public class PreGamePanel : MonoBehaviour
         }
 
         SetStatus("Registering...");
-        Debug.Log("[PregamePanel] Trying to register email: " + email);
+        ScrabbyLog.Trace("[PregamePanel] Trying to register email: " + email);
 
         auth.CreateUserWithEmailAndPasswordAsync(email, password).ContinueWith(task =>
         {
@@ -385,7 +386,7 @@ public class PreGamePanel : MonoBehaviour
             FirebaseUser createdUser = result.User;
             string uid = createdUser.UserId;
 
-            Debug.Log("[PregamePanel] User created successfully. UID: " + uid);
+            ScrabbyLog.Trace("[PregamePanel] User created successfully. UID: " + uid);
 
             Firebase.Auth.UserProfile profile = new Firebase.Auth.UserProfile
             {
@@ -409,7 +410,7 @@ public class PreGamePanel : MonoBehaviour
                     return;
                 }
 
-                Debug.Log("[PregamePanel] Profile updated successfully.");
+                ScrabbyLog.Trace("[PregamePanel] Profile updated successfully.");
 
                 UserData userData = new UserData
                 {
@@ -443,7 +444,7 @@ public class PreGamePanel : MonoBehaviour
                         return;
                     }
 
-                    Debug.Log("[PregamePanel] User profile saved to database.");
+                    ScrabbyLog.Trace("[PregamePanel] User profile saved to database.");
 
                     RunOnMainThread(() =>
                     {
@@ -484,7 +485,7 @@ public class PreGamePanel : MonoBehaviour
 
     private void SetStatus(string message)
     {
-        Debug.Log("[PregamePanel STATUS] " + message);
+        ScrabbyLog.Trace("[PregamePanel STATUS] " + message);
 
         if (statusText != null)
             statusText.text = message;
@@ -569,7 +570,7 @@ public class PreGamePanel : MonoBehaviour
 
     public void OnCreateRoomPressed()
     {
-        Debug.Log("[PreGamePanel] OnCreateRoomPressed() running on GameObject: " + gameObject.name + " (EntityId: " + gameObject.GetEntityId() + ")");
+        ScrabbyLog.Trace("[PreGamePanel] OnCreateRoomPressed() running on GameObject: " + gameObject.name + " (EntityId: " + gameObject.GetEntityId() + ")");
 
         var auth = FirebaseAuth.DefaultInstance;
         var user = auth?.CurrentUser;
@@ -589,7 +590,7 @@ public class PreGamePanel : MonoBehaviour
                 dbRoot = FirebaseInit.Database.RootReference;
                 this.auth = FirebaseInit.Auth;
                 firebaseInitialized = true;
-                Debug.Log("[PreGamePanel] dbRoot was null — recovered from FirebaseInit.");
+                ScrabbyLog.Trace("[PreGamePanel] dbRoot was null — recovered from FirebaseInit.");
             }
             else
             {
@@ -615,9 +616,9 @@ public class PreGamePanel : MonoBehaviour
 
         string json = JsonUtility.ToJson(room);
 
-        Debug.Log("user = " + user);
-        Debug.Log("dbRoot = " + dbRoot);
-        //Debug.Log("roomCodeInput = " + roomCodeInput);
+        ScrabbyLog.Trace("user = " + user);
+        ScrabbyLog.Trace("dbRoot = " + dbRoot);
+        //ScrabbyLog.Trace("roomCodeInput = " + roomCodeInput);
 
         SetStatus("Creating room...");
 
@@ -636,7 +637,7 @@ public class PreGamePanel : MonoBehaviour
                 return;
             }
 
-            Debug.Log("[PregamePanel] Room created successfully: " + roomCode);
+            ScrabbyLog.Trace("[PregamePanel] Room created successfully: " + roomCode);
 
             // Display only, and the field is not on the redesigned card at
             // all - so it has to be optional. Unguarded, this threw straight
@@ -658,7 +659,7 @@ public class PreGamePanel : MonoBehaviour
 
     public void AddMatchToUser(string uid, string matchId, Action onComplete = null)
     {
-        Debug.Log("[AddMatchToUser] ENTER uid=" + uid + " matchId=" + matchId);
+        ScrabbyLog.Trace("[AddMatchToUser] ENTER uid=" + uid + " matchId=" + matchId);
 
         if (string.IsNullOrEmpty(uid) || string.IsNullOrEmpty(matchId))
         {
@@ -667,7 +668,7 @@ public class PreGamePanel : MonoBehaviour
             return;
         }
 
-        Debug.Log("[PreGamePanel] AddMatchToUser uid=" + uid + " matchId=" + matchId);
+        ScrabbyLog.Trace("[PreGamePanel] AddMatchToUser uid=" + uid + " matchId=" + matchId);
 
         dbRoot.Child("users").Child(uid).GetValueAsync().ContinueWithOnMainThread(task =>
         {
@@ -708,7 +709,7 @@ public class PreGamePanel : MonoBehaviour
                       }
                       else
                       {
-                          Debug.Log("[PreGamePanel] AddMatchToUser updated activeMatchIds for uid=" + uid +
+                          ScrabbyLog.Trace("[PreGamePanel] AddMatchToUser updated activeMatchIds for uid=" + uid +
                                     " -> [" + string.Join(",", userData.activeMatchIds) + "]");
                       }
 
@@ -756,7 +757,7 @@ public class PreGamePanel : MonoBehaviour
                     return;
                 }
 
-                Debug.Log("[PreGamePanel] Repaired user profile for uid=" + uid);
+                ScrabbyLog.Trace("[PreGamePanel] Repaired user profile for uid=" + uid);
             });
         });
     }
@@ -770,7 +771,7 @@ public class PreGamePanel : MonoBehaviour
         }
 
         string uid = auth.CurrentUser.UserId;
-        Debug.Log("[PreGamePanel] AddRoomToUser uid=" + uid + " roomCode=" + roomCode);
+        ScrabbyLog.Trace("[PreGamePanel] AddRoomToUser uid=" + uid + " roomCode=" + roomCode);
 
         dbRoot.Child("users").Child(uid).GetValueAsync().ContinueWithOnMainThread(task =>
         {
@@ -811,7 +812,7 @@ public class PreGamePanel : MonoBehaviour
                       }
                       else
                       {
-                          Debug.Log("[PreGamePanel] AddRoomToUser updated activeRoomIds for uid=" + uid +
+                          ScrabbyLog.Trace("[PreGamePanel] AddRoomToUser updated activeRoomIds for uid=" + uid +
                                     " -> [" + string.Join(",", userData.activeRoomIds) + "]");
                       }
 
@@ -927,7 +928,7 @@ public class PreGamePanel : MonoBehaviour
                     return;
                 }
 
-                Debug.Log("[PregamePanel] Joined room successfully: " + roomCode);
+                ScrabbyLog.Trace("[PregamePanel] Joined room successfully: " + roomCode);
                 SetStatus("Joined room successfully: " + roomCode);
                 WatchRoom(roomCode);
 
@@ -1260,7 +1261,7 @@ public class PreGamePanel : MonoBehaviour
             !string.IsNullOrEmpty(room.hostUid) &&
             !string.IsNullOrEmpty(room.guestUid);
 
-        Debug.Log("[HandleRoomState] roomCode=" + roomCode +
+        ScrabbyLog.Trace("[HandleRoomState] roomCode=" + roomCode +
               " hostUid=" + room.hostUid +
               " guestUid=" + room.guestUid +
               " matchId=" + room.matchId +
@@ -1275,11 +1276,11 @@ public class PreGamePanel : MonoBehaviour
             TryCreateInitialMatchFromRoom(roomCode, room);
             return;
         }
-        Debug.Log("[HandleRoomState] Match exists for current user. Adding to activeMatchIds...");
+        ScrabbyLog.Trace("[HandleRoomState] Match exists for current user. Adding to activeMatchIds...");
         // Match already exists.
         AddMatchToUser(auth.CurrentUser.UserId, room.matchId, () =>
         {
-            Debug.Log("[HandleRoomState] AddMatchToUser completed for uid=" + auth.CurrentUser.UserId);
+            ScrabbyLog.Trace("[HandleRoomState] AddMatchToUser completed for uid=" + auth.CurrentUser.UserId);
             if (matchStatusPanel != null)
                 matchStatusPanel.ForceRefresh();
         });
@@ -1300,7 +1301,7 @@ public class PreGamePanel : MonoBehaviour
                 dbRoot = FirebaseInit.Database.RootReference;
                 auth = FirebaseInit.Auth;
                 firebaseInitialized = true;
-                Debug.Log("[PreGamePanel] dbRoot was null in WatchRoom — recovered from FirebaseInit.");
+                ScrabbyLog.Trace("[PreGamePanel] dbRoot was null in WatchRoom — recovered from FirebaseInit.");
             }
             else
             {
@@ -1345,7 +1346,7 @@ public class PreGamePanel : MonoBehaviour
 
         watchedRoomRef.ValueChanged += roomWatcher;
 
-        Debug.Log("[ROOM WATCH] Watching room " + roomCode);
+        ScrabbyLog.Trace("[ROOM WATCH] Watching room " + roomCode);
     }
 
     private void StopWatchingRoom()
@@ -1362,7 +1363,7 @@ public class PreGamePanel : MonoBehaviour
 
     public void EnterGameplayMode()
     {
-        Debug.Log("[ENTER GAMEPLAY] PANEL SWITCH ONLY");
+        ScrabbyLog.Trace("[ENTER GAMEPLAY] PANEL SWITCH ONLY");
 
         // Switch panels FIRST
         if (optionPanel != null) optionPanel.SetActive(false);
@@ -1410,7 +1411,7 @@ public class PreGamePanel : MonoBehaviour
 
     public void OnStartGamePressed()
     {
-        Debug.Log("[PregamePanel] OnStartGamePressed CALLED");
+        ScrabbyLog.Trace("[PregamePanel] OnStartGamePressed CALLED");
 
         if (auth == null || auth.CurrentUser == null)
         {
@@ -1465,19 +1466,19 @@ public class PreGamePanel : MonoBehaviour
 
             if (!string.IsNullOrEmpty(room.matchId) && room.status == "in_game")
             {
-                Debug.Log("[PregamePanel] Loading existing match: " + room.matchId);
+                ScrabbyLog.Trace("[PregamePanel] Loading existing match: " + room.matchId);
 
-                Debug.Log($"[STARTFLOW] Existing match detected matchId={room.matchId}");
+                ScrabbyLog.Trace($"[STARTFLOW] Existing match detected matchId={room.matchId}");
                 AddMatchToUser(auth.CurrentUser.UserId, room.matchId);
                 Singleton.Instance.OnlineMatchController.ResumeMatch(room.matchId);
-                Debug.Log("[STARTFLOW] WatchMatch called for existing match");
+                ScrabbyLog.Trace("[STARTFLOW] WatchMatch called for existing match");
 
                 return;
             }
 
-            Debug.Log($"[STARTFLOW] About to call TryCreateInitialMatchFromRoom roomCode={roomCode} matchId={(room.matchId ?? "null")}");
+            ScrabbyLog.Trace($"[STARTFLOW] About to call TryCreateInitialMatchFromRoom roomCode={roomCode} matchId={(room.matchId ?? "null")}");
             TryCreateInitialMatchFromRoom(roomCode, room);
-            Debug.Log("[STARTFLOW] Returned from TryCreateInitialMatchFromRoom call");
+            ScrabbyLog.Trace("[STARTFLOW] Returned from TryCreateInitialMatchFromRoom call");
         });
     }
 
@@ -1620,7 +1621,7 @@ public class PreGamePanel : MonoBehaviour
 
     private void TryCreateInitialMatchFromRoom(string roomCode, RoomData roomSnapshot)
     {
-        Debug.Log($"[STARTFLOW] TryCreateInitialMatchFromRoom ENTER roomCode={roomCode} matchId={(roomSnapshot != null ? roomSnapshot.matchId : "null")}");
+        ScrabbyLog.Trace($"[STARTFLOW] TryCreateInitialMatchFromRoom ENTER roomCode={roomCode} matchId={(roomSnapshot != null ? roomSnapshot.matchId : "null")}");
 
         if (auth == null || auth.CurrentUser == null)
             return;
@@ -1694,7 +1695,7 @@ public class PreGamePanel : MonoBehaviour
 
                 if (updatedRoom.status == "in_game")
                 {
-                    Debug.Log("[PregamePanel] Someone already created the match. matchId=" + updatedRoom.matchId);
+                    ScrabbyLog.Trace("[PregamePanel] Someone already created the match. matchId=" + updatedRoom.matchId);
                     Singleton.Instance.OnlineMatchController.WatchMatch(updatedRoom.matchId,false);
                     //EnterGameplayMode();
                     return;
@@ -1707,7 +1708,7 @@ public class PreGamePanel : MonoBehaviour
 
                 if (!iClaimedStart)
                 {
-                    Debug.Log("[PregamePanel] Another client claimed start. Waiting for final match...");
+                    ScrabbyLog.Trace("[PregamePanel] Another client claimed start. Waiting for final match...");
                     if (!string.IsNullOrEmpty(updatedRoom.matchId))
                     {
                         Singleton.Instance.OnlineMatchController.WatchMatch(updatedRoom.matchId,false);
@@ -1748,7 +1749,7 @@ public class PreGamePanel : MonoBehaviour
                                 return;
                             }
 
-                            Debug.Log("[PregamePanel] Match created: " + matchId);
+                            ScrabbyLog.Trace("[PregamePanel] Match created: " + matchId);
 
                             AddMatchToUser(updatedRoom.hostUid, matchId, () =>
                             {
@@ -1764,7 +1765,7 @@ public class PreGamePanel : MonoBehaviour
                             var authInstance = FirebaseAuth.DefaultInstance;
                             if (authInstance != null && authInstance.CurrentUser != null && matchStatusPanel != null)
                             {
-                                Debug.Log("[PreGamePanel] Forcing MatchStatusPanel RefreshMatchStateForUser after match creation.");
+                                ScrabbyLog.Trace("[PreGamePanel] Forcing MatchStatusPanel RefreshMatchStateForUser after match creation.");
                                 matchStatusPanel.RefreshMatchStateForUser(authInstance.CurrentUser.UserId);
                             }
 
@@ -1925,7 +1926,7 @@ public class PreGamePanel : MonoBehaviour
                     return;
                 }
 
-                Debug.Log("[PregamePanel] Round " + roundNumber + " submission written.");
+                ScrabbyLog.Trace("[PregamePanel] Round " + roundNumber + " submission written.");
                 SetStatus("Move submitted. Waiting for other players...");
 
                 pendingResolutionMatchId = currentMatch.matchId; // remember: I'm actively waiting on this match
@@ -2035,7 +2036,7 @@ public class PreGamePanel : MonoBehaviour
                     if (!belongsToUser)
                         continue;
 
-                    Debug.Log(
+                    ScrabbyLog.Trace(
                         "[RESUME] Found active match: " +
                         match.matchId);
 
@@ -2046,7 +2047,7 @@ public class PreGamePanel : MonoBehaviour
                     return;
                 }
 
-                Debug.Log("[RESUME] No active match found.");
+                ScrabbyLog.Trace("[RESUME] No active match found.");
 
                 ShowPregamePanel();
             });
@@ -2065,7 +2066,7 @@ public class PreGamePanel : MonoBehaviour
         if (gameOverPanel != null)
             gameOverPanel.SetActive(false);
 
-        Debug.Log("[RESUME] Showing pregame panel");
+        ScrabbyLog.Trace("[RESUME] Showing pregame panel");
     }
 
     public void OnSwitchTestUserPressed()
@@ -2082,7 +2083,7 @@ public class PreGamePanel : MonoBehaviour
             ? TestUserB_Email
             : TestUserA_Email;
 
-        Debug.Log("[PregamePanel] Switching test user: " + (currentEmail ?? "none") + " -> " + targetEmail);
+        ScrabbyLog.Trace("[PregamePanel] Switching test user: " + (currentEmail ?? "none") + " -> " + targetEmail);
 
         if (auth.CurrentUser != null)
             auth.SignOut();
@@ -2109,7 +2110,7 @@ public class PreGamePanel : MonoBehaviour
 
             RunOnMainThread(() =>
             {
-                Debug.Log("[PregamePanel] RunOnMainThread action START for switch to " + targetEmail);
+                ScrabbyLog.Trace("[PregamePanel] RunOnMainThread action START for switch to " + targetEmail);
 
                 string shownName = string.IsNullOrWhiteSpace(signedInUser.DisplayName)
                     ? signedInUser.Email
@@ -2123,7 +2124,7 @@ public class PreGamePanel : MonoBehaviour
 
                 if (matchStatusPanel != null)
                 {
-                    Debug.Log("[PregamePanel] Calling RefreshMatchStateForUser with uid=" + signedInUser.UserId);
+                    ScrabbyLog.Trace("[PregamePanel] Calling RefreshMatchStateForUser with uid=" + signedInUser.UserId);
                     matchStatusPanel.gameObject.SetActive(true);
                     matchStatusPanel.UpdateLoginNameDisplay();
                     matchStatusPanel.RefreshMatchStateForUser(signedInUser.UserId);
@@ -2133,7 +2134,7 @@ public class PreGamePanel : MonoBehaviour
                     Debug.LogWarning("[PregamePanel] matchStatusPanel is NULL in switch-user callback!");
 
                 }
-                Debug.Log("[PregamePanel] RunOnMainThread action END");
+                ScrabbyLog.Trace("[PregamePanel] RunOnMainThread action END");
             });
         });
     }
@@ -2148,7 +2149,7 @@ public class PreGamePanel : MonoBehaviour
             dbRoot = FirebaseInit.Database.RootReference;
             auth = FirebaseInit.Auth;
             firebaseInitialized = true;
-            Debug.Log("[PreGamePanel] Firebase self-healed via EnsureFirebaseReady.");
+            ScrabbyLog.Trace("[PreGamePanel] Firebase self-healed via EnsureFirebaseReady.");
             return true;
         }
 
@@ -2163,7 +2164,7 @@ public class PreGamePanel : MonoBehaviour
             return;
         }
 
-        Debug.Log("[PreGamePanel] RemoveRoomFromUser uid=" + uid + " roomCode=" + roomCode);
+        ScrabbyLog.Trace("[PreGamePanel] RemoveRoomFromUser uid=" + uid + " roomCode=" + roomCode);
 
         dbRoot.Child("users").Child(uid).GetValueAsync().ContinueWithOnMainThread(task =>
         {
@@ -2201,7 +2202,7 @@ public class PreGamePanel : MonoBehaviour
                       }
                       else
                       {
-                          Debug.Log("[PreGamePanel] RemoveRoomFromUser updated activeRoomIds for uid=" + uid +
+                          ScrabbyLog.Trace("[PreGamePanel] RemoveRoomFromUser updated activeRoomIds for uid=" + uid +
                                     " -> [" + (userData.activeRoomIds == null
                                                 ? ""
                                                 : string.Join(",", userData.activeRoomIds)) + "]");

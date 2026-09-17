@@ -79,7 +79,7 @@ public class SoloDifficultyPanelController : MonoBehaviour
 
     private void StartSoloGame(GameLogic.SoloDifficulty difficulty)
     {
-        Debug.Log($"[UI] Starting solo game, difficulty={difficulty}");
+        ScrabbyLog.Trace($"[UI] Starting solo game, difficulty={difficulty}");
 
         if (gameLogic == null)
         {
@@ -97,7 +97,7 @@ public class SoloDifficultyPanelController : MonoBehaviour
             difficultyPanel.SetActive(false);
 
         gameplayPanel.SetActive(true);
-        Debug.Log("[UI] gameplayPanel activated");
+        ScrabbyLog.Trace("[UI] gameplayPanel activated");
 
         if (Singleton.Instance != null && Singleton.Instance.DebugManager != null)
         {
@@ -108,7 +108,7 @@ public class SoloDifficultyPanelController : MonoBehaviour
             Debug.LogError("[UI] Singleton or DebugManager not available.");
         }
 
-        Debug.Log($"[UI] Difficulty set to {difficulty}. Waiting for Play button.");
+        ScrabbyLog.Trace($"[UI] Difficulty set to {difficulty}. Waiting for Play button.");
     }
 
     private string GetPercentileDescription(GameLogic.SoloDifficulty difficulty)

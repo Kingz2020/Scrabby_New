@@ -57,7 +57,7 @@ public partial class GameLogic
 
         if (DailyProgress.AnsweredToday(out answered))
         {
-            Debug.Log("[DAILY] Day " + day.dayNumber +
+            ScrabbyLog.Trace("[DAILY] Day " + day.dayNumber +
                       " has already been answered; showing the result.");
 
             DailyResultPanel.Show(day, answered.score, answered.word);
@@ -300,7 +300,7 @@ public partial class GameLogic
                 ui.HideTurnState();
         }
 
-        Debug.Log("[DAILY] Day " + day.dayNumber + " set up: rack [" +
+        ScrabbyLog.Trace("[DAILY] Day " + day.dayNumber + " set up: rack [" +
                   day.RackString() + "], best available " + day.bestScore +
                   ", " + day.placedTiles.Count + " opening tile(s) from " +
                   day.openingWords + " word(s), " + bonusCount +
@@ -345,7 +345,7 @@ public partial class GameLogic
         score = move.score;
         word = move.word;
 
-        Debug.Log("[DAILY] Day " + dailyDay.dayNumber + " answered: " +
+        ScrabbyLog.Trace("[DAILY] Day " + dailyDay.dayNumber + " answered: " +
                   word + " for " + score + " of a possible " + dailyDay.bestScore);
 
         return true;

@@ -343,7 +343,7 @@ public class OptionPanelController : MonoBehaviour
 
         Singleton.Instance.GameLogic.StartDaily(day);
 
-        Debug.Log("[OptionPanel] Daily started: " + day);
+        ScrabbyLog.Trace("[OptionPanel] Daily started: " + day);
     }
 
     // The board has to be on screen for the best word to be shown on it, even
@@ -421,7 +421,7 @@ public class OptionPanelController : MonoBehaviour
 
         Singleton.Instance.DebugManager.StartNewGame(chosen);
 
-        Debug.Log("[OptionPanel] Solo started, difficulty=" + chosen);
+        ScrabbyLog.Trace("[OptionPanel] Solo started, difficulty=" + chosen);
     }
 
     // Background generation borrows the real board and bag, so anything that
@@ -458,14 +458,14 @@ public class OptionPanelController : MonoBehaviour
 
         difficultyPanel.SetActive(true);
 
-        Debug.Log("[OptionPanel] Opening difficulty panel for Solo.");
+        ScrabbyLog.Trace("[OptionPanel] Opening difficulty panel for Solo.");
     }
 
     public void OnMultiplayerPressed()
     {
         LeaveDaily();
 
-        Debug.Log("[OptionPanel] Multiplayer selected");
+        ScrabbyLog.Trace("[OptionPanel] Multiplayer selected");
 
         if (preGamePanelController != null)
             preGamePanelController.EnterMultiplayerFlow();
@@ -485,7 +485,7 @@ public class OptionPanelController : MonoBehaviour
 
         ShowOptionPanel();
 
-        Debug.Log("[OptionPanel] Returned to the main menu.");
+        ScrabbyLog.Trace("[OptionPanel] Returned to the main menu.");
     }
 
     public void ShowOptionPanel()
@@ -499,6 +499,6 @@ public class OptionPanelController : MonoBehaviour
 
         Refresh();
 
-        Debug.Log("[OptionPanel] Showing option panel");
+        ScrabbyLog.Trace("[OptionPanel] Showing option panel");
     }
 }

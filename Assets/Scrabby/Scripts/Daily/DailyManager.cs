@@ -79,7 +79,7 @@ public class DailyManager : MonoBehaviour
 
         if (LoadCached())
         {
-            Debug.Log("[DAILY] Day " + today.dayNumber + " read from cache.");
+            ScrabbyLog.Trace("[DAILY] Day " + today.dayNumber + " read from cache.");
             RaiseReady();
             return;
         }
@@ -124,7 +124,7 @@ public class DailyManager : MonoBehaviour
         today = generated;
         SaveCached(generated);
 
-        Debug.Log("[DAILY] Day " + dayNumber + " ready: " + generated);
+        ScrabbyLog.Trace("[DAILY] Day " + dayNumber + " ready: " + generated);
 
         RaiseReady();
     }
@@ -150,7 +150,7 @@ public class DailyManager : MonoBehaviour
         // this set would mean no day is ever generated again this session.
         generating = false;
 
-        Debug.Log("[DAILY] Background generation given up: a game is starting.");
+        ScrabbyLog.Trace("[DAILY] Background generation given up: a game is starting.");
     }
 
     private void RaiseReady()
