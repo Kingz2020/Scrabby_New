@@ -3485,6 +3485,36 @@ public partial class GameLogic : MonoBehaviour
         return cells;
     }
 
+    // Spells the word a move played, from the same cells the board highlights.
+    private string MainWordOf(RoundMove move)
+    {
+        List<LetterPosition> cells = GetMainWordCells(move);
+
+        if (cells == null || cells.Count == 0 || validatedBoardTiles == null)
+            return "";
+
+        LetterInfo[,] board = (LetterInfo[,])validatedBoardTiles.Clone();
+
+        if (move.simulatedTiles != null)
+        {
+            foreach (SimPlacedTile sim in move.simulatedTiles)
+                if (sim != null && sim.letterPosition != null)
+                    board[sim.letterPosition.RowX, sim.letterPosition.ColY] = sim.letterInfo;
+        }
+
+        string word = "";
+
+        foreach (LetterPosition cell in cells)
+        {
+            LetterInfo letter = board[cell.RowX, cell.ColY];
+
+            if (letter != null)
+                word += letter.letter;
+        }
+
+        return word;
+    }
+
     private LetterPosition GetPopupAnchorPosition(RoundMove move)
     {
         if (move == null || move.simulatedTiles == null || move.simulatedTiles.Count == 0)
@@ -4159,15 +4189,19 @@ public partial class GameLogic : MonoBehaviour
         move.word = "";
 
         foreach (var singleList in words)
-        {
-            string finalWord = "";
-            foreach (var letter in singleList)
-                finalWord += letter.letter;
-
-            if (move.word == "")
-                move.word = finalWord;
-
             move.score += CountWordPoints(singleList, move.placedTiles);
+
+        // The move is named after the word the player played - the run along
+        // the direction they placed in - and not after whichever word happens
+        // to come first out of CollectAllWords. That was a crossword as often
+        // as not: BEEN, played down the board beside DOG, was recorded and
+        // announced as "ED", the two letters it made sideways.
+        move.word = MainWordOf(move);
+
+        if (string.IsNullOrEmpty(move.word) && words.Count > 0)
+        {
+            foreach (LetterInfo letter in words[0])
+                move.word += letter.letter;
         }
 
         if (move.placedTiles.Count == maxHandSize)
