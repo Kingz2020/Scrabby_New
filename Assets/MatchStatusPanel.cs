@@ -432,6 +432,23 @@ public partial class MatchStatusPanel : MonoBehaviour
         RefreshMatchState();
     }
 
+    // Only ever one of these at a time. The list is reloaded from several
+    // places - the refresh button, the profile watcher, the end of a submitted
+    // round - and they arrive together, so two loaders were reading the same
+    // matches and building and destroying the same rows at once. The log showed
+    // every match twice; the rows are Unity objects, and tearing them down from
+    // under another coroutine is the sort of thing that ends in a native crash.
+    private Coroutine listLoader;
+
+    private void StartLoadingMatchList(
+        string myUid, List<string> roomIds, List<string> matchIds)
+    {
+        if (listLoader != null)
+            StopCoroutine(listLoader);
+
+        listLoader = StartCoroutine(LoadMatchList(myUid, roomIds, matchIds));
+    }
+
     private IEnumerator LoadMatchList(
     string myUid,
     List<string> roomIds,
@@ -864,7 +881,7 @@ public partial class MatchStatusPanel : MonoBehaviour
                   ScrabbyLog.Trace("[MATCH STATUS] user.activeMatchIds=" +
                             (user.activeMatchIds == null ? "NULL" : string.Join(",", user.activeMatchIds)));
 
-                  StartCoroutine(LoadMatchList(uid, user.activeRoomIds, user.activeMatchIds));
+                  StartLoadingMatchList(uid, user.activeRoomIds, user.activeMatchIds);
               });
     }
 
@@ -1180,7 +1197,7 @@ public partial class MatchStatusPanel : MonoBehaviour
             if (user == null)
                 return;
 
-            StartCoroutine(LoadMatchList(uid, user.activeRoomIds, user.activeMatchIds));
+            StartLoadingMatchList(uid, user.activeRoomIds, user.activeMatchIds);
         };
 
         watchedUserRef.ValueChanged += userWatcher;
