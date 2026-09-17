@@ -1527,28 +1527,58 @@ public class OnlineMatchController : MonoBehaviour
         // round whatever had happened, so resuming a match after playing put
         // the player back into a round they had already played - and every way
         // out of that round led back to the list, which led back in.
-        dbRoot.Child("matches").Child(matchId)
-              .Child("rounds").Child(round.ToString())
-              .Child("submissions").Child(uid)
-              .GetValueAsync()
-              .ContinueWithOnMainThread(task =>
+        StartCoroutine(CheckSubmissionThenEnterGameplay(matchId, round, uid));
+    }
+
+    // The answer is worth waiting a moment for, but not for ever. A one-shot
+    // read of this path has been seen never to come back at all, which left
+    // the player stuck on the list unable to open their own match - so if it
+    // has not answered in a few seconds, let them in. Being put into a round
+    // they have already played is a smaller fault than being locked out.
+    private IEnumerator CheckSubmissionThenEnterGameplay(
+        string matchId, int round, string uid)
+    {
+        var read = dbRoot.Child("matches").Child(matchId)
+                         .Child("rounds").Child(round.ToString())
+                         .Child("submissions").Child(uid)
+                         .GetValueAsync();
+
+        float waited = 0f;
+
+        while (!read.IsCompleted && waited < SubmissionCheckSeconds)
         {
-            bool alreadyPlayed = !task.IsFaulted && !task.IsCanceled &&
-                                 task.Result != null && task.Result.Exists;
+            waited += Time.deltaTime;
+            yield return null;
+        }
 
-            TraceMatch("CheckSubmissionThenEnterGameplay ANSWER"
-                       + " | uid=" + uid + " | round=" + round
-                       + " | alreadyPlayed=" + alreadyPlayed);
-
-            if (alreadyPlayed)
-            {
-                WaitForOpponentInList(round);
-                return;
-            }
+        if (!read.IsCompleted)
+        {
+            Debug.LogWarning("[OnlineMatchController] Round " + round +
+                             " submission check did not answer in " +
+                             SubmissionCheckSeconds + "s; opening the match anyway.");
 
             EnterGameplayNow(uid);
-        });
+            yield break;
+        }
+
+        bool alreadyPlayed = !read.IsFaulted && !read.IsCanceled &&
+                             read.Result != null && read.Result.Exists;
+
+        TraceMatch("CheckSubmissionThenEnterGameplay ANSWER"
+                   + " | uid=" + uid + " | round=" + round
+                   + " | alreadyPlayed=" + alreadyPlayed
+                   + " | faulted=" + read.IsFaulted);
+
+        if (alreadyPlayed)
+        {
+            WaitForOpponentInList(round);
+            yield break;
+        }
+
+        EnterGameplayNow(uid);
     }
+
+    private const float SubmissionCheckSeconds = 4f;
 
     // Already played this round: there is nothing to do on the board, so stay
     // on the list, where it says who each match is waiting for.
