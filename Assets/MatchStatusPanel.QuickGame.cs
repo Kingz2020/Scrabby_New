@@ -476,11 +476,30 @@ public partial class MatchStatusPanel
 
         quickGameButton.interactable = !busy;
 
+        // Disabling it alone left it looking much as before, and a search can
+        // take a few seconds - long enough to wonder whether the tap landed
+        // and press it again, which is how a player ends up with two games.
+        if (quickGameButton.image != null)
+        {
+            if (!quickIdleColourKnown)
+            {
+                quickIdleColour = quickGameButton.image.color;
+                quickIdleColourKnown = true;
+            }
+
+            quickGameButton.image.color = busy
+                ? new Color(0.62f, 0.49f, 0.21f)
+                : quickIdleColour;
+        }
+
         TMP_Text label = quickGameButton.GetComponentInChildren<TMP_Text>(true);
 
         if (label != null)
-            label.text = busy ? "Starting..." : "Quick game";
+            label.text = busy ? "Looking for a game..." : "Quick game";
     }
+
+    private Color quickIdleColour = Color.white;
+    private bool quickIdleColourKnown;
 
     private string MyQuickGameName()
     {
