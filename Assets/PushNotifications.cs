@@ -55,10 +55,24 @@ public static class PushNotifications
             Save(token);
     }
 
+    // The editor has no real Firebase Messaging: it hands out the word
+    // "StubToken". Saving that overwrote the player's real phone address, so
+    // signing in on the laptop quietly stopped their phone being reachable -
+    // and nothing said so, because from the server's side there was a token,
+    // it was simply not a real one.
+    private const string EditorStubToken = "StubToken";
+
     private static void Save(string newToken)
     {
         if (string.IsNullOrEmpty(newToken))
             return;
+
+        if (newToken == EditorStubToken)
+        {
+            Debug.Log("[PUSH] Running in the editor, which has no real " +
+                      "notifications; leaving this account's phone address alone.");
+            return;
+        }
 
         token = newToken;
 

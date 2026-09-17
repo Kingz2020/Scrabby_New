@@ -1508,9 +1508,80 @@ public class OnlineMatchController : MonoBehaviour
         }
 
         string uid = auth.CurrentUser.UserId;
+        string matchId = currentMatch.matchId;
+        int round = Mathf.Max(1, currentMatch.currentRoundNumber);
 
         pendingEnterGameplay = false;
 
+        // This checks what its name says again. It had stopped: it entered the
+        // round whatever had happened, so resuming a match after playing put
+        // the player back into a round they had already played - and every way
+        // out of that round led back to the list, which led back in.
+        dbRoot.Child("matches").Child(matchId)
+              .Child("rounds").Child(round.ToString())
+              .Child("submissions").Child(uid)
+              .GetValueAsync()
+              .ContinueWithOnMainThread(task =>
+        {
+            bool alreadyPlayed = !task.IsFaulted && !task.IsCanceled &&
+                                 task.Result != null && task.Result.Exists;
+
+            TraceMatch("CheckSubmissionThenEnterGameplay ANSWER"
+                       + " | uid=" + uid + " | round=" + round
+                       + " | alreadyPlayed=" + alreadyPlayed);
+
+            if (alreadyPlayed)
+            {
+                WaitForOpponentInList(round);
+                return;
+            }
+
+            EnterGameplayNow(uid);
+        });
+    }
+
+    // Already played this round: there is nothing to do on the board, so stay
+    // on the list, where it says who each match is waiting for.
+    private void WaitForOpponentInList(int round)
+    {
+        if (gameplayPanel != null)
+            gameplayPanel.SetActive(false);
+
+        if (pregamePanel != null)
+            pregamePanel.SetActive(false);
+
+        if (matchStatusPanel != null)
+        {
+            matchStatusPanel.gameObject.SetActive(true);
+
+            string opponent = OpponentName();
+
+            matchStatusPanel.ShowStatus(
+                "You have played round " + round + " - waiting for " +
+                (string.IsNullOrEmpty(opponent) ? "your opponent" : opponent) + ".");
+        }
+    }
+
+    private string OpponentName()
+    {
+        if (currentMatch == null || auth == null || auth.CurrentUser == null)
+            return "";
+
+        bool amPlayer1 = currentMatch.player1Uid == auth.CurrentUser.UserId;
+        string name = amPlayer1
+            ? currentMatch.player2DisplayName
+            : currentMatch.player1DisplayName;
+
+        if (string.IsNullOrEmpty(name))
+            return "";
+
+        int at = name.IndexOf('@');
+
+        return at > 0 ? name.Substring(0, at) : name;
+    }
+
+    private void EnterGameplayNow(string uid)
+    {
         if (gameplayPanel != null)
             gameplayPanel.SetActive(true);
 
@@ -1520,10 +1591,7 @@ public class OnlineMatchController : MonoBehaviour
         if (matchStatusPanel != null)
             matchStatusPanel.gameObject.SetActive(false);
 
-        TraceMatch(
-            "CheckSubmissionThenEnterGameplay DIRECT START GAMEPLAY"
-            + " | uid=" + uid
-        );
+        TraceMatch("CheckSubmissionThenEnterGameplay START GAMEPLAY | uid=" + uid);
 
         StartGameplayForCurrentMatch(uid);
     }
