@@ -18,6 +18,21 @@ public class MatchStatusRow : MonoBehaviour
     private string matchId;
     private bool isCompleted;
 
+    // Opening a match takes a moment - it reads the match, then asks whether
+    // this round has already been played. A button that looks untouched for
+    // those seconds invites a second tap, so it says what it is doing.
+    public void ShowOpening()
+    {
+        if (actionButton != null)
+        {
+            actionButton.interactable = false;
+            actionButton.image.color = new Color(0.98f, 0.82f, 0.36f);
+        }
+
+        if (actionButtonText != null)
+            actionButtonText.text = "Opening...";
+    }
+
     public void Setup(
     MatchListItemData data,
     System.Action<string, string, bool> onAction,

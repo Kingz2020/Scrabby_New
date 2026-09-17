@@ -931,7 +931,12 @@ public partial class MatchStatusPanel : MonoBehaviour
 
         row.Setup(
             data,
-            OnRowSelected);
+            (roomCode, matchId, isCompleted) =>
+            {
+                // The tap is answered at once, whatever the database takes.
+                row.ShowOpening();
+                OnRowSelected(roomCode, matchId, isCompleted);
+            });
 
         rows.Add(row);
     }
