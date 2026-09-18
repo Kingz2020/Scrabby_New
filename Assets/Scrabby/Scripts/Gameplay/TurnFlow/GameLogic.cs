@@ -927,6 +927,7 @@ public partial class GameLogic : MonoBehaviour
             Singleton.Instance.UIManager.ReturnTilesToHand();
             Singleton.Instance.UIManager.RemoveAllHandTiles();
             Singleton.Instance.UIManager.ClearCommittedBoardTiles();
+            Singleton.Instance.UIManager.ClearBoardMarkings();
             Singleton.Instance.UIManager.ClearRoundMessage();
             Singleton.Instance.UIManager.ShowTurnState(
                 "Your turn", UIManager.TurnTone.Yours);

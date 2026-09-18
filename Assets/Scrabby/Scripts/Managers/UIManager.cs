@@ -649,6 +649,37 @@ public class UIManager : MonoBehaviour
             rejectedOutline.SetActive(false);
     }
 
+    // Everything the board can be wearing, off at once: the box round the
+    // word that won, the box round a word that was refused, the red marks on
+    // individual tiles, and any score bubbles still floating.
+    //
+    // Starting a game did not do this. The letters went, but the marks from
+    // the last game stayed until the first round drew over them, so a new
+    // board opened wearing the previous one's scoring.
+    public void ClearBoardMarkings()
+    {
+        HidePlayedWordHighlight();
+        HideRejectedOutlineNow();
+
+        ClearHighlightsUnder(gameBoard);
+        ClearHighlightsUnder(handTileHolder);
+
+        if (overlayCanvasRect == null || validatedScorePopupPrefab == null)
+            return;
+
+        // The bubbles are separate objects with a life of their own; any still
+        // in the air belong to a game that is over.
+        string popupName = validatedScorePopupPrefab.name;
+
+        for (int i = overlayCanvasRect.childCount - 1; i >= 0; i--)
+        {
+            Transform child = overlayCanvasRect.GetChild(i);
+
+            if (child != null && child.name.StartsWith(popupName))
+                Destroy(child.gameObject);
+        }
+    }
+
     private void ClearHighlightsUnder(GameObject root)
     {
         if (root == null)
