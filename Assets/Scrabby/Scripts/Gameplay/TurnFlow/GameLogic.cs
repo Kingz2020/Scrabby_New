@@ -943,6 +943,13 @@ public partial class GameLogic : MonoBehaviour
         if (boardBonusTiles != null)
             System.Array.Clear(boardBonusTiles, 0, boardBonusTiles.Length);
 
+        // The coloured squares are objects parented to the board cells, not
+        // part of the array above - emptying the array left them on screen.
+        // So a solo game started after a daily opened on the daily's bonus
+        // squares, until the first round drew its own over the top.
+        if (bonusBoardView != null)
+            bonusBoardView.ClearBonusTiles();
+
         VerboseLog("ClearBoardForNewGame END");
     }
 
