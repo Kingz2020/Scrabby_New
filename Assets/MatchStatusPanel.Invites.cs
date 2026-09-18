@@ -1,7 +1,9 @@
 using System;
 using System.Collections;
+using System.Collections.Generic;
 using Firebase.Database;
 using Firebase.Extensions;
+using TMPro;
 using UnityEngine;
 
 // Asking for an invitation to be sent, rather than sending it.
@@ -60,15 +62,17 @@ public partial class MatchStatusPanel
                 return;
             }
 
-            StartCoroutine(WaitForInviteAnswer(requestRef, onDone));
+            StartCoroutine(WaitForInviteAnswer(requestRef, toEmail, onDone));
         });
     }
 
     private IEnumerator WaitForInviteAnswer(
-        DatabaseReference requestRef, Action<bool, string, string> onDone)
+        DatabaseReference requestRef, string typedEmail,
+        Action<bool, string, string> onDone)
     {
         string status = null;
         string invitedName = "";
+        string invitedUid = "";
 
         EventHandler<ValueChangedEventArgs> watcher = (sender, args) =>
         {
@@ -77,12 +81,16 @@ public partial class MatchStatusPanel
 
             object value = args.Snapshot.Child("status").Value;
             object name = args.Snapshot.Child("toName").Value;
+            object uid = args.Snapshot.Child("toUid").Value;
 
             if (value != null)
                 status = value.ToString();
 
             if (name != null)
                 invitedName = name.ToString();
+
+            if (uid != null)
+                invitedUid = uid.ToString();
         };
 
         DatabaseReference resultRef = requestRef.Child("result");
@@ -104,6 +112,11 @@ public partial class MatchStatusPanel
         switch (status)
         {
             case "sent":
+                // Worth remembering: the server has just confirmed this
+                // address belongs to a player, so it can be offered next time
+                // rather than typed again.
+                RememberOpponent(invitedUid, invitedName, typedEmail);
+
                 onDone(true, "Invitation sent to " +
                              (string.IsNullOrEmpty(invitedName) ? "them" : invitedName) + ".",
                        invitedName);
@@ -136,5 +149,132 @@ public partial class MatchStatusPanel
         public string toEmail;
         public string toUid;
         public long createdAtUnix;
+    }
+
+    // ------------------------------------------------ people you have played
+    //
+    // Typing a friend's address every time is a chore, and a typo means "no
+    // Scrabby player has that email address" rather than a game. Anyone the
+    // server has found once is kept on the player's own profile and offered
+    // in a list.
+
+    [SerializeField] private TMP_Dropdown recentOpponentsDropdown;
+
+    private readonly List<string> recentOpponentEmails = new List<string>();
+
+    [Serializable]
+    private class KnownOpponent
+    {
+        public string email;
+        public string name;
+        public long lastPlayedUnix;
+    }
+
+    private void WireRecentOpponents()
+    {
+        if (recentOpponentsDropdown == null)
+            return;
+
+        recentOpponentsDropdown.onValueChanged.RemoveAllListeners();
+        recentOpponentsDropdown.onValueChanged.AddListener(OnRecentOpponentChosen);
+
+        LoadRecentOpponents();
+    }
+
+    private void OnRecentOpponentChosen(int index)
+    {
+        // The first line is the prompt, not a player.
+        if (index <= 0 || index > recentOpponentEmails.Count || inviteInput == null)
+            return;
+
+        inviteInput.SetTextWithoutNotify(recentOpponentEmails[index - 1]);
+        inviteInput.ForceLabelUpdate();
+    }
+
+    public void LoadRecentOpponents()
+    {
+        if (recentOpponentsDropdown == null || dbRoot == null ||
+            auth == null || auth.CurrentUser == null)
+        {
+            return;
+        }
+
+        dbRoot.Child("users").Child(auth.CurrentUser.UserId).Child("knownOpponents")
+              .GetValueAsync().ContinueWithOnMainThread(task =>
+        {
+            if (task.IsFaulted || task.IsCanceled || recentOpponentsDropdown == null)
+                return;
+
+            List<KnownOpponent> known = new List<KnownOpponent>();
+
+            if (task.Result != null && task.Result.Exists)
+            {
+                foreach (DataSnapshot child in task.Result.Children)
+                {
+                    KnownOpponent entry =
+                        JsonUtility.FromJson<KnownOpponent>(child.GetRawJsonValue());
+
+                    if (entry != null && !string.IsNullOrEmpty(entry.email))
+                        known.Add(entry);
+                }
+            }
+
+            // Most recently played first: the next game is usually with
+            // whoever you played last.
+            known.Sort((a, b) => b.lastPlayedUnix.CompareTo(a.lastPlayedUnix));
+
+            recentOpponentEmails.Clear();
+
+            List<string> lines = new List<string>
+            {
+                known.Count == 0 ? "No one yet - type an address" : "Choose a player"
+            };
+
+            foreach (KnownOpponent entry in known)
+            {
+                recentOpponentEmails.Add(entry.email);
+
+                lines.Add(string.IsNullOrEmpty(entry.name) || entry.name == entry.email
+                    ? entry.email
+                    : entry.name + "  (" + entry.email + ")");
+            }
+
+            recentOpponentsDropdown.ClearOptions();
+            recentOpponentsDropdown.AddOptions(lines);
+            recentOpponentsDropdown.SetValueWithoutNotify(0);
+            recentOpponentsDropdown.RefreshShownValue();
+
+            ScrabbyLog.Trace("[INVITE] " + known.Count + " known opponent(s) listed.");
+        });
+    }
+
+    private void RememberOpponent(string uid, string name, string email)
+    {
+        if (string.IsNullOrEmpty(uid) || string.IsNullOrEmpty(email) ||
+            dbRoot == null || auth == null || auth.CurrentUser == null)
+        {
+            return;
+        }
+
+        KnownOpponent entry = new KnownOpponent
+        {
+            email = email,
+            name = name ?? "",
+            lastPlayedUnix = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
+        };
+
+        dbRoot.Child("users").Child(auth.CurrentUser.UserId)
+              .Child("knownOpponents").Child(uid)
+              .SetRawJsonValueAsync(JsonUtility.ToJson(entry))
+              .ContinueWithOnMainThread(task =>
+        {
+            if (task.IsFaulted)
+            {
+                Debug.LogWarning("[INVITE] Could not remember " + email + ": " + task.Exception);
+                return;
+            }
+
+            LoadRecentOpponents();
+        });
     }
 }

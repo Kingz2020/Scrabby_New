@@ -6626,7 +6626,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: 'Invite Email address:'
+  m_text: Invite a player:
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
   m_sharedMaterial: {fileID: 2180264, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
@@ -12682,7 +12682,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
-  m_AnchoredPosition: {x: 0, y: 149}
+  m_AnchoredPosition: {x: 0, y: 61}
   m_SizeDelta: {x: 810, y: 96}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &1026248532
@@ -17570,6 +17570,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 441c0d238252a194980fab289779ded9, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::MatchStatusPanel
+  recentOpponentsDropdown: {fileID: 1489403426}
   quickGameButton: {fileID: 1035348532}
   matchInfoText: {fileID: 618007217}
   statusText: {fileID: 1679684770}
@@ -19040,7 +19041,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
-  m_AnchoredPosition: {x: 0, y: 249}
+  m_AnchoredPosition: {x: 0, y: 161}
   m_SizeDelta: {x: 810, y: 72}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &1445263723
@@ -19304,12 +19305,12 @@ GameObject:
   - component: {fileID: 1489403427}
   - component: {fileID: 1489403426}
   m_Layer: 5
-  m_Name: PlayerCountDropdown
+  m_Name: RecentOpponentsDropdown
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 0
+  m_IsActive: 1
 --- !u!224 &1489403425
 RectTransform:
   m_ObjectHideFlags: 0
@@ -19329,7 +19330,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
-  m_AnchoredPosition: {x: 0, y: 385}
+  m_AnchoredPosition: {x: 0, y: 249}
   m_SizeDelta: {x: 810, y: 72}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &1489403426

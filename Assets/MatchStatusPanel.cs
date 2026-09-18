@@ -126,6 +126,7 @@ public partial class MatchStatusPanel : MonoBehaviour
             inviteButton.onClick.AddListener(OnInviteButtonPressed);
 
         WireQuickGame();
+        WireRecentOpponents();
     }
 
     private void Start()
@@ -257,18 +258,13 @@ public partial class MatchStatusPanel : MonoBehaviour
             roomCodeText.text = roomCode;
     }*/
 
+    // A match holds two players. The dropdown that once offered three or four
+    // never did anything - nothing read the number - and it is now the list of
+    // people you have played, so reading a value from it would say a game had
+    // four players because you picked the fourth name.
     public int GetPlayerCount()
     {
-        if (playerCountDropdown == null)
-            return 2;
-
-        switch (playerCountDropdown.value)
-        {
-            case 0: return 2;
-            case 1: return 3;
-            case 2: return 4;
-            default: return 2;
-        }
+        return 2;
     }
 
     public int GetRoundCount()
