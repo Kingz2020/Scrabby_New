@@ -267,18 +267,12 @@ public partial class MatchStatusPanel : MonoBehaviour
         return 2;
     }
 
+    // Four rounds, like a solo game and like a quick game. The choice of two
+    // or six was useful while testing and confusing to a player, so the
+    // dropdown is gone and the number is the same everywhere.
     public int GetRoundCount()
     {
-        if (roundCountDropdown == null)
-            return 4;
-
-        switch (roundCountDropdown.value)
-        {
-            case 0: return 2;
-            case 1: return 4;
-            case 2: return 6;
-            default: return 4;
-        }
+        return 4;
     }
 
     public int GetTurnTimeMinutes()
