@@ -4319,7 +4319,7 @@ public partial class GameLogic : MonoBehaviour
         StartCoroutine(AutoAdvanceRoundFlow());
     }
 
-    private const float RoundDecisionPause = 1.3f;
+    private const float RoundDecisionPause = 0.8f;
 
     private IEnumerator AutoAdvanceRoundFlow()
     {
