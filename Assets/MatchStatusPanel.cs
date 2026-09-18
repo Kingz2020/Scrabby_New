@@ -440,12 +440,20 @@ public partial class MatchStatusPanel : MonoBehaviour
     // under another coroutine is the sort of thing that ends in a native crash.
     private Coroutine listLoader;
 
+    // Stopping the previous loader is not enough on its own: one that is past
+    // its last wait cannot be stopped and runs to the end, so every refresh
+    // built the list twice, destroying and rebuilding the rows under whoever
+    // was about to tap one. Each load takes a number, and only the newest is
+    // allowed to build.
+    private int listLoadGeneration;
+
     private void StartLoadingMatchList(
         string myUid, List<string> roomIds, List<string> matchIds)
     {
         if (listLoader != null)
             StopCoroutine(listLoader);
 
+        listLoadGeneration++;
         listLoader = StartCoroutine(LoadMatchList(myUid, roomIds, matchIds));
     }
 
@@ -454,6 +462,8 @@ public partial class MatchStatusPanel : MonoBehaviour
     List<string> roomIds,
     List<string> matchIds)
     {
+        int myGeneration = listLoadGeneration;
+
         List<MatchListItemData> activeItems = new List<MatchListItemData>();
         List<MatchListItemData> completedItems = new List<MatchListItemData>();
         List<MatchListItemData> inviteItems = new List<MatchListItemData>();
@@ -770,6 +780,13 @@ public partial class MatchStatusPanel : MonoBehaviour
                       (invitesTask.IsFaulted ? invitesTask.Exception?.ToString() : "none"));
         }
         */
+        if (myGeneration != listLoadGeneration)
+        {
+            ScrabbyLog.Trace("[MATCH LIST] A newer refresh has taken over; " +
+                             "this one stops here.");
+            yield break;
+        }
+
         BuildMatchList(activeItems, completedItems, inviteItems);
 
         int total = activeItems.Count + completedItems.Count + inviteItems.Count;
@@ -905,7 +922,24 @@ public partial class MatchStatusPanel : MonoBehaviour
     {
         ScrabbyLog.Trace("[MATCH STATUS] Refresh requested");
         ShowStatus("Checking for active matches...");
+
+        // Reading the matches takes a moment, and a button that does not
+        // change invites another press.
+        if (refreshButton != null)
+        {
+            refreshButton.interactable = false;
+            StartCoroutine(FreeRefreshButtonShortly());
+        }
+
         RefreshMatchState();
+    }
+
+    private IEnumerator FreeRefreshButtonShortly()
+    {
+        yield return new WaitForSeconds(1.2f);
+
+        if (refreshButton != null)
+            refreshButton.interactable = true;
     }
 
     public void OnResumePressed()

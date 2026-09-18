@@ -17,6 +17,13 @@ public static class ScrabbyLog
 {
     private const string Key = "Scrabby.VerboseLogs";
 
+    // TESTING ONLY - set back to false before a release build.
+    //
+    // A phone has no menu to turn logging on, so a test build that goes quiet
+    // when something odd happens tells us nothing. With this true, a build
+    // talks unless someone has explicitly turned logging off.
+    private const bool VerboseByDefault = true;
+
     private static bool loaded;
     private static bool verbose;
 
@@ -26,7 +33,7 @@ public static class ScrabbyLog
         {
             if (!loaded)
             {
-                verbose = PlayerPrefs.GetInt(Key, 0) != 0;
+                verbose = PlayerPrefs.GetInt(Key, VerboseByDefault ? 1 : 0) != 0;
                 loaded = true;
             }
 
