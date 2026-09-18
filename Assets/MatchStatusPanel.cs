@@ -1110,6 +1110,11 @@ public partial class MatchStatusPanel : MonoBehaviour
     public void ShowNewMatchTab()
     {
         showingNewMatch = true;
+
+        // The list of people you have played is read here rather than at
+        // startup: at startup nobody is signed in yet, so it stayed as the
+        // scene left it - which is why it still read "2 Players".
+        LoadRecentOpponents();
         ApplyTab();
     }
 
