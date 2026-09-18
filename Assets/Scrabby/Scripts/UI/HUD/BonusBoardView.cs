@@ -22,6 +22,12 @@ public class BonusBoardView : MonoBehaviour
         {
             for (int x = 0; x < gameLogic.GetBoardSizeX(); x++)
             {
+                // A bonus square drawn on top of a word hides the letter: the
+                // C of CURVE vanished under a double word that was sitting on
+                // the same square.
+                if (gameLogic.HasPlayedLetterAt(x, y))
+                    continue;
+
                 DrawSingleBonusTile(boardBonusTiles, ghostTiles, x, y);
             }
         }
@@ -56,6 +62,10 @@ public class BonusBoardView : MonoBehaviour
                     boardBonusTiles[x, y];
 
                 if (bonusTile == null)
+                    continue;
+
+                // Not over a letter already on the board.
+                if (gameLogic.HasPlayedLetterAt(x, y))
                     continue;
 
                 DrawSingleBonusTile(

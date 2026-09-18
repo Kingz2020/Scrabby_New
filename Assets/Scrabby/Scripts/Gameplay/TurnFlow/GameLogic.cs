@@ -5945,6 +5945,26 @@ public partial class GameLogic : MonoBehaviour
         }
     }
 
+    // Whether a word already occupies this square, in the bonus board's own
+    // 0-based coordinates. The letter arrays are 1-based with a border, hence
+    // the +1.
+    public bool HasPlayedLetterAt(int bonusX, int bonusY)
+    {
+        if (validatedBoardTiles == null)
+            return false;
+
+        int row = bonusX + 1;
+        int col = bonusY + 1;
+
+        if (row < 0 || row >= validatedBoardTiles.GetLength(0) ||
+            col < 0 || col >= validatedBoardTiles.GetLength(1))
+        {
+            return false;
+        }
+
+        return validatedBoardTiles[row, col] != null;
+    }
+
     public void SetInputLocked(bool locked)
     {
         currentState = locked ? TurnState.Busy : TurnState.PlayerTurn;

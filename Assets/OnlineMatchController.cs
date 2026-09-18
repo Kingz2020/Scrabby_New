@@ -1523,6 +1523,21 @@ public class OnlineMatchController : MonoBehaviour
 
         pendingEnterGameplay = false;
 
+        // A finished match has no round left to play. Nothing checked, so
+        // after the last round resolved the game opened round 5 of 4 and
+        // invited the player to take a turn in a game that was over.
+        if (currentMatch.status == "completed" ||
+            currentMatch.currentRoundNumber > currentMatch.totalRounds)
+        {
+            TraceMatch("CheckSubmissionThenEnterGameplay MATCH IS OVER"
+                       + " | round=" + currentMatch.currentRoundNumber
+                       + " of " + currentMatch.totalRounds);
+
+            viewingOnlineMatchResult = true;
+            ShowGameOverForMatch(currentMatch);
+            return;
+        }
+
         // This checks what its name says again. It had stopped: it entered the
         // round whatever had happened, so resuming a match after playing put
         // the player back into a round they had already played - and every way
