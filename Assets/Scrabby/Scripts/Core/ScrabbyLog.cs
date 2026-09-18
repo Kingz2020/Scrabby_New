@@ -17,12 +17,15 @@ public static class ScrabbyLog
 {
     private const string Key = "Scrabby.VerboseLogs";
 
-    // TESTING ONLY - set back to false before a release build.
-    //
     // A phone has no menu to turn logging on, so a test build that goes quiet
-    // when something odd happens tells us nothing. With this true, a build
-    // talks unless someone has explicitly turned logging off.
-    private const bool VerboseByDefault = true;
+    // when something odd happens tells us nothing - but it is not free.
+    // Android writes a stack trace with every line, and the AI's search alone
+    // wrote up to two thousand lines a turn, which is a second or more of the
+    // time the player spends watching "thinking".
+    //
+    // Set to true to build a chatty APK for chasing something; false is the
+    // right setting the rest of the time, including release.
+    private const bool VerboseByDefault = false;
 
     private static bool loaded;
     private static bool verbose;
@@ -52,7 +55,24 @@ public static class ScrabbyLog
     // A step worth reading only when following the steps.
     public static void Trace(object message)
     {
-        if (Verbose)
-            Debug.Log(message);
+        if (!Verbose)
+            return;
+
+        EnsureCheapLogs();
+        Debug.Log(message);
+    }
+
+    // Most of the cost of a log line on a phone is the stack trace Unity
+    // attaches to it, and these lines are read for what they say, not for
+    // where they came from. Warnings and errors keep theirs.
+    private static bool stackTracesTrimmed;
+
+    private static void EnsureCheapLogs()
+    {
+        if (stackTracesTrimmed)
+            return;
+
+        stackTracesTrimmed = true;
+        Application.SetStackTraceLogType(LogType.Log, StackTraceLogType.None);
     }
 }
