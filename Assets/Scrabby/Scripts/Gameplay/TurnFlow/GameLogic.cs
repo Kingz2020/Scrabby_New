@@ -918,7 +918,11 @@ public partial class GameLogic : MonoBehaviour
 
     
 
-    private void ClearBoardForNewGame()
+    // Public, because the board is also worth wiping the moment it is shown:
+    // a game starting from the menu used to arrive on the last game's letters,
+    // bonus squares and scoring marks, and only clear them when the first
+    // round began.
+    public void ClearBoardForNewGame()
     {
         VerboseLog("ClearBoardForNewGame START");
 

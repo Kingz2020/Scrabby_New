@@ -483,6 +483,11 @@ public class OptionPanelController : MonoBehaviour
 
         if (gameplayPanel != null) gameplayPanel.SetActive(true);
 
+        // A clean slate before anything is dealt: whatever the last game left
+        // on the board goes now, rather than when the first round starts.
+        if (Singleton.Instance.GameLogic != null)
+            Singleton.Instance.GameLogic.ClearBoardForNewGame();
+
         Singleton.Instance.DebugManager.StartNewGame(chosen);
 
         ScrabbyLog.Trace("[OptionPanel] Solo started, difficulty=" + chosen);
