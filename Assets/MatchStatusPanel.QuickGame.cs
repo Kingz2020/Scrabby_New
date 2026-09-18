@@ -182,8 +182,8 @@ public partial class MatchStatusPanel
             {
                 case SlotResult.Own:
                     ScrabbyLog.Trace("[QUICK] My own open game " + foundMatch +
-                              " is still waiting for an opponent - carrying on with it.");
-                    EnterQuickGame(foundMatch);
+                              " is still waiting for an opponent.");
+                    ResumeOrReportOwnOpenGame(foundMatch);
                     break;
 
                 case SlotResult.Stale:
@@ -204,6 +204,40 @@ public partial class MatchStatusPanel
     }
 
     // ---- step 2a: take the empty seat in somebody's game ----------------------
+    // Tapping Quick game when you already have a game waiting.
+    //
+    // It used to open that game whatever state it was in - and if the round
+    // had been played, the board bounced the player straight back to the list,
+    // so the button looked broken. There is nothing to do in a game you have
+    // played and nobody has joined: say so instead.
+    private void ResumeOrReportOwnOpenGame(string matchId)
+    {
+        dbRoot.Child("matches").Child(matchId).Child("rounds").Child("1")
+              .Child("submissions").Child(auth.CurrentUser.UserId)
+              .GetValueAsync().ContinueWithOnMainThread(task =>
+        {
+            bool alreadyPlayed = !task.IsFaulted && !task.IsCanceled &&
+                                 task.Result != null && task.Result.Exists;
+
+            ScrabbyLog.Trace("[QUICK] Own open game " + matchId +
+                             ": already played = " + alreadyPlayed);
+
+            if (!alreadyPlayed)
+            {
+                EnterQuickGame(matchId);
+                return;
+            }
+
+            SetQuickGameBusy(false);
+            ShowStatus("Your quick game is waiting for someone to join. " +
+                       "It stays open for 12 hours.");
+
+            // The row for it says the same thing, so put the list in front of
+            // them rather than leaving a message on a panel they cannot see.
+            RefreshMatchState();
+        });
+    }
+
     private void JoinOpenGame(string matchId, int attempt)
     {
         string myUid = auth.CurrentUser.UserId;
