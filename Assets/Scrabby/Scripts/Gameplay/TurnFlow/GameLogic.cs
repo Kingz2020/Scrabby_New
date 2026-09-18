@@ -5713,10 +5713,15 @@ public partial class GameLogic : MonoBehaviour
     {
         SetInputLocked(true);
 
+        // Both lines belong to the check. Without the braces the second ran
+        // whatever the first found, so a missing UIManager threw here rather
+        // than being skipped.
         if (Singleton.Instance != null && Singleton.Instance.UIManager != null)
+        {
             Singleton.Instance.UIManager.ClearRoundMessage();
             Singleton.Instance.UIManager.ShowTurnState(
                 "Your turn", UIManager.TurnTone.Yours);
+        }
 
         RoundResultData previousResult = null;
 
