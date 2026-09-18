@@ -115,10 +115,74 @@ public class OptionPanelController : MonoBehaviour
         Refresh();
 
         AddHowToPlayLink();
+        AddGameplayMainMenuButton();
 
         // First time only. Someone who already knows the rules should not have
         // to dismiss them every launch.
         HowToPlayPanel.ShowIfNotSeen();
+    }
+
+    // The way out of a game. A solo game had none: the only buttons on the
+    // board screen played the round, and the one in the corner started a new
+    // game, which is not what someone wants who has finished playing for now.
+    //
+    // An online match is safe to walk away from - it lives on the server and
+    // is waiting in the matches list - and a solo game is not saved either
+    // way, so this asks nothing before leaving.
+    private void AddGameplayMainMenuButton()
+    {
+        if (gameplayPanel == null)
+            return;
+
+        if (gameplayPanel.transform.Find("MainMenuButton_Gameplay") != null)
+            return;
+
+        GameObject go = new GameObject("MainMenuButton_Gameplay",
+            typeof(RectTransform), typeof(Image), typeof(Button));
+
+        go.transform.SetParent(gameplayPanel.transform, false);
+
+        RectTransform rect = go.GetComponent<RectTransform>();
+        rect.anchorMin = rect.anchorMax = rect.pivot = new Vector2(0.5f, 0.5f);
+        rect.sizeDelta = new Vector2(300f, 84f);
+
+        // Beside the back-to-matches button rather than under it: in an online
+        // match both are on screen at once.
+        rect.anchoredPosition = new Vector2(-330f, -1020f);
+
+        Image face = go.GetComponent<Image>();
+        face.color = new Color(0.941f, 0.698f, 0.235f, 1f);
+
+        GameObject labelGo = new GameObject("Label",
+            typeof(RectTransform), typeof(TextMeshProUGUI));
+
+        labelGo.transform.SetParent(go.transform, false);
+
+        TextMeshProUGUI label = labelGo.GetComponent<TextMeshProUGUI>();
+        label.text = "Main Menu";
+        label.fontSize = 32f;
+        label.color = new Color(0.227f, 0.173f, 0.094f, 1f);
+        label.alignment = TextAlignmentOptions.Center;
+
+        RectTransform labelRect = labelGo.GetComponent<RectTransform>();
+        labelRect.anchorMin = Vector2.zero;
+        labelRect.anchorMax = Vector2.one;
+        labelRect.offsetMin = Vector2.zero;
+        labelRect.offsetMax = Vector2.zero;
+
+        Button button = go.GetComponent<Button>();
+        button.targetGraphic = face;
+        button.onClick.AddListener(LeaveGameForMainMenu);
+    }
+
+    private void LeaveGameForMainMenu()
+    {
+        // Stop listening to a match we are walking away from, so its updates
+        // do not pull us back into the board.
+        if (Singleton.Instance != null && Singleton.Instance.OnlineMatchController != null)
+            Singleton.Instance.OnlineMatchController.StopWatchingCurrentMatch();
+
+        ReturnToMainMenu();
     }
 
     // The way back into the rules, placed under the play button rather than
