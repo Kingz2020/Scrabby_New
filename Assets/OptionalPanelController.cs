@@ -480,7 +480,11 @@ public class OptionPanelController : MonoBehaviour
         }
     }
 
-    private void StartSolo(GameLogic.SoloDifficulty chosen)
+    // Public, because the daily's result card also offers a solo game, and
+    // starting one from there used to skip all of this: the panels stayed as
+    // the daily left them, nothing stopped what was still running, and the
+    // game began underneath whatever was on screen.
+    public void StartSolo(GameLogic.SoloDifficulty chosen)
     {
         LeaveDaily();
 

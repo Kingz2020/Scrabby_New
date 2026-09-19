@@ -286,6 +286,21 @@ public static class DailyResultPanel
 
         Singleton.Instance.GameLogic.LeaveDailyMode();
 
+        // The same way in as the menu's own Play button: it switches the
+        // panels, stops whatever the last game was still doing and clears the
+        // board. Dealing a game here directly did none of that.
+        OptionPanelController options =
+            UnityEngine.Object.FindAnyObjectByType<OptionPanelController>(
+                FindObjectsInactive.Include);
+
+        if (options != null)
+        {
+            options.StartSolo(level);
+            return;
+        }
+
+        Debug.LogWarning("[DAILY] No option panel found; dealing a game the old way.");
+
         if (Singleton.Instance.DebugManager != null)
         {
             Singleton.Instance.DebugManager.LoadFromJson();
