@@ -30,7 +30,7 @@ public static class HowToPlayPanel
     private static readonly Color WinBox = new Color(0.88f, 0.70f, 0.30f, 0.17f);
 
     private const float CardWidth = 900f;
-    private const float CardHeight = 1310f;
+    private const float CardHeight = 1368f;
 
     // The rules, in the order they have to be understood.
     private static readonly string[] Rules =
@@ -38,7 +38,8 @@ public static class HowToPlayPanel
         "You and your opponent are dealt <b>the same six letters</b>, and play on the same board.",
         "The <b>higher-scoring word wins the round</b>, and that word is placed on the board for the next one. The other scores nothing.",
         "Bonus squares are <b>scattered at random</b> - and scattered again <color=#F1E0BB><b>after every round</b></color>. That double-word won't be there next time.",
-        "Whoever wins <b>the most rounds</b> takes the game - four rounds in a solo game, or two, four or six online.",
+        "Use <b>all six letters</b> in one word and you get <color=#F1E0BB><b>20 extra points</b></color>.",
+        "Whoever wins <b>the most rounds</b> takes the game, over four rounds - against the computer or a friend.",
         "Play against the <b>computer</b>, or invite a <b>friend online</b> by email.",
         "And there's a <b>daily puzzle</b>: one board, one word, one go a day."
     };
