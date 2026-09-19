@@ -29,6 +29,20 @@ public partial class GameLogic : MonoBehaviour
     // debugged, just not all the time.
     public static bool Verbose = false;
 
+    // For playing the whole rack in one word.
+    //
+    // It was 50, Scrabble's number for using seven of seven. Six is a much
+    // easier ask: a six-letter word exists for about one rack in five, and
+    // those racks are the ones full of one-point letters, so the word itself
+    // is worth no more than a shorter one - about 9 in letters, 12 to 14 once
+    // the board's multipliers are counted, against a typical winning word of
+    // around 18.
+    //
+    // At 50 one bonus was worth two or three ordinary rounds, and a match is
+    // decided on total points, so it decided the match. At 20 it wins its own
+    // round almost always and still loses to a strong word.
+    public const int AllTilesBonus = 20;
+
     private static void VerboseLog(object message)
     {
         // Either this switch or the project-wide one (Scrabby > Logs).
@@ -2587,7 +2601,7 @@ public partial class GameLogic : MonoBehaviour
         int finalScore = totalLetterPoints * wordMultiplier;
 
         if (placedTiles.Count == maxHandSize)
-            finalScore += 50;
+            finalScore += AllTilesBonus;
 
         RoundMove move = new RoundMove();
         move.isHuman = false;
@@ -3728,7 +3742,7 @@ public partial class GameLogic : MonoBehaviour
                         mainWord = GetMainWordFromPlacedTiles(state.placedTiles, validatedBoardTiles, orientation);
                         totalScore = CountAIMoveScore(allWords, state.placedTiles);
                         if (state.placedTiles.Count == maxHandSize)
-                            totalScore += 50;
+                            totalScore += AllTilesBonus;
                         valid = true;
                     }
                 }
@@ -4242,7 +4256,7 @@ public partial class GameLogic : MonoBehaviour
         }
 
         if (move.placedTiles.Count == maxHandSize)
-            move.score += 50;
+            move.score += AllTilesBonus;
 
         return move;
     }
