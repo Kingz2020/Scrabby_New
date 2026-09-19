@@ -2911,8 +2911,7 @@ public partial class GameLogic : MonoBehaviour
         // screen there is nothing else saying which was played.
         string roundSummary =
                     $"Final score: {humanTotalScore} - AI {aiTotalScore}" +
-                    $"
-{currentSoloDifficulty} game, {roundHistory.Count} rounds";
+                    $"\n{currentSoloDifficulty} game, {roundHistory.Count} rounds";
 
         // The per-round breakdown lives on the replay rows below, so repeating it
         // in the summary text just prints every score twice.
