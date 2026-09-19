@@ -188,7 +188,10 @@ public class OptionPanelController : MonoBehaviour
         // Stop listening to a match we are walking away from, so its updates
         // do not pull us back into the board.
         if (Singleton.Instance != null && Singleton.Instance.OnlineMatchController != null)
+        {
             Singleton.Instance.OnlineMatchController.StopWatchingCurrentMatch();
+            Singleton.Instance.OnlineMatchController.LeftMatchViews();
+        }
 
         // And stop the game itself, so a reveal or replay still in flight
         // cannot show its result over whatever comes next.

@@ -392,6 +392,20 @@ public class OnlineMatchController : MonoBehaviour
     /// Show game-over panel for a given matchId.
     /// </summary>
 
+    // Bumped when the player leaves a match for the main menu. Work already in
+    // flight - the pause before the matches list, a replay waiting for the
+    // board - checks it before putting a screen up, so it cannot drag the
+    // player back out of wherever they have gone.
+    //
+    // A counter rather than stopping the coroutines outright: some of them
+    // are finishing a round, and that should still be written.
+    private int viewGeneration;
+
+    public void LeftMatchViews()
+    {
+        viewGeneration++;
+    }
+
     public void ShowGameOverForMatchId(string matchId)
     {
         if (matchStatusPanel != null)
@@ -1476,6 +1490,8 @@ public class OnlineMatchController : MonoBehaviour
 
     private IEnumerator ShowSubmittedWaitingSequence()
     {
+        int myView = viewGeneration;
+
         if (gameLogic != null)
             gameLogic.SetInputLocked(true);
 
@@ -1487,6 +1503,10 @@ public class OnlineMatchController : MonoBehaviour
 
         if (pendingResolutionMatchId == null)
             yield break; // already redirected to game-over panel
+
+        // The player left while this was waiting; leave them where they are.
+        if (myView != viewGeneration)
+            yield break;
 
         // Switch back to MatchStatusPanel
         if (gameplayPanel != null) gameplayPanel.SetActive(false);
@@ -2391,6 +2411,8 @@ ValueChangedEventArgs args)
     int localScore,
     int opponentScore)
     {
+        int viewGenerationAtReplayStart = viewGeneration;
+
         if (entry == null || gameLogic == null)
             yield break;
 
@@ -2406,6 +2428,12 @@ ValueChangedEventArgs args)
         // Lets Unity activate the board hierarchy and run BoardGen.Start().
         yield return null;
         yield return new WaitForEndOfFrame();
+
+        // The player may have left for the menu while the board was coming
+        // up; carrying on would pull them back to a replay they walked away
+        // from.
+        if (viewGeneration != viewGenerationAtReplayStart)
+            yield break;
 
         BoardGen boardGen = FindAnyObjectByType<BoardGen>();
 
