@@ -175,12 +175,25 @@ public class OptionPanelController : MonoBehaviour
         button.onClick.AddListener(LeaveGameForMainMenu);
     }
 
+    // Every way into a game passes through here first, so none of them can
+    // inherit the last one's coroutines, board or result panel.
+    private void AbandonWhateverWasPlaying()
+    {
+        if (Singleton.Instance != null && Singleton.Instance.GameLogic != null)
+            Singleton.Instance.GameLogic.AbandonGameInProgress();
+    }
+
     private void LeaveGameForMainMenu()
     {
         // Stop listening to a match we are walking away from, so its updates
         // do not pull us back into the board.
         if (Singleton.Instance != null && Singleton.Instance.OnlineMatchController != null)
             Singleton.Instance.OnlineMatchController.StopWatchingCurrentMatch();
+
+        // And stop the game itself, so a reveal or replay still in flight
+        // cannot show its result over whatever comes next.
+        if (Singleton.Instance != null && Singleton.Instance.GameLogic != null)
+            Singleton.Instance.GameLogic.AbandonGameInProgress();
 
         ReturnToMainMenu();
     }
@@ -363,6 +376,8 @@ public class OptionPanelController : MonoBehaviour
 
     private IEnumerator StartDailyWhenReady()
     {
+        AbandonWhateverWasPlaying();
+
         DailyManager manager = DailyManager.Instance;
 
         manager.Prepare();
@@ -484,9 +499,10 @@ public class OptionPanelController : MonoBehaviour
         if (gameplayPanel != null) gameplayPanel.SetActive(true);
 
         // A clean slate before anything is dealt: whatever the last game left
-        // on the board goes now, rather than when the first round starts.
-        if (Singleton.Instance.GameLogic != null)
-            Singleton.Instance.GameLogic.ClearBoardForNewGame();
+        // behind goes now - its board, and anything it was still doing, such
+        // as a replay that would otherwise put the game-over panel back up
+        // over this game.
+        AbandonWhateverWasPlaying();
 
         Singleton.Instance.DebugManager.StartNewGame(chosen);
 
@@ -533,6 +549,7 @@ public class OptionPanelController : MonoBehaviour
     public void OnMultiplayerPressed()
     {
         LeaveDaily();
+        AbandonWhateverWasPlaying();
 
         ScrabbyLog.Trace("[OptionPanel] Multiplayer selected");
 

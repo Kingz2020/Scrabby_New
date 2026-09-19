@@ -918,6 +918,31 @@ public partial class GameLogic : MonoBehaviour
 
     
 
+    // Walking away from whatever was happening: a finished game whose replay
+    // is still running, a round mid-reveal, a daily.
+    //
+    // A replay started from the game-over screen hides that panel, plays the
+    // round, and puts the panel back - so leaving in the middle of one and
+    // starting a new game meant the old game's result appeared over the new
+    // one a second later. Nothing stopped it, because starting a game from
+    // the menu never stopped what the last one was doing.
+    public void AbandonGameInProgress()
+    {
+        StopAllCoroutines();
+
+        roundFlowActive = false;
+        roundRevealStep = 0;
+        currentState = TurnState.PlayerTurn;
+
+        if (Singleton.Instance != null && Singleton.Instance.UIManager != null &&
+            Singleton.Instance.UIManager.gameOverPanel != null)
+        {
+            Singleton.Instance.UIManager.gameOverPanel.SetActive(false);
+        }
+
+        ClearBoardForNewGame();
+    }
+
     // Public, because the board is also worth wiping the moment it is shown:
     // a game starting from the menu used to arrive on the last game's letters,
     // bonus squares and scoring marks, and only clear them when the first
