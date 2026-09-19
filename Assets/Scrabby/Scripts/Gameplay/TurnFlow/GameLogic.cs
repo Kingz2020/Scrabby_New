@@ -2906,9 +2906,13 @@ public partial class GameLogic : MonoBehaviour
 
         VerboseLog(finalMessage);
 
+        // Which level this was, since beating the computer means a different
+        // thing on Easy and on Expert, and by the time the result is on
+        // screen there is nothing else saying which was played.
         string roundSummary =
-                    $"Final score: {humanTotalScore} - AI {aiTotalScore} " +
-                    $"(played {roundHistory.Count} rounds)";
+                    $"Final score: {humanTotalScore} - AI {aiTotalScore}" +
+                    $"
+{currentSoloDifficulty} game, {roundHistory.Count} rounds";
 
         // The per-round breakdown lives on the replay rows below, so repeating it
         // in the summary text just prints every score twice.
