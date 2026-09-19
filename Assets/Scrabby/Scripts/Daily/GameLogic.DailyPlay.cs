@@ -331,6 +331,8 @@ public partial class GameLogic
 
         RoundMove move = EvaluatePlayerSubmission();
 
+        AnnounceSubmission(move);
+
         if (move == null || !move.isValid)
             return false;
 

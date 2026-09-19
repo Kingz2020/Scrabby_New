@@ -234,6 +234,10 @@ public class TileScript : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDr
         Singleton.Instance.DropManager.SetTempGrabbedTile(placedTile);
         Singleton.Instance.DropManager.AddLocation();
         Singleton.Instance.DropManager.ClearCurrentLocation(targetLocation);
+
+        // The tile has landed on a square, which is the only case here that
+        // deserves a sound: the others put it back where it came from.
+        Sound.Play(Sound.TileDown);
     }
     // ---- Round replay -----------------------------------------------------
     // A tile knows how to fall, land, punch and leave. It deliberately does not

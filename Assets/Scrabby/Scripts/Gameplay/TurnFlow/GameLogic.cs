@@ -1998,6 +1998,12 @@ public partial class GameLogic : MonoBehaviour
                         // cannot disagree with what stays on the board.
                         UIManager ui = Singleton.Instance.UIManager;
 
+                        // Said as well as shown. Nobody is told they have lost
+                        // a round when neither word stood up, or when the two
+                        // words were the same: there is nothing to lose to.
+                        if (pendingWinningMove != null && pendingWinningMove.isValid && !sameWord)
+                            Sound.Play(pendingWinningMove.isHuman ? Sound.RoundWon : Sound.RoundLost);
+
                         if (pendingWinningMove == null || !pendingWinningMove.isValid)
                             ui.ShowTurnState("No word this round", UIManager.TurnTone.Busy);
                         else if (sameWord)
@@ -2901,6 +2907,11 @@ public partial class GameLogic : MonoBehaviour
 
         Singleton.Instance.UIManager.ShowRoundMessage(finalMessage);
 
+        // The last round's own sound has already played by now, so this one
+        // waits for the panel rather than landing on top of it.
+        StartCoroutine(SoundAfter(0.55f,
+            humanTotalScore >= aiTotalScore ? Sound.RoundWon : Sound.RoundLost));
+
         if (timer != null)
             timer.StopTimer();
 
@@ -2923,6 +2934,15 @@ public partial class GameLogic : MonoBehaviour
                 $"{r.aiWord}({r.aiScore})"
             );
         }
+
+        // Counted before the panel goes up, so the chart the panel offers is
+        // already showing this game. Only a game against the computer is
+        // counted here: an online result is counted from the match itself, and
+        // the daily keeps its own streak.
+        if (!IsOnlineMatch && !dailyMode)
+            PlayerStats.RecordSolo(
+            currentSoloDifficulty,
+            PlayerStats.ResultOf(humanTotalScore, aiTotalScore));
 
         Singleton.Instance.UIManager.ShowGameOverPanel(finalMessage, roundSummary);
 
@@ -4264,6 +4284,38 @@ public partial class GameLogic : MonoBehaviour
         return move;
     }
 
+    // A sound held back a moment, so two of them do not arrive together.
+    private IEnumerator SoundAfter(float seconds, string name)
+    {
+        yield return new WaitForSeconds(seconds);
+
+        Sound.Play(name);
+    }
+
+    // Whether this move put the whole rack down, which is what the bonus is
+    // for and what the flourish is for.
+    private bool UsedEveryTile(RoundMove move)
+    {
+        return move != null && move.isValid && move.placedTiles != null &&
+               move.placedTiles.Count == maxHandSize;
+    }
+
+    // The sound for a word the moment it is committed - before the round is
+    // decided, because this answers "did that count?", which is a different
+    // question from "did that win?".
+    private void AnnounceSubmission(RoundMove move)
+    {
+        if (move == null || !move.isValid)
+        {
+            Sound.Play(Sound.WordRejected);
+            return;
+        }
+
+        // All six gets its own sound instead of the usual one rather than on
+        // top of it: two flourishes at once is noise.
+        Sound.Play(UsedEveryTile(move) ? Sound.AllSix : Sound.WordAccepted);
+    }
+
     public void EndTurnSingleGuess()
     {
         VerboseLog("[TRACE] EndTurnSingleGuess CALLED. roundStarted=" + roundStarted + ", mode=" + currentInitMode);
@@ -4289,6 +4341,8 @@ public partial class GameLogic : MonoBehaviour
                 timer.StopTimer();
 
             RoundMove move = EvaluatePlayerSubmission();
+
+            AnnounceSubmission(move);
 
             if (move != null && move.isValid)
             {
@@ -4343,6 +4397,8 @@ public partial class GameLogic : MonoBehaviour
         pendingPlayerMove = EvaluatePlayerSubmission();
         pendingAIMove = null;
         pendingWinningMove = null;
+
+        AnnounceSubmission(pendingPlayerMove);
 
         if (pendingPlayerMove != null && pendingPlayerMove.isValid)
         {

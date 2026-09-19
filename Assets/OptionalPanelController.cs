@@ -115,6 +115,8 @@ public class OptionPanelController : MonoBehaviour
         Refresh();
 
         AddHowToPlayLink();
+        AddStatsLink();
+        AddSettingsButton();
         AddGameplayMainMenuButton();
 
         // First time only. Someone who already knows the rules should not have
@@ -206,6 +208,71 @@ public class OptionPanelController : MonoBehaviour
     // once, and anything with fixed coordinates ends up on top of something.
     private void AddHowToPlayLink()
     {
+        AddLinkUnderPlay("HowToPlayLink", "How to play", 0, HowToPlayPanel.Show);
+    }
+
+    // The other thing a player comes to the menu for that is not a game: how
+    // they have been doing. Under the rules, in the same hand, because the two
+    // belong together - one is what to do, the other is how it has gone.
+    private void AddStatsLink()
+    {
+        AddLinkUnderPlay("StatsLink", "Your progress", 1, StatsPanel.Show);
+    }
+
+    // Somewhere to turn the sound off. A game played on a bus needs this, and
+    // a player who cannot find it turns the whole phone down instead.
+    //
+    // Top right of the screen rather than a third link under Play: the card
+    // ends a little below the two links already there, so a third would hang
+    // off the bottom of it - and this is where a settings button lives on
+    // every other app they own.
+    private void AddSettingsButton()
+    {
+        if (optionPanel == null)
+            return;
+
+        if (optionPanel.transform.Find("SettingsButton") != null)
+            return;
+
+        GameObject go = new GameObject("SettingsButton",
+            typeof(RectTransform), typeof(Image), typeof(Button));
+
+        go.transform.SetParent(optionPanel.transform, false);
+
+        RectTransform rect = go.GetComponent<RectTransform>();
+        rect.anchorMin = rect.anchorMax = rect.pivot = new Vector2(1f, 1f);
+        rect.sizeDelta = new Vector2(172f, 68f);
+        rect.anchoredPosition = new Vector2(-38f, -46f);
+
+        Image face = go.GetComponent<Image>();
+        face.color = new Color(1f, 1f, 1f, 0.10f);
+
+        GameObject labelGo = new GameObject("Label",
+            typeof(RectTransform), typeof(TextMeshProUGUI));
+
+        labelGo.transform.SetParent(go.transform, false);
+
+        TextMeshProUGUI label = labelGo.GetComponent<TextMeshProUGUI>();
+        label.text = "Settings";
+        label.fontSize = 26f;
+        label.color = new Color(0.945f, 0.878f, 0.733f, 0.95f);
+        label.alignment = TextAlignmentOptions.Center;
+        label.raycastTarget = false;
+
+        RectTransform labelRect = labelGo.GetComponent<RectTransform>();
+        labelRect.anchorMin = Vector2.zero;
+        labelRect.anchorMax = Vector2.one;
+        labelRect.offsetMin = Vector2.zero;
+        labelRect.offsetMax = Vector2.zero;
+
+        Button button = go.GetComponent<Button>();
+        button.targetGraphic = face;
+        button.onClick.AddListener(SettingsPanel.Show);
+    }
+
+    private void AddLinkUnderPlay(
+        string name, string text, int slot, UnityEngine.Events.UnityAction onPressed)
+    {
         if (playButton == null)
             return;
 
@@ -214,13 +281,16 @@ public class OptionPanelController : MonoBehaviour
         if (anchor == null || anchor.parent == null)
             return;
 
-        GameObject go = new GameObject("HowToPlayLink",
+        if (anchor.parent.Find(name) != null)
+            return;
+
+        GameObject go = new GameObject(name,
             typeof(RectTransform), typeof(TextMeshProUGUI), typeof(Button));
 
         go.transform.SetParent(anchor.parent, false);
 
         TextMeshProUGUI label = go.GetComponent<TextMeshProUGUI>();
-        label.text = "How to play";
+        label.text = text;
         label.fontSize = 30f;
         label.color = new Color(0.945f, 0.878f, 0.733f, 0.95f);
         label.fontStyle = FontStyles.Underline;
@@ -233,13 +303,14 @@ public class OptionPanelController : MonoBehaviour
         rect.pivot = anchor.pivot;
         rect.sizeDelta = new Vector2(anchor.sizeDelta.x, 52f);
 
-        // Just below the play button, measured off it rather than guessed.
+        // Just below the play button, measured off it rather than guessed,
+        // and each further link a line below the one before.
         rect.anchoredPosition = anchor.anchoredPosition +
-            new Vector2(0f, -(anchor.sizeDelta.y * 0.5f + 42f));
+            new Vector2(0f, -(anchor.sizeDelta.y * 0.5f + 42f + slot * 54f));
 
         Button button = go.GetComponent<Button>();
         button.targetGraphic = label;
-        button.onClick.AddListener(HowToPlayPanel.Show);
+        button.onClick.AddListener(onPressed);
     }
 
     // ---------------------------------------------------------------- tabs --

@@ -548,9 +548,47 @@ public class OnlineMatchController : MonoBehaviour
             $"\nRounds won: you {myRounds}, {opponentName} {opponentRounds}";
 
 
+        // One line in the chart for this match. A finished match can be opened
+        // again as often as the player likes, so PlayerStats counts it by its
+        // id and ignores the second look.
+        //
+        // Only a match that is actually over: this panel is also how a game
+        // that ended early is looked at, and a score that is still being
+        // played for is not a result.
+        bool matchIsOver =
+            match.status == "completed" ||
+            (match.totalRounds > 0 && match.currentRoundNumber > match.totalRounds);
+
+        if (matchIsOver)
+        {
+            PlayerStats.RecordOnline(
+                match.matchId,
+                amPlayer1 ? match.player2Uid : match.player1Uid,
+                opponentName,
+                PlayerStats.ResultOf(myScore, opponentScore));
+        }
+
         uiManager.ShowGameOverPanel(finalMessage, roundSummary);
 
+        // A tie counts as yours: nobody wants the losing sound for a game
+        // they did not lose.
+        Sound.Play(myScore >= opponentScore ? Sound.RoundWon : Sound.RoundLost);
+
         ShowOnlineRoundReplayRows(match,amPlayer1,opponentName);
+    }
+
+    // Which row of the chart the result on screen belongs to, so the stats
+    // card can single it out.
+    public string CurrentOpponentStatsKey()
+    {
+        if (currentMatch == null)
+            return null;
+
+        string myUid = GetCurrentUser() != null ? GetCurrentUser().UserId : null;
+        bool amPlayer1 = currentMatch.player1Uid == myUid;
+
+        return PlayerStats.OpponentKey(
+            amPlayer1 ? currentMatch.player2Uid : currentMatch.player1Uid);
     }
 
     private IEnumerator LoadOnlineRoundHistoryForGameOver(
@@ -1800,6 +1838,12 @@ public class OnlineMatchController : MonoBehaviour
         {
             if (result.anyValidMove)
             {
+                // Said as well as shown, the same as a solo round. An online
+                // match never passes through the solo reveal, so without this
+                // the only rounds with a sound would be the ones against the
+                // computer.
+                Sound.Play(result.winnerUid == uid ? Sound.RoundWon : Sound.RoundLost);
+
                 uiManager.ShowRoundMessage($"{result.winnerDisplayName} wins with {result.winnerWord} ({result.winnerScore} pts)");
             }
             else
