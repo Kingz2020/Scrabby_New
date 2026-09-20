@@ -5751,6 +5751,116 @@ public partial class GameLogic : MonoBehaviour
         }
     }
 
+    // A move for the bot that sits in an unclaimed quick game.
+    //
+    // The same search the solo computer runs, on the six letters both players
+    // were dealt and the board as it stands - which the local game already
+    // holds, because it is playing the same round. The level is set for the
+    // search and put back afterwards, so a bot match cannot change what the
+    // player's own solo games are worth.
+    public IEnumerator FindBotMove(SoloDifficulty level, System.Action<RoundMove> done)
+    {
+        yield return FindBotMove(level, false, done);
+    }
+
+    // preferTripleWord is for an opening move. The search picks a move from a
+    // band around the level's strength - at medium, roughly the middle of
+    // what is available - and on an empty board that reliably walks past the
+    // triple word square. No person does that with a free board in front of
+    // them, and a first move that ignores the best square on the board is the
+    // clearest possible sign that nobody is there.
+    public IEnumerator FindBotMove(SoloDifficulty level, bool preferTripleWord,
+                                   System.Action<RoundMove> done)
+    {
+        SoloDifficulty playersOwnLevel = currentSoloDifficulty;
+        currentSoloDifficulty = level;
+
+        aiEvaluationRunning = false;
+        aiEvaluationFinished = false;
+        aiBestMoveSoFar = null;
+
+        if (currentRoundSnapshot == null)
+            SaveCurrentRoundSnapshot();
+
+        yield return StartCoroutine(EvaluateAIMoveIncremental());
+
+        while (aiEvaluationRunning)
+            yield return null;
+
+        currentSoloDifficulty = playersOwnLevel;
+
+        RoundMove chosen = aiBestMoveSoFar;
+
+        if (preferTripleWord)
+        {
+            RoundMove greedier = BestCandidateOnATripleWord();
+
+            if (greedier != null)
+            {
+                ScrabbyLog.Trace("[BOT] Opening on the triple word: '" +
+                                 greedier.word + "' for " + greedier.score +
+                                 " instead of '" +
+                                 (chosen != null ? chosen.word : "nothing") + "'.");
+                chosen = greedier;
+            }
+        }
+
+        if (done != null)
+            done(chosen);
+    }
+
+    // The best move the search found that actually lands on a triple word.
+    private RoundMove BestCandidateOnATripleWord()
+    {
+        RoundMove best = null;
+
+        foreach (RoundMove candidate in aiDifficultyCandidates)
+        {
+            if (candidate == null || !candidate.isValid || !CoversATripleWord(candidate))
+                continue;
+
+            if (best == null || candidate.score > best.score)
+                best = candidate;
+        }
+
+        if (bestAICandidate != null && bestAICandidate.isValid &&
+            CoversATripleWord(bestAICandidate) &&
+            (best == null || bestAICandidate.score > best.score))
+        {
+            best = bestAICandidate;
+        }
+
+        return best;
+    }
+
+    private bool CoversATripleWord(RoundMove move)
+    {
+        if (move == null || move.simulatedTiles == null || boardBonusTiles == null)
+            return false;
+
+        foreach (SimPlacedTile tile in move.simulatedTiles)
+        {
+            if (tile == null || tile.letterPosition == null)
+                continue;
+
+            int x = tile.letterPosition.RowX - 1;
+            int y = tile.letterPosition.ColY - 1;
+
+            if (x < 0 || y < 0 ||
+                x >= boardBonusTiles.GetLength(0) || y >= boardBonusTiles.GetLength(1))
+            {
+                continue;
+            }
+
+            BonusTile bonus = boardBonusTiles[x, y];
+
+            if (bonus != null && bonus.bonusType == BonusType.TripleWord)
+                return true;
+        }
+
+        return false;
+    }
+
     private IEnumerator RequestAIOpponentMove()
     {
         if (!aiEvaluationFinished && !aiEvaluationRunning)

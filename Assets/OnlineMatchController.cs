@@ -18,7 +18,7 @@ using System.Threading.Tasks;
 /// Intended to live on a persistent GameObject (e.g. under DontDestroyOnLoad),
 /// independent of UI panels.
 /// </summary>
-public class OnlineMatchController : MonoBehaviour
+public partial class OnlineMatchController : MonoBehaviour
 {
     // Informational logging, off unless something is being chased.
     // The console filled to its 999-line cap within seconds of a game
@@ -113,6 +113,12 @@ public class OnlineMatchController : MonoBehaviour
             gameLogic.onlineSubmissionReady -= SubmitRoundMove;
 
         StopWatchingCurrentMatch();
+    }
+
+    private void Start()
+    {
+        // Bots owe moves from previous sessions; this is what pays them.
+        KeepAnEyeOnPendingMoves();
     }
 
     private bool EnsureFirebaseReady()
@@ -370,6 +376,9 @@ public class OnlineMatchController : MonoBehaviour
                   // Run the waiting sequence on this controller
                   if (this != null && gameObject.activeInHierarchy)
                       StartCoroutine(ShowSubmittedWaitingSequence());
+
+                  // An opponent who is not a person answers from here.
+                  AskTheBotToAnswer(roundNumber);
               });
     }
 
@@ -509,7 +518,9 @@ public class OnlineMatchController : MonoBehaviour
 
         int myScore = amPlayer1 ? match.player1Score : match.player2Score;
         int opponentScore = amPlayer1 ? match.player2Score : match.player1Score;
-        string opponentName = amPlayer1 ? match.player2DisplayName : match.player1DisplayName;
+        string opponentUid = amPlayer1 ? match.player2Uid : match.player1Uid;
+        string opponentName = BotOpponent.Label(
+            opponentUid, amPlayer1 ? match.player2DisplayName : match.player1DisplayName);
 
         string finalMessage;
         if (myScore > opponentScore)
@@ -561,11 +572,13 @@ public class OnlineMatchController : MonoBehaviour
 
         if (matchIsOver)
         {
-            PlayerStats.RecordOnline(
-                match.matchId,
-                amPlayer1 ? match.player2Uid : match.player1Uid,
-                opponentName,
-                PlayerStats.ResultOf(myScore, opponentScore));
+            PlayerStats.Result result = PlayerStats.ResultOf(myScore, opponentScore);
+
+            // Recorded as the opponent it appeared to be. Filing a bot game
+            // under the solo levels would put it on the progress card as a
+            // game against the computer, which is the one screen that would
+            // contradict the name the player was shown all match.
+            PlayerStats.RecordOnline(match.matchId, opponentUid, opponentName, result);
         }
 
         uiManager.ShowGameOverPanel(finalMessage, roundSummary);
@@ -789,6 +802,10 @@ public class OnlineMatchController : MonoBehaviour
         {
             TryResolveRound(currentMatch.matchId, watchedRoundNumber);
         }
+
+        // And if the other seat holds a bot that has not answered yet, this is
+        // where it finds out.
+        BotAnswersIfOwed(args.Snapshot, watchedRoundNumber);
     }
 
     public void TryResolveRound(string matchId, int roundNumber)
@@ -1644,6 +1661,22 @@ public class OnlineMatchController : MonoBehaviour
 
         if (alreadyPlayed)
         {
+            // A bot in the other seat owes a move, and this is the only place
+            // that can ask for it: the player has played, so gameplay is not
+            // entered, and the hook that asks lives there. Without this the
+            // match stops here for ever - which is what pressing Quick game
+            // on an unclaimed game of your own used to do.
+            if (OpponentIsABot())
+            {
+                CheckWhetherTheBotOwesAMove();
+
+                // Still waiting to be let in: when the round resolves a
+                // moment later, the next snapshot finds round two unplayed
+                // and puts the player on the board. Quick game promises a
+                // game, not a row in a list.
+                pendingEnterGameplay = true;
+            }
+
             WaitForOpponentInList(round);
             yield break;
         }
@@ -1667,7 +1700,7 @@ public class OnlineMatchController : MonoBehaviour
         {
             matchStatusPanel.gameObject.SetActive(true);
 
-            string opponent = OpponentName();
+            string opponent = BotOpponent.Label(OpponentUidOf(currentMatch), OpponentName());
 
             matchStatusPanel.ShowStatus(
                 "You have played round " + round + " - waiting for " +
@@ -1695,6 +1728,10 @@ public class OnlineMatchController : MonoBehaviour
 
     private void EnterGameplayNow(string uid)
     {
+        // A bot cannot owe a move while nobody is looking: if it does, this is
+        // the moment somebody looked.
+        CheckWhetherTheBotOwesAMove();
+
         if (gameplayPanel != null)
             gameplayPanel.SetActive(true);
 
@@ -1936,13 +1973,10 @@ public class OnlineMatchController : MonoBehaviour
         if (candidate.score != currentBest.score)
             return candidate.score > currentBest.score;
 
-        int candLen = string.IsNullOrEmpty(candidate.word) ? 0 : candidate.word.Length;
-        int bestLen = string.IsNullOrEmpty(currentBest.word) ? 0 : currentBest.word.Length;
-
-        if (candLen != bestLen)
-            return candLen > bestLen;
-
-        // earlier submission wins ties
+        // The higher score wins, and if they are level the one that came in
+        // first does. Length used to sit in between, which had a six-letter
+        // word beating a three-letter word of the same value - punishing the
+        // better play, since the short word got there on fewer tiles.
         return candidate.submittedAtUnix < currentBest.submittedAtUnix;
     }
 

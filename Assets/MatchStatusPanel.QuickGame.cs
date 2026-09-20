@@ -178,11 +178,12 @@ public partial class MatchStatusPanel
                 return;
             }
 
+            Debug.Log("[QUICK] Pressed: step 1 says " + result +
+                      (string.IsNullOrEmpty(foundMatch) ? "" : " (" + foundMatch + ")"));
+
             switch (result)
             {
                 case SlotResult.Own:
-                    ScrabbyLog.Trace("[QUICK] My own open game " + foundMatch +
-                              " is still waiting for an opponent.");
                     ResumeOrReportOwnOpenGame(foundMatch);
                     break;
 
@@ -219,8 +220,15 @@ public partial class MatchStatusPanel
             bool alreadyPlayed = !task.IsFaulted && !task.IsCanceled &&
                                  task.Result != null && task.Result.Exists;
 
-            ScrabbyLog.Trace("[QUICK] Own open game " + matchId +
-                             ": already played = " + alreadyPlayed);
+            Debug.Log("[QUICK] My own open game " + matchId +
+                      ": round 1 already played = " + alreadyPlayed);
+
+            // This game has already waited - it was offered before, and
+            // nobody came. Whether the player is going back into it or just
+            // being told it is still open, a bot should sit down now rather
+            // than after another twenty-five seconds of nothing.
+            Singleton.Instance.OnlineMatchController
+                     .LetABotTakeTheSeatIfNobodyComes(matchId, 3f);
 
             if (!alreadyPlayed)
             {
@@ -229,8 +237,7 @@ public partial class MatchStatusPanel
             }
 
             SetQuickGameBusy(false);
-            ShowStatus("Your quick game is waiting for someone to join. " +
-                       "It stays open for 12 hours.");
+            ShowStatus("Nobody joined, so an opponent is taking the seat...");
 
             // The row for it says the same thing, so put the list in front of
             // them rather than leaving a message on a panel they cannot see.
@@ -449,6 +456,10 @@ public partial class MatchStatusPanel
                         ScrabbyLog.Trace("[QUICK]   added " + matchId + " to my matches.");
                         EnterQuickGame(matchId);
                     });
+
+                    // And if nobody comes, somebody will be found.
+                    Singleton.Instance.OnlineMatchController
+                             .LetABotTakeTheSeatIfNobodyComes(matchId);
                     break;
 
                 case SlotResult.Stale:
@@ -456,8 +467,14 @@ public partial class MatchStatusPanel
                     break;
 
                 case SlotResult.Own:
+                    // Back into the game already offered - which still has an
+                    // empty seat, so it still needs watching. Without this,
+                    // pressing Quick game a second time left a game no bot
+                    // would ever join.
                     DeleteUnplayedGame(matchId);
                     EnterQuickGame(otherMatch);
+                    Singleton.Instance.OnlineMatchController
+                             .LetABotTakeTheSeatIfNobodyComes(otherMatch);
                     break;
 
                 case SlotResult.Claimed:

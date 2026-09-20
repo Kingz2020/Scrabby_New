@@ -632,8 +632,8 @@ public partial class MatchStatusPanel : MonoBehaviour
 
             string opponentName =
                 amPlayer1
-                ? match.player2DisplayName
-                : match.player1DisplayName;
+                ? BotOpponent.Label(match.player2Uid, match.player2DisplayName)
+                : BotOpponent.Label(match.player1Uid, match.player1DisplayName);
 
             // A quick game waiting for someone to take its second seat. Said
             // plainly, so it reads differently from "Waiting..." on the button,
