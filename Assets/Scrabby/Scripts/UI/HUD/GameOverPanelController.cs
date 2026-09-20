@@ -21,7 +21,17 @@ public class GameOverPanelController : MonoBehaviour
     private void OnEnable()
     {
         AddStatsLink();
+
+        // The link is added first, because the card collects it along with
+        // everything else the panel already had.
+        GameOverCard.DressPanel(gameObject);
+
         Refresh();
+
+        // If the game that just ended was the one the walkthrough started,
+        // there is one thing left to show: the replay rows, and what they are
+        // for.
+        TutorialFlow.ShowReplayHintIfOwed();
     }
 
     // Public so whatever shows this panel can ask for a second look: the panel
@@ -32,6 +42,17 @@ public class GameOverPanelController : MonoBehaviour
             return;
 
         backToMatchesButton.SetActive(ShowingAnOnlineResult());
+    }
+
+    private bool AlreadyThere(string name)
+    {
+        foreach (Transform child in GetComponentsInChildren<Transform>(true))
+        {
+            if (child != null && child.name == name)
+                return true;
+        }
+
+        return false;
     }
 
     private static bool ShowingAnOnlineResult()
@@ -46,7 +67,11 @@ public class GameOverPanelController : MonoBehaviour
 
     private void AddStatsLink()
     {
-        if (transform.Find("StatsLink") != null)
+        // Looked for anywhere under the panel, not just among its own
+        // children: the card moves this link onto itself, and a guard that
+        // only checked one level stopped finding it and added another one
+        // every time the panel opened.
+        if (AlreadyThere("StatsLink"))
             return;
 
         GameObject go = new GameObject("StatsLink",

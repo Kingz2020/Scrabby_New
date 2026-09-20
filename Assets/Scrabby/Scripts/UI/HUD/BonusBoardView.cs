@@ -33,9 +33,15 @@ public class BonusBoardView : MonoBehaviour
         }
     }
 
+    // Whether the squares are still appearing one by one. Anything that wants
+    // to talk about them - the tutorial does - has to wait, or it points at a
+    // board that is still filling itself in.
+    public bool IsRevealing { get; private set; }
+
     public void StartRevealBonusTiles(float delayBetweenTiles)
     {
         StopAllCoroutines();
+        IsRevealing = true;
         StartCoroutine(RevealBonusTiles(delayBetweenTiles));
     }
 
@@ -50,6 +56,30 @@ public class BonusBoardView : MonoBehaviour
             FindObjectsByType<GhostTile>(
                 FindObjectsInactive.Exclude
             );
+
+        // The squares are drawn onto the board's cells, and on the first game
+        // of a session those cells are still being built when this starts.
+        // The list was taken once and, if it came back empty, every bonus was
+        // drawn onto nothing and the round quietly had none at all - which is
+        // exactly what the first game of a session looked like.
+        int waitedFrames = 0;
+
+        while (ghostTiles.Length == 0 && waitedFrames < 180)
+        {
+            yield return null;
+            waitedFrames++;
+
+            ghostTiles = FindObjectsByType<GhostTile>(
+                FindObjectsInactive.Exclude);
+        }
+
+        if (ghostTiles.Length == 0)
+        {
+            Debug.LogWarning("[BONUS] No board cells to draw on; this round " +
+                             "has no bonus squares.");
+            IsRevealing = false;
+            yield break;
+        }
 
         WaitForSeconds wait =
             new WaitForSeconds(delayBetweenTiles);
@@ -78,6 +108,8 @@ public class BonusBoardView : MonoBehaviour
                 yield return wait;
             }
         }
+
+        IsRevealing = false;
     }
 
     private void DrawSingleBonusTile(

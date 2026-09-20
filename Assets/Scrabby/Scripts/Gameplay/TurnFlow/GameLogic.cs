@@ -795,6 +795,11 @@ public partial class GameLogic : MonoBehaviour
 
     private void InitSharedState()
     {
+        // Whatever the tutorial borrowed goes back before a new game is dealt.
+        // The tutorial asks for its round after this has run, so its own game
+        // is not undone by it.
+        ForgetTutorialGame();
+
         currentTurn = 0;
 
         validatedBoardTiles = new LetterInfo[boardSizeX + 2, boardSizeY + 2];
@@ -1053,6 +1058,9 @@ public partial class GameLogic : MonoBehaviour
 
         PlaceBonusTilesOnBoard();
 
+        if (tutorialBonuses)
+            PlaceTutorialBonuses();
+
         float revealDelay = 0.3f;
 
         if (bonusBoardView != null)
@@ -1070,13 +1078,31 @@ public partial class GameLogic : MonoBehaviour
             $"letters count={letters?.Count ?? -1}"
         );
 
-        yield return StartCoroutine(RefillPlayerHandAnimated(2f));
-        ResetDisplay();
+        if (!string.IsNullOrEmpty(tutorialRack))
+        {
+            // Dealt outright. Drawing six at random and then replacing them a
+            // moment later meant the player watched a rack arrive and then
+            // change under them - and the tutorial talked over the swap.
+            //
+            // No check that the rack can be played, either: these six were
+            // chosen, and the word they are for is the one being taught.
+            SetTutorialRack(tutorialRack);
 
-        yield return null; // lets the frame render fully before expensive rack validation
+            tutorialRack = null;
+            tutorialBonuses = false;
 
-        yield return StartCoroutine(EnsurePlayableInitialRack(0f));
-        ResetDisplay();
+            ResetDisplay();
+        }
+        else
+        {
+            yield return StartCoroutine(RefillPlayerHandAnimated(2f));
+            ResetDisplay();
+
+            yield return null; // lets the frame render fully before expensive rack validation
+
+            yield return StartCoroutine(EnsurePlayableInitialRack(0f));
+            ResetDisplay();
+        }
 
         SaveCurrentRoundSnapshot();
 
@@ -2735,6 +2761,151 @@ public partial class GameLogic : MonoBehaviour
         VerboseLog("===== RebuildHandUIFromLogicalHand END =====");
     }
 
+    // Which round is being played, for anything that has to wait for one to
+    // finish - the tutorial does, before it says how the round went.
+    public int CurrentRoundNumber
+    {
+        get { return currentRoundNumber; }
+    }
+
+    // The clock has no business running while the tutorial is explaining what
+    // the board is. Held for the walkthrough, released when it ends, so the
+    // remaining rounds are played under a normal seventy seconds.
+    public void HoldTheClock(bool held)
+    {
+        if (timer == null)
+            return;
+
+        if (held)
+            timer.StopTimer();
+        else
+            timer.ResumeTimer();
+    }
+
+    // A tutorial round: known letters, known board.
+    //
+    // Asked for before the round starts, so the six letters are dealt rather
+    // than dealt at random and swapped a moment later, and the bonus squares
+    // are laid out where the walkthrough says they are instead of wherever
+    // they fell. It lasts one round and clears itself.
+    private string tutorialRack;
+    private bool tutorialBonuses;
+    private bool tutorialGame;
+    private int roundsBeforeTutorial = -1;
+
+    public void SetUpTutorialRound(string letters)
+    {
+        tutorialRack = letters;
+        tutorialBonuses = true;
+        tutorialGame = true;
+
+        // One round, then the result. The walkthrough exists to explain the
+        // scoring, the panel and the replay rows, and three more rounds
+        // between the lesson and the explanation are three rounds of waiting.
+        if (roundsBeforeTutorial < 0)
+            roundsBeforeTutorial = maxRounds;
+
+        maxRounds = 1;
+    }
+
+    // Whether the game being played was dealt by the walkthrough. A rigged
+    // rack on a rigged board is not a result, so it does not go in the chart.
+    public bool IsTutorialGame
+    {
+        get { return tutorialGame; }
+    }
+
+    // Any game started after the tutorial is a real one again.
+    private void ForgetTutorialGame()
+    {
+        if (roundsBeforeTutorial > 0)
+        {
+            maxRounds = roundsBeforeTutorial;
+            roundsBeforeTutorial = -1;
+        }
+
+        tutorialGame = false;
+    }
+
+    // One of each kind, in fixed places, with the triple word under the middle
+    // letter of the word the tutorial teaches. A walkthrough that points at a
+    // square has to be right about what is on it.
+    private void PlaceTutorialBonuses()
+    {
+        if (boardBonusTiles == null)
+            return;
+
+        System.Array.Clear(boardBonusTiles, 0, boardBonusTiles.Length);
+
+        PutBonus(5, 5, BonusType.TripleWord);      // under the A of CAT
+        PutBonus(2, 2, BonusType.DoubleWord);
+        PutBonus(8, 3, BonusType.DoubleLetter);
+        PutBonus(3, 8, BonusType.TripleLetter);
+
+        ScrabbyLog.Trace("[TUTORIAL] Bonus squares laid out by hand.");
+    }
+
+    // x and y as the board talks about them - 1-based, the way LetterPosition
+    // does - onto the 0-based array.
+    private void PutBonus(int x, int y, BonusType type)
+    {
+        int ax = x - 1;
+        int ay = y - 1;
+
+        if (ax < 0 || ay < 0 ||
+            ax >= boardBonusTiles.GetLength(0) || ay >= boardBonusTiles.GetLength(1))
+        {
+            return;
+        }
+
+        boardBonusTiles[ax, ay] = new BonusTile(type);
+    }
+
+    // The tutorial deals its own six.
+    //
+    // A guided "now make a word" step cannot be guided at all if the letters
+    // are random - the word being taught has to be spellable, every time,
+    // on every phone. So the tutorial replaces the rack with a known one, and
+    // because both players are dealt the same six in this game, the computer
+    // gets them too and answers with something sensible.
+    public void SetTutorialRack(string letters)
+    {
+        if (string.IsNullOrEmpty(letters) || playerHandTiles == null)
+            return;
+
+        playerHandTiles.Clear();
+
+        foreach (char letter in letters.ToUpperInvariant())
+        {
+            playerHandTiles.Add(new LetterInfo(letter.ToString(), PointsFor(letter)));
+        }
+
+        RebuildHandUIFromLogicalHand();
+
+        // The computer plays from a snapshot of the rack taken when the round
+        // began, so without this it would answer with the six letters that
+        // were dealt rather than the six on screen - and the one rule the
+        // tutorial exists to teach is that both players get the same six.
+        SaveCurrentRoundSnapshot();
+
+        ScrabbyLog.Trace("[TUTORIAL] Rack set to " + letters);
+    }
+
+    // Standard English Scrabble values, which is what the bag uses.
+    private static int PointsFor(char letter)
+    {
+        switch (char.ToUpperInvariant(letter))
+        {
+            case 'D': case 'G': return 2;
+            case 'B': case 'C': case 'M': case 'P': return 3;
+            case 'F': case 'H': case 'V': case 'W': case 'Y': return 4;
+            case 'K': return 5;
+            case 'J': case 'X': return 8;
+            case 'Q': case 'Z': return 10;
+            default: return 1;
+        }
+    }
+
     public void ShuffleHand()
     {
         if (playerHandTiles == null || playerHandTiles.Count <= 1)
@@ -2892,9 +3063,12 @@ public partial class GameLogic : MonoBehaviour
 
         string finalMessage;
 
+        // "You", never "Human". The player is not a species here, they are the
+        // person holding the phone - and the opponent is already "AI", which
+        // only makes "Human" read as its opposite number in a lab.
         if (humanTotalScore > aiTotalScore)
         {
-            finalMessage = "Game over. Human wins " + humanTotalScore + " to " + aiTotalScore + "!";
+            finalMessage = "Game over. You win " + humanTotalScore + " to " + aiTotalScore + "!";
         }
         else if (aiTotalScore > humanTotalScore)
         {
@@ -2922,7 +3096,7 @@ public partial class GameLogic : MonoBehaviour
         // screen there is nothing else saying which was played.
         string roundSummary =
                     $"Final score: {humanTotalScore} - AI {aiTotalScore}" +
-                    $"\n{currentSoloDifficulty} game, {roundHistory.Count} rounds";
+                    $"\n{currentSoloDifficulty} game, {roundHistory.Count}" + (roundHistory.Count == 1 ? " round" : " rounds");
 
         // The per-round breakdown lives on the replay rows below, so repeating it
         // in the summary text just prints every score twice.
@@ -2939,7 +3113,7 @@ public partial class GameLogic : MonoBehaviour
         // already showing this game. Only a game against the computer is
         // counted here: an online result is counted from the match itself, and
         // the daily keeps its own streak.
-        if (!IsOnlineMatch && !dailyMode)
+        if (!IsOnlineMatch && !dailyMode && !tutorialGame)
             PlayerStats.RecordSolo(
             currentSoloDifficulty,
             PlayerStats.ResultOf(humanTotalScore, aiTotalScore));

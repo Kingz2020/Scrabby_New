@@ -1484,7 +1484,7 @@ public class UIManager : MonoBehaviour
             if (humanScoreText.gameObject.name == "DigitsText")
                 humanScoreText.text = humanScore.ToString();
             else
-                humanScoreText.text = "Human: " + humanScore;
+                humanScoreText.text = "You: " + humanScore;
         }
 
         if (aiScoreText != null)
@@ -1724,23 +1724,22 @@ public class UIManager : MonoBehaviour
 
             string winnerText;
 
-            // The panel is a light blue that even the white row text only clears
-            // at 2.62:1, so going lighter washes out and a filled chip just adds
-            // clutter. Dark and saturated reads harder than anything around it:
-            // these sit at 3.57:1 and 3.42:1.
+            // The rows sit on the dark glass card now, so the verdict is the
+            // card's own amber for a win and its rust for a loss - dark greens
+            // and reds were chosen for the light blue panel and disappear here.
             if (!round.humanValid && !round.aiValid)
-                winnerText = "<color=#D8E6F2>no play</color>";
+                winnerText = "<color=#FFFFFF60>no play</color>";
             else if (round.humanWasWinner)
-                winnerText = "<b><color=#0B5222>YOU</color></b>";
+                winnerText = "<b><color=#E0B34D>YOU</color></b>";
             else
-                winnerText = "<b><color=#8C2118>AI</color></b>";
+                winnerText = "<b><color=#C75447>AI</color></b>";
 
             // Kept to one line: the label auto-shrinks rather than wrapping, so
             // the verdict has to be short enough to stay legible next to the words.
             string rowText =
                 $"<b>R{round.roundNumber}</b>   " +
                 $"{(round.humanValid ? round.humanWord : "—")} <b>{round.humanScore}</b>" +
-                $"   <color=#BBD5EA>v</color>   " +
+                $"   <color=#FFFFFF60>v</color>   " +
                 $"{(round.aiValid ? round.aiWord : "—")} <b>{round.aiScore}</b>" +
                 $"   {winnerText}";
 

@@ -119,9 +119,20 @@ public class OptionPanelController : MonoBehaviour
         AddSettingsButton();
         AddGameplayMainMenuButton();
 
-        // First time only. Someone who already knows the rules should not have
-        // to dismiss them every launch.
-        HowToPlayPanel.ShowIfNotSeen();
+        // First time only, and led rather than read: a card of rules is only
+        // any use to the people who read it, and watching people play said
+        // that is nobody. The card is still behind "How to play".
+        StartCoroutine(OpenTheTutorialOnceTheMenuIsUp());
+    }
+
+    // A frame or two, so the menu has laid itself out before the hand starts
+    // pointing at where its buttons are.
+    private IEnumerator OpenTheTutorialOnceTheMenuIsUp()
+    {
+        yield return null;
+        yield return null;
+
+        TutorialFlow.RunIfNew();
     }
 
     // The way out of a game. A solo game had none: the only buttons on the
@@ -217,6 +228,33 @@ public class OptionPanelController : MonoBehaviour
     private void AddStatsLink()
     {
         AddLinkUnderPlay("StatsLink", "Your progress", 1, StatsPanel.Show);
+    }
+
+    // What the tutorial points at.
+    //
+    // Rectangles rather than buttons: the hand only needs somewhere to go,
+    // and the tutorial calls ShowSoloTab, ChooseDifficulty and OnPlayPressed
+    // itself, so a menu step cannot be half-done if the tap misses.
+    public RectTransform SoloTabRect { get { return RectOf(soloTabButton); } }
+    public RectTransform PlayRect { get { return RectOf(playButton); } }
+    public RectTransform EasyChipRect { get { return RectOf(easyChip); } }
+    public RectTransform MediumChipRect { get { return RectOf(mediumChip); } }
+    public RectTransform HardChipRect { get { return RectOf(hardChip); } }
+    public RectTransform ExpertChipRect { get { return RectOf(expertChip); } }
+
+    public RectTransform DifficultyRowRect
+    {
+        get
+        {
+            return difficultyRow != null
+                ? difficultyRow.transform as RectTransform
+                : null;
+        }
+    }
+
+    private static RectTransform RectOf(Button button)
+    {
+        return button != null ? button.transform as RectTransform : null;
     }
 
     // Somewhere to turn the sound off. A game played on a bus needs this, and

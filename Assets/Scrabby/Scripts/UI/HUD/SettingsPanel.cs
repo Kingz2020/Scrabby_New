@@ -24,7 +24,7 @@ public static class SettingsPanel
     private static readonly Color Sunk = new Color(1f, 1f, 1f, 0.055f);
 
     private const float CardWidth = 820f;
-    private const float CardHeight = 470f;
+    private const float CardHeight = 530f;
 
     private static TextMeshProUGUI switchLabel;
     private static Image switchFace;
@@ -132,7 +132,26 @@ public static class SettingsPanel
         Label(card.transform,
               "Scrabby also follows the phone's own volume.",
               22f, Fainter, FontStyles.Italic, TextAlignmentOptions.Center,
-              0f, -262f, CardWidth - 90f, 30f);
+              0f, -244f, CardWidth - 90f, 30f);
+
+        // The way back to the walkthrough, for someone who skipped it or is
+        // handing the phone to a friend who has never played.
+        GameObject again = Panel("ShowTutorial", card.transform,
+                                 new Color(1f, 1f, 1f, 0.10f));
+
+        RectTransform againRect = again.GetComponent<RectTransform>();
+        againRect.anchorMin = againRect.anchorMax = new Vector2(0.5f, 1f);
+        againRect.pivot = new Vector2(0.5f, 1f);
+        againRect.sizeDelta = new Vector2(CardWidth - 90f, 72f);
+        againRect.anchoredPosition = new Vector2(0f, -290f);
+
+        Button show = again.AddComponent<Button>();
+        show.targetGraphic = again.GetComponent<Image>();
+        show.onClick.AddListener(ShowTheTutorial);
+
+        Label(again.transform, "Show me how to play again", 26f, Cream,
+              FontStyles.Normal, TextAlignmentOptions.Center,
+              0f, 0f, CardWidth - 90f, 72f, true);
 
         // ---- and out --------------------------------------------------------
         GameObject done = Panel("Done", card.transform, Cream);
@@ -148,6 +167,14 @@ public static class SettingsPanel
 
         Label(done.transform, "Done", 32f, Ink, FontStyles.Bold,
               TextAlignmentOptions.Center, 0f, 0f, CardWidth - 90f, 88f, true);
+    }
+
+    // The tutorial drives the menu, so the settings card has to be out of the
+    // way before it starts.
+    private static void ShowTheTutorial()
+    {
+        Close();
+        TutorialFlow.Begin();
     }
 
     private static void ToggleSound()

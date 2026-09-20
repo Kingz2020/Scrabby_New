@@ -224,6 +224,19 @@ public class TileScript : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDr
             return;
         }
 
+        PlaceOnCell(targetLocation);
+    }
+
+    // A tile landing on a square, whoever gave the instruction - a player's
+    // finger, or the tutorial's hand. Both go through here, so a tutorial
+    // placement cannot behave differently from a real one.
+    public void PlaceOnCell(GhostTile targetLocation)
+    {
+        if (targetLocation == null)
+            return;
+
+        canvasGroup.blocksRaycasts = true;
+
         targetLocation.ResetVisuals();
 
         placedTile.letterPosition = targetLocation.letterPosition;
@@ -238,6 +251,39 @@ public class TileScript : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDr
         // The tile has landed on a square, which is the only case here that
         // deserves a sound: the others put it back where it came from.
         Sound.Play(Sound.TileDown);
+    }
+
+    // The tutorial picking a tile up: everything OnBeginDrag does except the
+    // pointer, so the tile can then be carried by whatever is moving it.
+    public void BeginDemoDrag()
+    {
+        if (Singleton.Instance == null || Singleton.Instance.DropManager == null)
+            return;
+
+        canvasGroup.blocksRaycasts = false;
+        origin = transform.position;
+        originalParent = transform.parent;
+
+        Singleton.Instance.DropManager.isCurrentlyDragging = true;
+        Singleton.Instance.DropManager.SetTempGrabbedTile(placedTile);
+
+        snapTileBack = Singleton.Instance.DropManager.RemovedPlacedTile(placedTile);
+
+        Canvas canvas = GetComponentInParent<Canvas>();
+
+        if (canvas != null)
+        {
+            transform.SetParent(canvas.transform, true);
+            transform.SetAsLastSibling();
+        }
+    }
+
+    public void EndDemoDrag(GhostTile targetLocation)
+    {
+        if (Singleton.Instance != null && Singleton.Instance.DropManager != null)
+            Singleton.Instance.DropManager.isCurrentlyDragging = false;
+
+        PlaceOnCell(targetLocation);
     }
     // ---- Round replay -----------------------------------------------------
     // A tile knows how to fall, land, punch and leave. It deliberately does not
