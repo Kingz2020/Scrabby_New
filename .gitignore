@@ -79,3 +79,15 @@ Prototypes/
 firebase-debug.log
 Tools/cacerts
 Tools/avast-root.cer
+
+# Signing. The upload key and its passwords never go in the repository -
+# see Tools/SIGNING.md. Listed here as a second line of defence in case one
+# is ever copied into the project by mistake.
+*.jks
+*.keystore
+signing.json
+
+# The Avast HTTPS-scanning workaround for Gradle: a trust store with this
+# machine's Avast root in it. Only means anything on this laptop.
+Tools/cacerts
+Tools/avast-root.cer

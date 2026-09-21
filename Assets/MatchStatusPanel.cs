@@ -119,8 +119,13 @@ public partial class MatchStatusPanel : MonoBehaviour
         if (logoutbutton != null)
             logoutbutton.onClick.AddListener(OnLogoutButtonPressed);
 
+        // This used to sign in as one of two hardcoded test accounts, and the
+        // password for both sat in plain text in every APK - readable by
+        // anyone who unzipped one. The code is gone; the button is still in
+        // the scene, which can only be edited with Unity closed, so it is
+        // hidden here until someone deletes it there.
         if (switchUserButton != null)
-            switchUserButton.onClick.AddListener(() => preGamePanel.OnSwitchTestUserPressed());
+            switchUserButton.gameObject.SetActive(false);
 
         if (inviteButton != null)
             inviteButton.onClick.AddListener(OnInviteButtonPressed);

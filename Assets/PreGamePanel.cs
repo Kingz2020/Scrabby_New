@@ -86,9 +86,6 @@ public partial class PreGamePanel : MonoBehaviour
     //private int watchedRoundNumber = -1;
     //private int lastProcessedRound = 0;
 
-    private const string TestUserA_Email = "sexy@bikini.com";
-    private const string TestUserB_Email = "zia@far.com";
-    private const string TestUserPassword = "Scrabby1234";
     private DatabaseReference watchedRoomRef;
 
     private EventHandler<ValueChangedEventArgs> roomWatcher;
@@ -2072,75 +2069,6 @@ public partial class PreGamePanel : MonoBehaviour
         ScrabbyLog.Trace("[RESUME] Showing pregame panel");
     }
 
-    public void OnSwitchTestUserPressed()
-    {
-        if (auth == null)
-        {
-            Debug.LogWarning("[PregamePanel] Cannot switch test user, auth is null.");
-            return;
-        }
-
-        string currentEmail = auth.CurrentUser != null ? auth.CurrentUser.Email : null;
-
-        string targetEmail = (currentEmail == TestUserA_Email)
-            ? TestUserB_Email
-            : TestUserA_Email;
-
-        ScrabbyLog.Trace("[PregamePanel] Switching test user: " + (currentEmail ?? "none") + " -> " + targetEmail);
-
-        if (auth.CurrentUser != null)
-            auth.SignOut();
-
-        SetStatus("Switching to " + targetEmail + "...");
-
-        auth.SignInWithEmailAndPasswordAsync(targetEmail, TestUserPassword).ContinueWith(task =>
-        {
-            if (task.IsCanceled)
-            {
-                RunOnMainThread(() => SetStatus("Switch canceled."));
-                return;
-            }
-
-            if (task.IsFaulted)
-            {
-                string err = GetFirebaseErrorMessage(task.Exception);
-                Debug.LogError("[PregamePanel] Switch test user failed: " + err);
-                RunOnMainThread(() => SetStatus("Switch failed: " + err));
-                return;
-            }
-
-            FirebaseUser signedInUser = task.Result.User;
-
-            RunOnMainThread(() =>
-            {
-                ScrabbyLog.Trace("[PregamePanel] RunOnMainThread action START for switch to " + targetEmail);
-
-                string shownName = string.IsNullOrWhiteSpace(signedInUser.DisplayName)
-                    ? signedInUser.Email
-                    : signedInUser.DisplayName;
-
-                SetStatus("Switched to: " + shownName);
-                if (signedInAsText != null)
-                    signedInAsText.text = "Signed in as: " + shownName;
-
-                RefreshUI();
-
-                if (matchStatusPanel != null)
-                {
-                    ScrabbyLog.Trace("[PregamePanel] Calling RefreshMatchStateForUser with uid=" + signedInUser.UserId);
-                    matchStatusPanel.gameObject.SetActive(true);
-                    matchStatusPanel.UpdateLoginNameDisplay();
-                    matchStatusPanel.RefreshMatchStateForUser(signedInUser.UserId);
-                }
-                else
-                {
-                    Debug.LogWarning("[PregamePanel] matchStatusPanel is NULL in switch-user callback!");
-
-                }
-                ScrabbyLog.Trace("[PregamePanel] RunOnMainThread action END");
-            });
-        });
-    }
 
     private bool EnsureFirebaseReady()
     {
