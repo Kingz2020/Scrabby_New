@@ -89,6 +89,7 @@ public class TileScript : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDr
 
         dragOffset = transform.position - (Vector3)eventData.position;
 
+        Singleton.Instance.DropManager.ForgetWhereThePointerWas();
         Singleton.Instance.DropManager.isCurrentlyDragging = true;
         Singleton.Instance.DropManager.SetTempGrabbedTile(placedTile);
 
@@ -185,6 +186,10 @@ public class TileScript : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDr
 
         if (targetLocation == null)
         {
+            // Said out loud, because "the tile would not go down" is a report
+            // that is otherwise impossible to act on.
+            Debug.Log("[DRAG] " + LetterForLog() + " let go with no square under it; back it goes.");
+
             transform.SetParent(originalParent);
             transform.position = origin;
 
@@ -211,6 +216,11 @@ public class TileScript : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDr
 
         if (existingTile != null)
         {
+            Debug.Log("[DRAG] " + LetterForLog() + " let go over " +
+                      targetLocation.letterPosition.RowX + "," + targetLocation.letterPosition.ColY +
+                      ", which already has " + (existingTile.LetterInfo != null
+                          ? existingTile.LetterInfo.letter : "a tile") + "; back it goes.");
+
             transform.SetParent(originalParent);
             transform.position = origin;
 
@@ -253,6 +263,13 @@ public class TileScript : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDr
         Sound.Play(Sound.TileDown);
     }
 
+    private string LetterForLog()
+    {
+        return placedTile != null && placedTile.letterInfo != null
+            ? placedTile.letterInfo.letter
+            : "A tile";
+    }
+
     // The tutorial picking a tile up: everything OnBeginDrag does except the
     // pointer, so the tile can then be carried by whatever is moving it.
     public void BeginDemoDrag()
@@ -264,6 +281,7 @@ public class TileScript : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDr
         origin = transform.position;
         originalParent = transform.parent;
 
+        Singleton.Instance.DropManager.ForgetWhereThePointerWas();
         Singleton.Instance.DropManager.isCurrentlyDragging = true;
         Singleton.Instance.DropManager.SetTempGrabbedTile(placedTile);
 

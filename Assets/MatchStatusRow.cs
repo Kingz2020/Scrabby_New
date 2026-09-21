@@ -18,6 +18,12 @@ public class MatchStatusRow : MonoBehaviour
     private string matchId;
     private bool isCompleted;
 
+    private void Awake()
+    {
+        ChunkyButton.Deepen(actionButton);
+        ChunkyButton.Deepen(declineButton);
+    }
+
     // Opening a match takes a moment - it reads the match, then asks whether
     // this round has already been played. A button that looks untouched for
     // those seconds invites a second tap, so it says what it is doing.

@@ -33,6 +33,20 @@ public class DropManager : MonoBehaviour
         _lastValidLocation = null;
     }
 
+    // Where the pointer has been, forgotten. GetCurrentLocation falls back to
+    // the last square the pointer crossed, so a tile let go in the gap
+    // between squares still lands somewhere sensible - but that memory
+    // outlived the drag that made it. The next drag, released between
+    // squares, went to a square passed over during the one before, often one
+    // with a tile already on it, and snapped back to the rack. The second
+    // try worked because it was aimed more carefully. Every drag now starts
+    // from nothing.
+    public void ForgetWhereThePointerWas()
+    {
+        _currentLocation = null;
+        _lastValidLocation = null;
+    }
+
     public void SetCurrentLocation(GhostTile location)
     {
         _currentLocation = location;

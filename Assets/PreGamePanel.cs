@@ -143,6 +143,15 @@ public partial class PreGamePanel : MonoBehaviour
 
         // "Forgot password?" and "Delete my account" (PreGamePanel.Account.cs)
         BuildAccountLinks();
+
+        // Its own colours, with the thickness, light and press every button
+        // has.
+        ChunkyButton.Deepen(signInTabButton);
+        ChunkyButton.Deepen(createAccountTabButton);
+        ChunkyButton.Deepen(signInActionButton);
+        ChunkyButton.Deepen(createAccountActionButton);
+        ChunkyButton.Deepen(startGameButton);
+        ChunkyButton.Deepen(FindLogoutButton());
     }
 
 

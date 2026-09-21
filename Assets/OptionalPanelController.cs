@@ -55,6 +55,9 @@ public class OptionPanelController : MonoBehaviour
 
     private const string DifficultyPrefsKey = "Scrabby.SoloDifficulty";
 
+    // The tabs' navy, opaque enough to read against the sky.
+    private static readonly Color SettingsNavy = new Color(0.039f, 0.149f, 0.267f, 0.88f);
+
     // Three choices now, so what used to be "is multiplayer chosen" cannot
     // answer the question any more.
     private enum Mode { Solo, Multiplayer, Daily }
@@ -118,6 +121,7 @@ public class OptionPanelController : MonoBehaviour
         AddStatsLink();
         AddSettingsButton();
         AddGameplayMainMenuButton();
+        DressPlayScreenButtons();
 
         // First time only, and led rather than read: a card of rules is only
         // any use to the people who read it, and watching people play said
@@ -131,6 +135,12 @@ public class OptionPanelController : MonoBehaviour
     {
         yield return null;
         yield return null;
+
+        // Dressed here too, not in Start: the tabs and chips are sized by
+        // their layout, and before it has run they have no height for the
+        // art to be scaled to.
+        Canvas.ForceUpdateCanvases();
+        DressMenuButtons();
 
         TutorialFlow.RunIfNew();
     }
@@ -186,6 +196,73 @@ public class OptionPanelController : MonoBehaviour
         Button button = go.GetComponent<Button>();
         button.targetGraphic = face;
         button.onClick.AddListener(LeaveGameForMainMenu);
+    }
+
+    // The play screen's buttons, in the thick style: white for the things that
+    // play the game, blue for the ways out. Found by name rather than wired in
+    // the scene, which can only be edited with Unity closed - and dressed in
+    // place, so each still does exactly what it did before.
+    //
+    // The ▶ becomes the word PLAY: a triangle on a button is a media control,
+    // and this one submits a word.
+    private void DressPlayScreenButtons()
+    {
+        if (gameplayPanel == null)
+            return;
+
+        Sprite back = Resources.Load<Sprite>("Buttons/Icon_return");
+        Sprite shuffle = Resources.Load<Sprite>("Buttons/Icon_shuffle");
+
+        foreach (Button b in gameplayPanel.GetComponentsInChildren<Button>(true))
+        {
+            switch (b.name)
+            {
+                case "Check Word":
+                    ChunkyButton.Dress(b, ChunkyButton.Face.White, "Play", null);
+                    break;
+
+                case "Return Letter Button":
+                    ChunkyButton.Dress(b, ChunkyButton.Face.White, null, back);
+                    break;
+
+                case "ShuffleButton":
+                    ChunkyButton.Dress(b, ChunkyButton.Face.White, null, shuffle);
+                    break;
+
+                case "BacktoMatchButton":
+                    ChunkyButton.Dress(b, ChunkyButton.Face.Blue, "Back to match", null);
+                    break;
+
+                case "MainMenuButton_Gameplay":
+                    ChunkyButton.Dress(b, ChunkyButton.Face.Blue, "Main menu", null);
+                    break;
+            }
+        }
+    }
+
+    // The menu keeps its own look - the tile for what is chosen, glass for
+    // the rest - and gets the board's thickness, light and press on top of
+    // it. The white and blue keys are the board's; on the menu's art they
+    // looked pasted on.
+    private void DressMenuButtons()
+    {
+        Button[] buttons =
+        {
+            playButton,
+            soloTabButton, multiplayerTabButton, dailyTabButton,
+            easyChip, mediumChip, hardChip, expertChip
+        };
+
+        foreach (Button b in buttons)
+            ChunkyButton.Deepen(b);
+
+        if (optionPanel != null)
+        {
+            Transform settings = optionPanel.transform.Find("SettingsButton");
+
+            if (settings != null)
+                ChunkyButton.Deepen(settings.GetComponent<Button>());
+        }
     }
 
     // Every way into a game passes through here first, so none of them can
@@ -282,8 +359,17 @@ public class OptionPanelController : MonoBehaviour
         rect.sizeDelta = new Vector2(172f, 68f);
         rect.anchoredPosition = new Vector2(-38f, -46f);
 
+        // The menu's own dark navy, as on the tabs, but solid: it sits on
+        // open sky rather than on the card, and see-through glass there made
+        // it all but invisible. The tabs' rounded sprite, where there is one.
         Image face = go.GetComponent<Image>();
-        face.color = new Color(1f, 1f, 1f, 0.10f);
+        face.color = SettingsNavy;
+
+        if (idleSprite != null)
+        {
+            face.sprite = idleSprite;
+            face.type = Image.Type.Sliced;
+        }
 
         GameObject labelGo = new GameObject("Label",
             typeof(RectTransform), typeof(TextMeshProUGUI));
@@ -292,8 +378,9 @@ public class OptionPanelController : MonoBehaviour
 
         TextMeshProUGUI label = labelGo.GetComponent<TextMeshProUGUI>();
         label.text = "Settings";
-        label.fontSize = 26f;
-        label.color = new Color(0.945f, 0.878f, 0.733f, 0.95f);
+        label.fontSize = 28f;
+        label.fontStyle = FontStyles.Bold;
+        label.color = Color.white;
         label.alignment = TextAlignmentOptions.Center;
         label.raycastTarget = false;
 
@@ -329,9 +416,14 @@ public class OptionPanelController : MonoBehaviour
 
         TextMeshProUGUI label = go.GetComponent<TextMeshProUGUI>();
         label.text = text;
-        label.fontSize = 30f;
-        label.color = new Color(0.945f, 0.878f, 0.733f, 0.95f);
-        label.fontStyle = FontStyles.Underline;
+        label.fontSize = 32f;
+
+        // White with a thin navy edge. Cream on the card's glass, over a
+        // pale sky, was barely there; the edge keeps it sharp over a cloud.
+        label.color = Color.white;
+        label.outlineColor = SettingsNavy;
+        label.outlineWidth = 0.18f;
+        label.fontStyle = FontStyles.Underline | FontStyles.Bold;
         label.alignment = TextAlignmentOptions.Center;
         label.raycastTarget = true;
 

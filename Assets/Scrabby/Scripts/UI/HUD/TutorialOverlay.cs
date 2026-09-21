@@ -36,6 +36,10 @@ public class TutorialOverlay : MonoBehaviour
     private RectTransform hand;
     private CanvasGroup handGroup;
 
+    private GameObject tapCatcher;
+    private bool tapped;
+    private bool skipPressed;
+
     private Rect hole;
     private bool hasHole;
     private bool letThemTouch;
@@ -118,6 +122,7 @@ public class TutorialOverlay : MonoBehaviour
 
         BuildCaption();
         BuildHand();
+        BuildTapCatcher();
         BuildSkip();
 
         NoSpotlight();
@@ -148,6 +153,11 @@ public class TutorialOverlay : MonoBehaviour
         captionBox.sizeDelta = new Vector2(CaptionWidth, 150f);
 
         box.GetComponent<Image>().color = Glass;
+
+        // Words are for reading, not for catching touches. The box was an
+        // Image like any other, so anything dragged under it - a tile on its
+        // way to the board - was stopped at the caption.
+        box.GetComponent<Image>().raycastTarget = false;
 
         GameObject text = new GameObject("Text", typeof(RectTransform),
                                          typeof(TextMeshProUGUI));
@@ -201,6 +211,30 @@ public class TutorialOverlay : MonoBehaviour
         handGroup.blocksRaycasts = false;
     }
 
+    // Invisible, full-screen, and only there while a caption is waiting to be
+    // read. Built before Skip so Skip stays on top of it and still works.
+    private void BuildTapCatcher()
+    {
+        tapCatcher = new GameObject("TapToContinue", typeof(RectTransform),
+                                    typeof(Image), typeof(Button));
+        tapCatcher.transform.SetParent(root, false);
+
+        RectTransform rect = tapCatcher.GetComponent<RectTransform>();
+        rect.anchorMin = Vector2.zero;
+        rect.anchorMax = Vector2.one;
+        rect.offsetMin = Vector2.zero;
+        rect.offsetMax = Vector2.zero;
+
+        Image face = tapCatcher.GetComponent<Image>();
+        face.color = new Color(0f, 0f, 0f, 0f);
+
+        Button button = tapCatcher.GetComponent<Button>();
+        button.transition = Selectable.Transition.None;
+        button.onClick.AddListener(delegate { tapped = true; });
+
+        tapCatcher.SetActive(false);
+    }
+
     private void BuildSkip()
     {
         GameObject go = new GameObject("Skip", typeof(RectTransform), typeof(Image),
@@ -234,7 +268,15 @@ public class TutorialOverlay : MonoBehaviour
 
         Button button = go.GetComponent<Button>();
         button.targetGraphic = face;
-        button.onClick.AddListener(delegate { if (OnSkip != null) OnSkip(); });
+        button.onClick.AddListener(delegate
+        {
+            // Ends any wait in progress as well, or Skip would appear to do
+            // nothing until the screen was tapped too.
+            skipPressed = true;
+
+            if (OnSkip != null)
+                OnSkip();
+        });
     }
 
     // ------------------------------------------------------------ the light --
@@ -506,6 +548,70 @@ public class TutorialOverlay : MonoBehaviour
         }
 
         captionBox.anchoredPosition = new Vector2(0f, y);
+    }
+
+    // ------------------------------------------------------- the player's pace --
+
+    private const string TapHint =
+        "\n<size=70%><color=#FFFFFF80>Tap anywhere to continue</color></size>";
+
+    // Words that ask for nothing but reading. They stay until the player
+    // taps, which is the whole point: "too fast" was a caption that left
+    // before somebody had finished it.
+    public IEnumerator SayAndWait(string words, Where where)
+    {
+        Say(words + TapHint, where);
+
+        // A beat before listening, so the tap that finished the last step is
+        // not taken as the answer to this one.
+        float settle = 0f;
+
+        while (settle < 0.35f)
+        {
+            settle += Time.deltaTime;
+            yield return null;
+        }
+
+        tapped = false;
+        tapCatcher.SetActive(true);
+        tapCatcher.transform.SetSiblingIndex(root.childCount - 2);
+
+        while (!tapped && !skipPressed && tapCatcher != null)
+            yield return null;
+
+        tapCatcher.SetActive(false);
+    }
+
+    // The hand points at a real button and taps the air above it until the
+    // player presses the button themselves - which runs whatever that button
+    // always runs. The tutorial never presses anything for them.
+    public IEnumerator WaitForPress(Button button, System.Func<bool> giveUp)
+    {
+        if (button == null)
+            yield break;
+
+        bool pressed = false;
+        UnityEngine.Events.UnityAction watcher = delegate { pressed = true; };
+        button.onClick.AddListener(watcher);
+
+        yield return MoveHandTo(button.transform as RectTransform);
+
+        float sincePulse = 1f;
+
+        while (!pressed && (giveUp == null || !giveUp()))
+        {
+            sincePulse += Time.deltaTime;
+
+            if (sincePulse > 1.3f)
+            {
+                sincePulse = 0f;
+                StartCoroutine(Tap());
+            }
+
+            yield return null;
+        }
+
+        button.onClick.RemoveListener(watcher);
     }
 
     public void Hush()

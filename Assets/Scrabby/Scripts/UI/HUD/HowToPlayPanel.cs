@@ -138,6 +138,7 @@ public static class HowToPlayPanel
         Button button = got.AddComponent<Button>();
         button.targetGraphic = got.GetComponent<Image>();
         button.onClick.AddListener(Close);
+        ChunkyButton.Deepen(button);
 
         Label(got.transform, "Got it", 34f, Ink, FontStyles.Bold,
               TextAlignmentOptions.Center, 0f, 0f, CardWidth - 90f, 92f, true);

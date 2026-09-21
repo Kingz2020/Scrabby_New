@@ -8,6 +8,12 @@ public class RoundReplayRow : MonoBehaviour
     [SerializeField] private Button replayButton;
     [SerializeField] private TextMeshProUGUI roundText;
 
+    // The button that plays the round back - what the tutorial points at.
+    public Button ReplayButton
+    {
+        get { return replayButton; }
+    }
+
     // The rows moved onto the game-over card, which is dark glass; the prefab
     // was coloured for the light blue panel they used to sit on. Told what to
     // wear rather than deciding, so the card owns the palette.
@@ -34,6 +40,8 @@ public class RoundReplayRow : MonoBehaviour
             {
                 label.color = buttonInk;
             }
+
+            ChunkyButton.Deepen(replayButton);
         }
     }
 

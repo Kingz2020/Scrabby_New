@@ -237,6 +237,7 @@ public static class DeleteAccountPanel
         Button button = go.GetComponent<Button>();
         button.targetGraphic = go.GetComponent<Image>();
         button.onClick.AddListener(() => onClick());
+        ChunkyButton.Deepen(button);
 
         return button;
     }

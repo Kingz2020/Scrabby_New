@@ -180,6 +180,10 @@ public class GameOverCard : MonoBehaviour
             text.color = ink;
             text.fontSize = 30f;
         }
+
+        // Its own colours, with the thickness, light and press every button
+        // has. After the move onto the card, so its thickness goes with it.
+        ChunkyButton.Deepen(found.GetComponent<Button>());
     }
 
     // -------------------------------------------------------------- content --

@@ -264,6 +264,8 @@ public static class DailyResultPanel
             Show(lastDay, lastScore, lastWord);
         });
 
+        ChunkyButton.Deepen(button);
+
         GameObject label = new GameObject("Label", typeof(RectTransform),
                                           typeof(TextMeshProUGUI));
         label.transform.SetParent(back.transform, false);
@@ -392,6 +394,7 @@ public static class DailyResultPanel
         UnityEngine.UI.Button button = go.AddComponent<UnityEngine.UI.Button>();
         button.targetGraphic = go.GetComponent<Image>();
         button.onClick.AddListener(delegate { onClick(); });
+        ChunkyButton.Deepen(button);
 
         GameObject labelGo = new GameObject("Label", typeof(RectTransform),
                                             typeof(TextMeshProUGUI));

@@ -11,6 +11,12 @@ public class InviteRow : MonoBehaviour
 
     private string roomCode;
 
+    private void Awake()
+    {
+        ChunkyButton.Deepen(acceptButton);
+        ChunkyButton.Deepen(declineButton);
+    }
+
     public void Setup(
         MatchListItemData data,
         System.Action<string> onAccept,

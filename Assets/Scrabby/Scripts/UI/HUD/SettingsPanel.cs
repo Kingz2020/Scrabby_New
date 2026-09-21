@@ -111,6 +111,7 @@ public static class SettingsPanel
         Button toggle = button.AddComponent<Button>();
         toggle.targetGraphic = switchFace;
         toggle.onClick.AddListener(ToggleSound);
+        ChunkyButton.Deepen(toggle);
 
         GameObject labelGo = new GameObject("Label", typeof(RectTransform),
                                             typeof(TextMeshProUGUI));
@@ -148,6 +149,7 @@ public static class SettingsPanel
         Button show = again.AddComponent<Button>();
         show.targetGraphic = again.GetComponent<Image>();
         show.onClick.AddListener(ShowTheTutorial);
+        ChunkyButton.Deepen(show);
 
         Label(again.transform, "Show me how to play again", 26f, Cream,
               FontStyles.Normal, TextAlignmentOptions.Center,
@@ -164,6 +166,7 @@ public static class SettingsPanel
         Button close = done.AddComponent<Button>();
         close.targetGraphic = done.GetComponent<Image>();
         close.onClick.AddListener(Close);
+        ChunkyButton.Deepen(close);
 
         Label(done.transform, "Done", 32f, Ink, FontStyles.Bold,
               TextAlignmentOptions.Center, 0f, 0f, CardWidth - 90f, 88f, true);

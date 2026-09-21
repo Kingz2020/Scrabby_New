@@ -52,10 +52,21 @@ public class TutorialFlow : MonoBehaviour
     }
 
     // Shown once, the first time anyone opens the game.
+    //
+    // Once means once: it counts as seen the moment it starts, not when it
+    // reaches the end. Marked only at the end, anyone who closed the app
+    // halfway - or stopped Play in the editor - got it again on every launch.
+    // It is still in Settings for whoever wants it again.
+    //
+    // Never on its own in the editor: there the game is started over and over
+    // to test other things, and the walkthrough is in the way every time.
     public static void RunIfNew()
     {
-        if (AlreadyRun)
+        if (Application.isEditor || AlreadyRun)
             return;
+
+        PlayerPrefs.SetInt(DoneKey, 1);
+        PlayerPrefs.Save();
 
         Begin();
     }
@@ -78,8 +89,18 @@ public class TutorialFlow : MonoBehaviour
         if (PlayerPrefs.GetInt(ReplayHintKey, 0) == 0)
             return;
 
+        // Settled whichever way this goes: owed once, to one game.
         PlayerPrefs.SetInt(ReplayHintKey, 0);
         PlayerPrefs.Save();
+
+        // The saved flag alone is not proof. A tutorial left halfway - the app
+        // closed, Play stopped in the editor - leaves it set, and the hand
+        // then turned up at the end of some later, ordinary game. Only the
+        // tutorial's own game gets it.
+        GameLogic logic = Singleton.Instance != null ? Singleton.Instance.GameLogic : null;
+
+        if (logic == null || !logic.IsTutorialGame)
+            return;
 
         if (GameObject.Find("TutorialReplayHint") != null)
             return;
@@ -122,34 +143,58 @@ public class TutorialFlow : MonoBehaviour
 
         yield return Wait(0.8f);
 
+        // How the round was settled, said over the result it produced - which
+        // is on screen now, so it can be pointed at rather than described.
+        overlay.Undim();
+
+        yield return overlay.SayAndWait(
+            "The higher score takes the round, and the winning word stays on " +
+            "the board. A real game is four rounds.",
+            TutorialOverlay.Where.Top);
+
+        if (skipped)
+        {
+            overlay.Close();
+            Destroy(gameObject);
+            yield break;
+        }
+
         RectTransform rect = row.transform as RectTransform;
+
+        // The whole row lit, so the round it describes can be read, and the
+        // hand on its Play button - the thing to press. Pointing at the middle
+        // of the row left the player to guess which part of it did anything.
+        Button button = row.ReplayButton != null ? row.ReplayButton : row.GetComponent<Button>();
+        RectTransform pointAt = button != null ? button.transform as RectTransform : rect;
 
         overlay.Spotlight(rect);
         overlay.LetThemTouch(true);
-        overlay.Say("One round per line. Tap one to watch it again - including " +
+        overlay.Say("Tap <b>Play</b> to watch the round again - including " +
                     "<b>the word your opponent played</b>, which you never get " +
                     "to see while the round is live.",
                     TutorialOverlay.Where.Top);
 
-        yield return overlay.MoveHandTo(rect);
+        yield return overlay.MoveHandTo(pointAt);
 
         bool tapped = false;
-        Button button = row.GetComponent<Button>();
         UnityEngine.Events.UnityAction watcher = delegate { tapped = true; };
 
         if (button != null)
             button.onClick.AddListener(watcher);
 
         waited = 0f;
-        float sincePulse = 0f;
+        float sincePulse = 1f;
 
         // Checked every frame, not between tap animations. The replay this is
         // pointing at plays out on the board behind the dimming, so a second
         // of overlay left over is a second of the thing they asked to see,
-        // hidden. The panel stepping aside for the replay counts as the tap
-        // too, in case the press landed on something inside the row rather
-        // than on the row itself.
-        while (!tapped && !skipped && waited < 14f && GameOverShowing())
+        // hidden. The panel stepping aside for the replay counts as the press
+        // too, belt and braces.
+        //
+        // No time limit any more: the rest of the walkthrough waits for the
+        // player, and a hint that gave up after fourteen seconds was the one
+        // step that did not.
+        while (!tapped && !skipped && GameOverShowing())
         {
             waited += Time.deltaTime;
             sincePulse += Time.deltaTime;
@@ -224,46 +269,53 @@ public class TutorialFlow : MonoBehaviour
     {
         overlay.NoSpotlight();
         overlay.LetThemTouch(false);
-        overlay.Say("Scrabby is a word duel.\nWatch one round, then it is yours.");
 
-        yield return Wait(2.6f);
+        yield return overlay.SayAndWait(
+            "Scrabby is a word duel.\nLet's play one round together.",
+            TutorialOverlay.Where.Auto);
     }
 
+    // Every press is the player's own, at their own pace. The hand shows where;
+    // it never presses. Watching a hand do it all went by too fast to follow,
+    // and a caption only gets read when nothing moves on until it has been.
     private IEnumerator Menu()
     {
-        yield return HandTaps(options.SoloTabRect,
-            "A game against the computer.",
-            delegate { options.ShowSoloTab(); });
+        // Somewhere else to start from, so that pressing Solo and Easy visibly
+        // changes something. Pressing the tab that is already chosen teaches
+        // nothing about what the tabs are.
+        options.ShowMultiplayerTab();
+        options.ChooseDifficulty(GameLogic.SoloDifficulty.Hard);
 
-        // The four levels, pointed at one by one, so the choice is seen to be
-        // a choice rather than a row of words that went past.
-        overlay.Spotlight(options.DifficultyRowRect);
-        overlay.Say("Four levels. Easy to start with.");
-
-        RectTransform[] chips =
-        {
-            options.ExpertChipRect, options.HardChipRect,
-            options.MediumChipRect, options.EasyChipRect
-        };
-
-        foreach (RectTransform chip in chips)
-        {
-            if (chip == null || skipped)
-                continue;
-
-            yield return overlay.MoveHandTo(chip, 0.34f);
-            yield return Wait(0.12f);
-        }
+        yield return PlayerPresses(options.SoloTabRect,
+            "Tap <b>Solo</b> to play against the computer.",
+            TutorialOverlay.Where.Auto);
 
         if (skipped)
             yield break;
 
-        yield return overlay.Tap();
-        options.ChooseDifficulty(GameLogic.SoloDifficulty.Easy);
-        yield return Wait(0.5f);
+        // The four levels shown together first, so the choice is seen to be a
+        // choice, then only Easy lit - the other three cannot be pressed by
+        // accident while the player is being asked for this one.
+        overlay.Spotlight(options.DifficultyRowRect);
+        overlay.LetThemTouch(false);
 
-        yield return HandTaps(options.PlayRect, "And off we go.",
-            delegate { options.OnPlayPressed(); });
+        yield return overlay.SayAndWait(
+            "Four levels, from Easy to Expert. You can change it any time.",
+            TutorialOverlay.Where.Auto);
+
+        if (skipped)
+            yield break;
+
+        yield return PlayerPresses(options.EasyChipRect,
+            "Tap <b>Easy</b> to start gently.",
+            TutorialOverlay.Where.Auto);
+
+        if (skipped)
+            yield break;
+
+        yield return PlayerPresses(options.PlayRect,
+            "Now tap <b>Play</b>.",
+            TutorialOverlay.Where.Auto);
     }
 
     private IEnumerator Board()
@@ -305,12 +357,14 @@ public class TutorialFlow : MonoBehaviour
 
         // Nothing has been dealt yet. This button does two jobs: the first
         // press starts the round - letters out, bonus squares scattered - and
-        // every press after it plays the word. Without this the tutorial sat
-        // explaining a board that had not begun.
-        yield return HandTaps(deal.transform as RectTransform,
-            "This starts the round.",
-            delegate { deal.onClick.Invoke(); },
+        // every press after it plays the word. The player presses it, so they
+        // see the letters and the bonus squares arrive because they asked.
+        yield return PlayerPresses(deal.transform as RectTransform,
+            "This button deals your letters and scatters the bonus squares. Tap it.",
             TutorialOverlay.Where.Top);
+
+        if (skipped)
+            yield break;
 
         waited = 0f;
 
@@ -338,12 +392,17 @@ public class TutorialFlow : MonoBehaviour
 
         RectTransform rack = RackRect();
 
+        overlay.HideHand();
         overlay.Spotlight(rack);
         overlay.LetThemTouch(false);
-        overlay.Say("You and the computer are dealt <b>the same six letters</b>. " +
-                    "You both play them, on the same board.",
-                    TutorialOverlay.Where.Top);
-        yield return Wait(4.2f);
+
+        yield return overlay.SayAndWait(
+            "You and the computer are dealt <b>the same six letters</b>. " +
+            "You both play them, on the same board.",
+            TutorialOverlay.Where.Top);
+
+        if (skipped)
+            yield break;
 
         // The triple word, which is where CAT is about to land - so the
         // scoring can be explained with the square it happens on rather than
@@ -355,12 +414,43 @@ public class TutorialFlow : MonoBehaviour
         if (triple != null)
         {
             overlay.Spotlight(triple, 8f);
-            overlay.Say("Four bonus squares are scattered on the board. This one " +
-                        "<b>triples the whole word</b> - and they are scattered " +
-                        "again after every round.",
-                        TutorialOverlay.Where.Top);
-            yield return Wait(4.6f);
+
+            yield return overlay.SayAndWait(
+                "Four bonus squares are scattered on the board. This one " +
+                "<b>triples the whole word</b> - and they are scattered " +
+                "again after every round.",
+                TutorialOverlay.Where.Top);
         }
+    }
+
+    // The hand points at something real and waits, pulsing, for the player to
+    // press it themselves. Only that one thing is lit, so it is the only thing
+    // on screen that can be pressed.
+    private IEnumerator PlayerPresses(RectTransform target, string words,
+                                      TutorialOverlay.Where where)
+    {
+        if (target == null || skipped)
+            yield break;
+
+        Button button = target.GetComponent<Button>();
+
+        if (button == null)
+        {
+            Debug.LogWarning("[TUTORIAL] " + target.name + " is not a button; skipping that step.");
+            yield break;
+        }
+
+        overlay.Spotlight(target);
+        overlay.LetThemTouch(true);
+        overlay.Say(words, where);
+
+        yield return overlay.WaitForPress(button, () => skipped);
+
+        overlay.LetThemTouch(false);
+
+        // A moment for whatever the press opened to arrive before the next
+        // thing is lit, or the spotlight is cut around a screen mid-change.
+        yield return Wait(0.45f);
     }
 
     // Waits for the scatter to finish, with a ceiling: a tutorial that hangs
@@ -434,10 +524,18 @@ public class TutorialFlow : MonoBehaviour
 
         overlay.SpotlightAll(new RectTransform[] { RackRect(), BoardRect() }, 24f);
         overlay.LetThemTouch(false);
-        overlay.Say("Drag a letter onto the board. Like this.",
-                    TutorialOverlay.Where.Top);
 
-        yield return Wait(0.8f);
+        yield return overlay.SayAndWait(
+            "Letters go on the board by dragging them there. " +
+            "Watch this one - then the next two are yours.",
+            TutorialOverlay.Where.Top);
+
+        if (skipped)
+            yield break;
+
+        overlay.Say("", TutorialOverlay.Where.Top);
+        overlay.Hush();
+
         yield return Drag(tile, cell);
         yield return Wait(0.5f);
     }
@@ -453,6 +551,11 @@ public class TutorialFlow : MonoBehaviour
             skipped = true;
             yield break;
         }
+
+        // Whatever the pointer crossed during the demonstration is forgotten, so
+        // the player's first drag lands where they let go of it.
+        if (Singleton.Instance != null && Singleton.Instance.DropManager != null)
+            Singleton.Instance.DropManager.ForgetWhereThePointerWas();
 
         overlay.HideHand();
         overlay.SpotlightAll(new RectTransform[] { RackRect(), BoardRect() }, 24f);
@@ -485,8 +588,6 @@ public class TutorialFlow : MonoBehaviour
         }
 
         overlay.ClearMarks();
-        overlay.Say("CAT. That is a word - it counts.", TutorialOverlay.Where.Top);
-        yield return Wait(1.4f);
     }
 
     private IEnumerator TheAnswer()
@@ -499,27 +600,9 @@ public class TutorialFlow : MonoBehaviour
             yield break;
         }
 
-        RectTransform rect = check.transform as RectTransform;
-
-        overlay.Spotlight(rect);
-        overlay.LetThemTouch(true);
-        overlay.Say("Same button again - now it plays your word.",
-                    TutorialOverlay.Where.Top);
-
-        yield return overlay.MoveHandTo(rect);
-
-        bool pressed = false;
-        UnityEngine.Events.UnityAction watcher = delegate { pressed = true; };
-        check.onClick.AddListener(watcher);
-
-        while (!pressed && !skipped)
-        {
-            // The hand waits where it is, tapping, until they do.
-            yield return overlay.Tap();
-            yield return Wait(0.7f);
-        }
-
-        check.onClick.RemoveListener(watcher);
+        yield return PlayerPresses(check.transform as RectTransform,
+            "<b>CAT</b> - that's a word. Tap the same button again to play it.",
+            TutorialOverlay.Where.Top);
 
         GameLogic playing = Singleton.Instance != null ? Singleton.Instance.GameLogic : null;
 
@@ -534,15 +617,15 @@ public class TutorialFlow : MonoBehaviour
         overlay.HideHand();
         overlay.Undim();
 
-        overlay.Say("<b>That's it.</b>", TutorialOverlay.Where.Top);
-        yield return Wait(1.3f);
-
         // The sum, on the square it happened on. Told once, with real numbers,
         // at the moment the player can see where they came from.
-        overlay.Say("C is 3, A is 1, T is 1 - and the triple word square makes " +
-                    "that <b>15</b>.",
-                    TutorialOverlay.Where.Top);
-        yield return Wait(3.4f);
+        yield return overlay.SayAndWait(
+            "<b>That's it!</b> C is 3, A is 1, T is 1 - and the triple word " +
+            "square makes that <b>15</b>.",
+            TutorialOverlay.Where.Top);
+
+        if (skipped)
+            yield break;
 
         overlay.Say("Now the computer plays the same six letters.",
                     TutorialOverlay.Where.Top);
@@ -551,17 +634,17 @@ public class TutorialFlow : MonoBehaviour
         // not another rack. Waiting on the round number would wait for ever.
         float waited = 0f;
 
-        while (!GameOverShowing() && waited < 14f)
+        while (!GameOverShowing() && waited < 20f)
         {
             waited += Time.deltaTime;
             yield return null;
         }
 
-        overlay.Say("The higher score takes the round, and the winning word " +
-                    "stays on the board. A real game is four of them.",
-                    TutorialOverlay.Where.Top);
-
-        yield return Wait(3.6f);
+        // And this is where the walkthrough hands over. The game-over panel
+        // brings up its own last word - how the round was decided, and the
+        // replay rows - on an overlay of its own, which replaces this one.
+        // Waiting here for a tap on an overlay that is about to be taken away
+        // would wait for ever, and never mark the tutorial as done.
     }
 
     private void Finish()
@@ -590,25 +673,6 @@ public class TutorialFlow : MonoBehaviour
     }
 
     // ----------------------------------------------------------- the pieces --
-
-    private IEnumerator HandTaps(RectTransform target, string words, System.Action press,
-                                 TutorialOverlay.Where where = TutorialOverlay.Where.Auto)
-    {
-        if (target == null || skipped)
-            yield break;
-
-        overlay.Spotlight(target);
-        overlay.LetThemTouch(false);
-        overlay.Say(words, where);
-
-        yield return overlay.MoveHandTo(target);
-        yield return overlay.Tap();
-
-        if (press != null)
-            press();
-
-        yield return Wait(0.45f);
-    }
 
     // The hand carrying a tile from the rack to a square - the same path a
     // finger takes, through the same code a finger uses.

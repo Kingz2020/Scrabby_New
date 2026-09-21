@@ -175,6 +175,7 @@ public static class StatsPanel
         Button button = done.AddComponent<Button>();
         button.targetGraphic = done.GetComponent<Image>();
         button.onClick.AddListener(Close);
+        ChunkyButton.Deepen(button);
 
         Label(done.transform, "Close", 34f, Ink, FontStyles.Bold,
               TextAlignmentOptions.Center, 0f, 0f, CardWidth - 90f, 92f, true);

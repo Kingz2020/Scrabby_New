@@ -20,15 +20,38 @@ public partial class PreGamePanel
 {
     private const string FormerPlayerName = "Former player";
 
+    // The same navy edge as the main menu's links.
+    private static readonly Color LinkEdge = new Color(0.039f, 0.149f, 0.267f, 0.88f);
+
     private void BuildAccountLinks()
     {
         AddLink(signInActionButton, "Forgot password?", 44f,
-                new Color(1f, 1f, 1f, 0.82f), OnForgotPasswordPressed);
+                Color.white, OnForgotPasswordPressed);
 
         Button logout = FindLogoutButton();
 
-        AddLink(logout, "Delete my account", 40f,
-                new Color(1f, 0.62f, 0.56f, 0.95f), OnDeleteAccountPressed);
+        // White like the other links. It was a pale red, meant as a warning,
+        // and on the card's glass it could not be read at all; the panel it
+        // opens is where the warning is.
+        AddLink(logout, "Delete my account", 68f,
+                Color.white, OnDeleteAccountPressed);
+
+        // The scene still carries the names the buttons were given when they
+        // were made. Only a caption that is plainly one of those is replaced.
+        Rename(signInActionButton, "Sign in");
+        Rename(createAccountActionButton, "Create account");
+        Rename(logout, "Log out");
+    }
+
+    private static void Rename(Button button, string caption)
+    {
+        if (button == null)
+            return;
+
+        TextMeshProUGUI label = button.GetComponentInChildren<TextMeshProUGUI>(true);
+
+        if (label != null && label.text.Trim().EndsWith("Button"))
+            label.text = caption;
     }
 
     // The Log Out button is wired in the scene, not held in a field. It is
@@ -71,9 +94,11 @@ public partial class PreGamePanel
 
         TextMeshProUGUI label = go.GetComponent<TextMeshProUGUI>();
         label.text = caption;
-        label.fontSize = 26f;
+        label.fontSize = 30f;
         label.color = colour;
-        label.fontStyle = FontStyles.Underline;
+        label.outlineColor = LinkEdge;
+        label.outlineWidth = 0.18f;
+        label.fontStyle = FontStyles.Underline | FontStyles.Bold;
         label.alignment = TextAlignmentOptions.Center;
         label.raycastTarget = true;
 

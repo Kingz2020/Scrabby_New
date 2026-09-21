@@ -130,6 +130,8 @@ public partial class MatchStatusPanel : MonoBehaviour
         if (inviteButton != null)
             inviteButton.onClick.AddListener(OnInviteButtonPressed);
 
+        DeepenButtons();
+
         WireQuickGame();
         WireRecentOpponents();
     }
@@ -1155,6 +1157,24 @@ public partial class MatchStatusPanel : MonoBehaviour
 
         if (label != null)
             label.color = selected ? tabSelectedTextColour : tabIdleTextColour;
+    }
+
+    // Its own colours, with the thickness, light and press every button has.
+    private void DeepenButtons()
+    {
+        ChunkyButton.Deepen(matchesTabButton);
+        ChunkyButton.Deepen(newMatchTabButton);
+        ChunkyButton.Deepen(quickGameButton);
+        ChunkyButton.Deepen(createRoomButton);
+        ChunkyButton.Deepen(joinRoomButton);
+        ChunkyButton.Deepen(inviteButton);
+        ChunkyButton.Deepen(refreshButton);
+
+        foreach (Button b in GetComponentsInChildren<Button>(true))
+        {
+            if (b.name == "MainMenuButton_Matches")
+                ChunkyButton.Deepen(b);
+        }
     }
 
     // Signing in and out belongs to the pregame card; this panel is only
