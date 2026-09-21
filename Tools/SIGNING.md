@@ -12,9 +12,14 @@ It is still a slow, form-filling process, so back it up properly.
 
 ## 1. Make the key
 
-Run this in a terminal. It asks for a password, then for your name and
-organisation (these are stored inside the certificate; "Kingz Co." is fine),
-then for the key password — press Enter to use the same one.
+Run this in Command Prompt. It asks for a password, then a few details that
+are stored inside the certificate: your name, and optionally an organisation,
+city and country. Scrabby is a private venture, so leave the organisation
+fields empty - press Enter. None of this is ever shown to players; it only
+identifies your uploads to Google.
+
+Unity's Java makes a PKCS12 keystore, which has one password for everything,
+so it will not ask for a separate key password.
 
 ```bat
 mkdir "%USERPROFILE%\.scrabby"
@@ -38,8 +43,9 @@ Create `%USERPROFILE%\.scrabby\signing.json` in a text editor:
 }
 ```
 
-Forward slashes in the path. If you pressed Enter for the key password in step
-1, both passwords are the same.
+Forward slashes in the path, and the same password in both places. In
+Notepad, set "Save as type" to **All files**, or it saves `signing.json.txt`
+and the build will not find it.
 
 ## 3. Back it up
 
