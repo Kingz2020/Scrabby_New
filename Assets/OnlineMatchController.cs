@@ -413,6 +413,7 @@ public partial class OnlineMatchController : MonoBehaviour
     public void LeftMatchViews()
     {
         viewGeneration++;
+        BoardHoldsNothing();
     }
 
     public void ShowGameOverForMatchId(string matchId)
@@ -1776,6 +1777,9 @@ public partial class OnlineMatchController : MonoBehaviour
 
         int localScore = isPlayer1 ? currentMatch.player1Score : currentMatch.player2Score;
         int opponentScore = isPlayer1 ? currentMatch.player2Score : currentMatch.player1Score;
+
+        // From here the board is this match's, and the bot may search it.
+        BoardNowHolds(currentMatch.matchId);
 
         try
         {

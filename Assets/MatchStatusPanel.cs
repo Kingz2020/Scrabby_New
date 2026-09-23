@@ -665,7 +665,10 @@ public partial class MatchStatusPanel : MonoBehaviour
                 roomCode = match.roomCode,
                 opponentDisplayName = opponentName,
                 status = match.status,
-                currentRound = match.currentRoundNumber,
+                // A finished game has moved on to a round that never comes:
+                // it reads 4/4, not 5/4.
+                currentRound = Mathf.Min(match.currentRoundNumber,
+                                         Mathf.Max(1, match.totalRounds)),
                 totalRounds = match.totalRounds,
                 myScore = myScore,
                 opponentScore = opponentScore
@@ -673,9 +676,14 @@ public partial class MatchStatusPanel : MonoBehaviour
 
             if (match.status != "completed")
             {
+                // Both players' entries, not just this one's: a round both
+                // have played is not something to wait for, it is something
+                // to open. Nobody resolves it until one of them looks - with
+                // a bot, which never looks, only ever this player - and a
+                // "Waiting..." that cannot be pressed would hold it for ever.
                 var subTask = dbRoot.Child("matches").Child(match.matchId)
     .Child("rounds").Child(match.currentRoundNumber.ToString())
-    .Child("submissions").Child(myUid)
+    .Child("submissions")
     .GetValueAsync();
 
                 float timeoutAt = Time.realtimeSinceStartup + 5f;
@@ -689,9 +697,15 @@ public partial class MatchStatusPanel : MonoBehaviour
                 if (subTask.IsCompleted &&
                     !subTask.IsFaulted &&
                     subTask.Result != null &&
-                    subTask.Result.Exists)
+                    subTask.Result.HasChild(myUid))
                 {
-                    submissionExists = true;
+                    string opponentUid = amPlayer1 ? match.player2Uid : match.player1Uid;
+
+                    bool theirsIsIn = !string.IsNullOrEmpty(opponentUid) &&
+                                      subTask.Result.HasChild(opponentUid);
+
+                    // Played, and theirs is in too: it only needs opening.
+                    submissionExists = !theirsIsIn;
                 }
                 else if (!subTask.IsCompleted)
                 {

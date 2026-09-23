@@ -9,6 +9,7 @@
 // written by the game (PushNotifications.cs).
 
 const { onValueCreated, onValueWritten } = require("firebase-functions/v2/database");
+const { onSchedule } = require("firebase-functions/v2/scheduler");
 const { initializeApp } = require("firebase-admin/app");
 const { getAuth } = require("firebase-admin/auth");
 const { getDatabase } = require("firebase-admin/database");
@@ -32,6 +33,12 @@ function shortName(name) {
   return at > 0 ? name.substring(0, at) : name;
 }
 
+// Quick game's stand-ins. Not accounts: nobody signs in as one, and nothing
+// is ever sent to one.
+function isBot(uid) {
+  return typeof uid === "string" && uid.startsWith("bot-");
+}
+
 async function read(path) {
   const snap = await db().ref(path).get();
   return snap.exists() ? snap.val() : null;
@@ -41,7 +48,7 @@ async function read(path) {
 // is. A notification for the same match replaces the last one (the tag), so a
 // long game does not stack up a pile of them.
 async function notify(uid, body, matchOrRoomId) {
-  if (!uid) return;
+  if (!uid || isBot(uid)) return;
 
   const token = await read(`pushTokens/${uid}/token`);
   if (!token) {
@@ -129,6 +136,11 @@ exports.onQuickGameJoined = onValueWritten(
     ]);
 
     await notify(p1, `${shortName(p2Name)} joined your quick game.`, matchId);
+
+    // Somebody real came after all: the bot planned for this seat stands
+    // down, words and all.
+    if (!isBot(after))
+      await db().ref(`botQueue/${matchId}`).remove();
   });
 
 // An invitation arrived.
@@ -180,7 +192,8 @@ const removeFrom = (id) => (values) =>
 // One player has been put in a match: it belongs on their list of games, and
 // the room that arranged it no longer belongs on their list of rooms.
 async function matchBelongsTo(uid, matchId) {
-  if (!uid) return;
+  // A bot has no list: nobody ever opens the game as one.
+  if (!uid || isBot(uid)) return;
 
   await editList(uid, "activeMatchIds", addTo(matchId));
 
@@ -270,3 +283,143 @@ exports.onInviteRequest = onValueCreated(
     logger.info(`[INVITE] ${fromUid} -> ${toUid} for room ${roomCode}.`);
     await answer.set({ status: "sent", toUid, toName });
   });
+
+// ---------------------------------------------------------------------------
+// The bots' referee.
+//
+// A quick game nobody joins gets a bot (see BotOpponent.cs in the game). The
+// bot's word is worked out on the player's phone, when they play their own -
+// the only moment the phone certainly has that match's board - and parked in
+// botQueue/{matchId} with the time it is due. Playing it is left to this,
+// because by then the phone is in a pocket with the app asleep:
+//
+//   - seat the planned bot once its time comes and nobody real has sat down;
+//   - post each parked word once it is due, which sets off onWordPlayed and
+//     so the "your move" notification, exactly as a person's word would;
+//   - clear the plan away when the game ends or a person took the seat.
+//
+// And one safety net: a bot game where the player's word has waited half a
+// day for an answer that was never worked out (the app was closed mid-search,
+// or the game dates from before this existed) gets a pass from the bot, so
+// the player wins the round and the game moves on instead of hanging.
+// ---------------------------------------------------------------------------
+
+const GIVE_UP_AFTER_MS = 12 * 60 * 60 * 1000;
+
+exports.botReferee = onSchedule(
+  { schedule: "every 1 minutes", region: "europe-west1", timeoutSeconds: 120 },
+  async () => {
+    const now = Date.now();
+    const plans = (await db().ref("botQueue").get()).val() || {};
+
+    for (const [matchId, plan] of Object.entries(plans)) {
+      try {
+        await refereeOne(matchId, plan || {}, now);
+      } catch (err) {
+        logger.error(`[BOT] ${matchId}: referee failed`, err);
+      }
+    }
+
+    try {
+      await safetyNet(plans, now);
+    } catch (err) {
+      logger.error("[BOT] safety net failed", err);
+    }
+  });
+
+async function refereeOne(matchId, plan, now) {
+  const match = await read(`matches/${matchId}`);
+
+  // Gone or over: nothing left to play.
+  if (!match || match.status === "completed") {
+    await db().ref(`botQueue/${matchId}`).remove();
+    return;
+  }
+
+  const botUid = plan.botUid;
+  if (!isBot(botUid)) return;
+
+  let seat = match.player2Uid || "";
+
+  // Nobody has come. Sit down, if it is time - through a transaction, so a
+  // person arriving in the same instant keeps the seat.
+  if (!seat) {
+    if (!plan.seatAtUnix || now < plan.seatAtUnix) return;
+
+    const claim = await db().ref(`matches/${matchId}/player2Uid`).transaction((current) =>
+      current === "" ? botUid : undefined);
+
+    if (!claim.committed) return;
+
+    seat = botUid;
+    await db().ref(`matches/${matchId}/player2DisplayName`).set(plan.botName || "");
+
+    // The offer comes down with it, if it is still this match's offer.
+    const offer = await read("quickQueue/waiting");
+    if (offer && offer.matchId === matchId)
+      await db().ref("quickQueue/waiting").remove();
+
+    logger.info(`[BOT] ${plan.botName} (${botUid}) sat down in ${matchId}.`);
+  }
+
+  // A person took the seat: the bot is not needed.
+  if (seat !== botUid) {
+    await db().ref(`botQueue/${matchId}`).remove();
+    return;
+  }
+
+  const moves = plan.moves || {};
+
+  for (const [round, move] of Object.entries(moves)) {
+    if (!move || !move.submission || !move.dueAtUnix || now < move.dueAtUnix) continue;
+
+    const path = `matches/${matchId}/rounds/${round}/submissions/${botUid}`;
+
+    // Written once. If it is somehow there already, the parked copy just goes.
+    if (!(await db().ref(path).get()).exists()) {
+      await db().ref(path).set({ ...move.submission, uid: botUid });
+      logger.info(`[BOT] ${plan.botName} played '${move.submission.word}' in round ${round} of ${matchId}.`);
+    }
+
+    await db().ref(`botQueue/${matchId}/moves/${round}`).remove();
+  }
+}
+
+async function safetyNet(plans, now) {
+  const snap = await db().ref("matches")
+    .orderByChild("player2Uid").startAt("bot-").endAt("bot-").get();
+
+  const matches = snap.val() || {};
+
+  for (const [matchId, match] of Object.entries(matches)) {
+    if (!match || match.status === "completed" || !isBot(match.player2Uid)) continue;
+
+    const round = match.currentRoundNumber || 1;
+    const rounds = match.rounds || {};
+    const subs = (rounds[round] && rounds[round].submissions) || {};
+    const human = subs[match.player1Uid];
+    const bot = match.player2Uid;
+
+    // Only a word that is waiting on the bot.
+    if (!human || subs[bot]) continue;
+
+    // Parked and due later: the referee has it.
+    const plan = plans[matchId];
+    if (plan && plan.moves && plan.moves[round]) continue;
+
+    const waited = now - (Number(human.submittedAtUnix) || now);
+    if (waited < GIVE_UP_AFTER_MS) continue;
+
+    await db().ref(`matches/${matchId}/rounds/${round}/submissions/${bot}`).set({
+      uid: bot,
+      word: "",
+      score: 0,
+      isValid: false,
+      simulatedTilesJson: "",
+      secondsRemaining: 0,
+      submittedAtUnix: now,
+    });
+
+    logger.info(`[BOT] ${bot} passed round ${round} of ${matchId}: no word after ${Math.round(waited / 3600000)}h.`);
+  }
+}

@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Scrabby - a word duel for Android</title>
+<style>
+  :root {
+    --sky: #8ecbf5;
+    --card: #ffffff;
+    --ink: #1d2a3a;
+    --navy: #0a3870;
+    --cream: #f1e0bb;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--sky);
+    color: var(--ink);
+    font: 18px/1.6 -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    text-align: center;
+  }
+  .tiles {
+    padding: 56px 16px 0;
+    display: flex;
+    justify-content: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .tile {
+    width: 54px;
+    height: 58px;
+    background: var(--cream);
+    border-radius: 9px;
+    box-shadow: 0 4px 0 #b9a47a;
+    font-weight: 800;
+    font-size: 30px;
+    line-height: 58px;
+    color: #3a2f18;
+  }
+  h1 { margin: 26px 0 6px; font-size: 30px; color: #fff;
+       text-shadow: 0 2px 0 rgba(10, 56, 112, 0.35); }
+  .sub { margin: 0 0 30px; color: var(--navy); }
+  main {
+    max-width: 640px;
+    margin: 0 auto 50px;
+    background: var(--card);
+    border-radius: 18px;
+    padding: 26px 24px 30px;
+    box-shadow: 0 10px 24px rgba(10, 56, 112, 0.18);
+    text-align: left;
+  }
+  h2 { font-size: 20px; color: var(--navy); margin: 22px 0 6px; }
+  h2:first-child { margin-top: 0; }
+  ul { padding-left: 22px; }
+  li { margin: 6px 0; }
+  a { color: var(--navy); }
+  .links { margin-top: 26px; font-size: 16px; }
+  footer { padding: 0 16px 50px; color: var(--navy); font-size: 15px; }
+</style>
+</head>
+<body>
+
+<div class="tiles">
+  <div class="tile">S</div><div class="tile">C</div><div class="tile">R</div>
+  <div class="tile">A</div><div class="tile">B</div><div class="tile">B</div>
+  <div class="tile">Y</div>
+</div>
+
+<h1>A word duel for Android</h1>
+<p class="sub">Same six letters. Best word wins.</p>
+
+<main>
+  <h2>How it works</h2>
+  <ul>
+    <li>You and your opponent get <strong>the same six letters</strong>, so
+    nobody wins on luck.</li>
+    <li>Build the best word you can on a small board, with bonus squares
+    scattered fresh every round.</li>
+    <li><strong>Four rounds</strong>, and the higher score takes each one.</li>
+    <li>Play against a friend at your own pace, or on your own against the
+    computer.</li>
+  </ul>
+
+  <h2>Free, and quiet about you</h2>
+  <p>No adverts, no tracking, no in-app purchases. Scrabby stores what it needs
+  to run your games and nothing else.</p>
+
+  <p class="links">
+    <a href="privacy.html">Privacy policy</a> &nbsp;·&nbsp;
+    <a href="delete-account.html">Delete your account</a>
+  </p>
+</main>
+
+<footer>
+  Made by Kingsley Obeng &nbsp;·&nbsp;
+  <a href="mailto:mystakingz@gmail.com">mystakingz@gmail.com</a>
+</footer>
+
+</body>
+</html>
