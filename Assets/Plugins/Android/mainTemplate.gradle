@@ -18,6 +18,14 @@ dependencies {
     implementation 'com.google.firebase:firebase-messaging-unity:13.14.0' // Assets/Firebase/Editor/MessagingDependencies.xml:27
     implementation 'com.google.flatbuffers:flatbuffers-java:1.12.0' // Assets/Firebase/Editor/MessagingDependencies.xml:22
 // Android Resolver Dependencies End
+
+    // Sign in with Google, for ScrabbyGoogleSignIn.java. Credential Manager is
+    // what Google supports now; the play-services-auth sign-in client it
+    // replaces was deprecated in 2025. Outside the resolver's block above, so
+    // Unity's dependency resolver does not wipe these out when it runs.
+    implementation 'androidx.credentials:credentials:1.5.0'
+    implementation 'androidx.credentials:credentials-play-services-auth:1.5.0'
+    implementation 'com.google.android.libraries.identity.googleid:googleid:1.1.1'
 **DEPS**}
 
 // Android Resolver Exclusions Start

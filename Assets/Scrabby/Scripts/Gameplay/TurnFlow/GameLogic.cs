@@ -202,6 +202,40 @@ public partial class GameLogic : MonoBehaviour
             maxHandSize = 7;
         */
         EnsureAIGaddagReady();
+
+        if (timer != null)
+            timer.TimeRanOut = TheClockRanOut;
+    }
+
+    // Whether this round ended because the clock beat the player. Read by
+    // EvaluatePlayerSubmission, which then counts the turn as no word at all -
+    // whatever is sitting half-placed on the board.
+    private bool playerRanOutOfTime;
+
+    // Time up.
+    //
+    // It used to cost nothing: the number reached zero and the player carried
+    // on placing tiles, which made the clock a decoration. Now it ends the
+    // turn where it stands, with nothing played, and the round goes to the
+    // opponent's word.
+    private void TheClockRanOut()
+    {
+        // Not in a daily, which has no clock, and not while the walkthrough
+        // is holding the round still.
+        if (dailyMode || !roundStarted || roundFlowActive)
+            return;
+
+        if (currentState != TurnState.PlayerTurn)
+            return;
+
+        playerRanOutOfTime = true;
+
+        if (Singleton.Instance != null && Singleton.Instance.UIManager != null)
+            Singleton.Instance.UIManager.ShowTurnState("Out of time", UIManager.TurnTone.Bad);
+
+        Sound.Play(Sound.WordRejected);
+
+        EndTurnSingleGuess();
     }
 
 
@@ -1112,6 +1146,9 @@ public partial class GameLogic : MonoBehaviour
                 "Your turn", UIManager.TurnTone.Yours);
 
         yield return new WaitForSeconds(1.5f);
+
+        // A new round, a new clock, and last round's timeout forgotten.
+        playerRanOutOfTime = false;
 
         if (timer != null)
         {
@@ -4363,6 +4400,18 @@ public partial class GameLogic : MonoBehaviour
         move.isHuman = true;
         move.timeUsed = GetCurrentTimeUsed();
 
+        // The clock beat them: nothing counts, however much is on the board.
+        if (playerRanOutOfTime)
+        {
+            move.isValid = false;
+            move.score = 0;
+            move.word = "";
+            move.placedTiles = new List<PlacedTile>();
+            move.simulatedTiles = new List<SimPlacedTile>();
+
+            return move;
+        }
+
         move.placedTiles = new List<PlacedTile>(GetPlacedTilesThisTurn());
 
         // Populate robust, cloned simulatedTiles data for the Human move
@@ -4529,7 +4578,7 @@ public partial class GameLogic : MonoBehaviour
                 if (Singleton.Instance != null && Singleton.Instance.UIManager != null)
                     Singleton.Instance.UIManager.ShowTurnState("Submitting", UIManager.TurnTone.Busy);
             }
-            else
+            else if (!playerRanOutOfTime)
             {
                 if (Singleton.Instance != null && Singleton.Instance.UIManager != null)
                     Singleton.Instance.UIManager.ShowTurnState("Not a word", UIManager.TurnTone.Bad);
@@ -4542,6 +4591,13 @@ public partial class GameLogic : MonoBehaviour
                     timer.ResumeTimer();
 
                 return;
+            }
+            else
+            {
+                // Out of time: the empty move goes in as it stands. Giving the
+                // clock back here is what made running out cost nothing.
+                if (Singleton.Instance != null && Singleton.Instance.UIManager != null)
+                    Singleton.Instance.UIManager.ShowTurnState("Out of time", UIManager.TurnTone.Bad);
             }
 
             onlineSubmissionReady?.Invoke(move);

@@ -1746,12 +1746,15 @@ public class UIManager : MonoBehaviour
 
             // Kept to one line: the label auto-shrinks rather than wrapping, so
             // the verdict has to be short enough to stay legible next to the words.
+            // The gaps are measured rather than spelled with spaces: a space
+            // at this size is wide, and four of them cost about a letter and
+            // a half of word - which is what the line shrinks to pay for.
             string rowText =
-                $"<b>R{round.roundNumber}</b>   " +
+                $"<b>R{round.roundNumber}</b><space=0.6em>" +
                 $"{(round.humanValid ? round.humanWord : "—")} <b>{round.humanScore}</b>" +
-                $"   <color=#FFFFFF60>v</color>   " +
+                $"<space=0.5em><color=#FFFFFF60>v</color><space=0.5em>" +
                 $"{(round.aiValid ? round.aiWord : "—")} <b>{round.aiScore}</b>" +
-                $"   {winnerText}";
+                $"<space=0.6em>{winnerText}";
 
             RoundResult captured = round;
 

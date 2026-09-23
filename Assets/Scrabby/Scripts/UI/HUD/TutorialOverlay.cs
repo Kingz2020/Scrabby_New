@@ -150,7 +150,7 @@ public class TutorialOverlay : MonoBehaviour
         captionBox = box.GetComponent<RectTransform>();
         captionBox.anchorMin = captionBox.anchorMax = new Vector2(0.5f, 0.5f);
         captionBox.pivot = new Vector2(0.5f, 0.5f);
-        captionBox.sizeDelta = new Vector2(CaptionWidth, 150f);
+        captionBox.sizeDelta = new Vector2(CaptionWidth, 230f);
 
         box.GetComponent<Image>().color = Glass;
 
@@ -164,7 +164,9 @@ public class TutorialOverlay : MonoBehaviour
         text.transform.SetParent(box.transform, false);
 
         captionText = text.GetComponent<TextMeshProUGUI>();
-        captionText.fontSize = 32f;
+        // Big enough to read at arm's length on a phone. 32 was chosen on a
+        // monitor, and read as small print on the device.
+        captionText.fontSize = 54f;
         captionText.color = Color.white;
         captionText.alignment = TextAlignmentOptions.Center;
         captionText.richText = true;
@@ -173,8 +175,8 @@ public class TutorialOverlay : MonoBehaviour
         RectTransform textRect = text.GetComponent<RectTransform>();
         textRect.anchorMin = Vector2.zero;
         textRect.anchorMax = Vector2.one;
-        textRect.offsetMin = new Vector2(34f, 22f);
-        textRect.offsetMax = new Vector2(-34f, -22f);
+        textRect.offsetMin = new Vector2(30f, 18f);
+        textRect.offsetMax = new Vector2(-30f, -18f);
 
         captionBox.gameObject.SetActive(false);
     }
@@ -255,7 +257,7 @@ public class TutorialOverlay : MonoBehaviour
 
         TextMeshProUGUI text = label.GetComponent<TextMeshProUGUI>();
         text.text = "Skip";
-        text.fontSize = 26f;
+        text.fontSize = 34f;
         text.color = Cream;
         text.alignment = TextAlignmentOptions.Center;
         text.raycastTarget = false;
@@ -522,8 +524,12 @@ public class TutorialOverlay : MonoBehaviour
         captionBox.gameObject.SetActive(true);
         captionText.text = words;
 
-        float height = 92f + 34f * Mathf.Floor(words.Length / 42f);
-        captionBox.sizeDelta = new Vector2(CaptionWidth, Mathf.Min(320f, height));
+        // Roughly how tall the words will be: about 34 characters to a line
+        // at this size in this width, and a line is about 52 tall. Guessed
+        // rather than measured because the box is set before the text has
+        // been laid out.
+        float height = 140f + 66f * Mathf.Floor(words.Length / 27f);
+        captionBox.sizeDelta = new Vector2(CaptionWidth, Mathf.Min(560f, height));
 
         float h = root.rect.height;
         float halfCaption = captionBox.sizeDelta.y / 2f;

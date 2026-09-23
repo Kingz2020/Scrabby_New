@@ -11,6 +11,10 @@ public class Timer : MonoBehaviour
         timerText = timer;
     }
 
+    // Raised once, the moment the clock reaches zero while running. Whoever
+    // is running the round decides what that costs.
+    public System.Action TimeRanOut;
+
     private float remainingTime;
     private bool timerRunning;
 
@@ -37,6 +41,11 @@ public class Timer : MonoBehaviour
             remainingTime = 0f;
             timerRunning = false;
             ScrabbyLog.Trace("Time is up!");
+
+            // Said out loud rather than only written to the log: running out
+            // used to cost nothing at all, so the clock was decoration.
+            if (TimeRanOut != null)
+                TimeRanOut();
         }
 
         UpdateTimerDisplay();

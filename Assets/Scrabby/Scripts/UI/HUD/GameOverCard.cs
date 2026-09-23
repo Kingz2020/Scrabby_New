@@ -25,8 +25,8 @@ public class GameOverCard : MonoBehaviour
     private static readonly Color Sunk = new Color(1f, 1f, 1f, 0.055f);
 
     private const float CardWidth = 960f;
-    private const float RowsTop = 300f;      // below the headline block
-    private const float RowHeight = 78f;     // one replay row, near enough
+    private const float RowsTop = 330f;      // below the headline block
+    private const float RowHeight = 96f;     // one replay row, near enough
     private const float ButtonBand = 300f;   // the space kept for the way out
 
     private RectTransform card;
@@ -87,11 +87,11 @@ public class GameOverCard : MonoBehaviour
         card.anchoredPosition = new Vector2(0f, -40f);
         card.SetSiblingIndex(1);
 
-        headline = Label(card, "", 44f, Cream, FontStyles.Bold,
-                         TextAlignmentOptions.Center, 0f, -46f, CardWidth - 90f, 62f);
+        headline = Label(card, "", 56f, Cream, FontStyles.Bold,
+                         TextAlignmentOptions.Center, 0f, -46f, CardWidth - 90f, 76f);
 
-        detail = Label(card, "", 28f, Faint, FontStyles.Normal,
-                       TextAlignmentOptions.Center, 0f, -120f, CardWidth - 90f, 96f);
+        detail = Label(card, "", 38f, Faint, FontStyles.Normal,
+                       TextAlignmentOptions.Center, 0f, -132f, CardWidth - 90f, 116f);
 
         GameObject line = Panel("Line", card, new Color(0.88f, 0.70f, 0.30f, 0.30f));
         RectTransform lineRect = line.GetComponent<RectTransform>();
@@ -100,7 +100,7 @@ public class GameOverCard : MonoBehaviour
         lineRect.sizeDelta = new Vector2(CardWidth - 120f, 2f);
         lineRect.anchoredPosition = new Vector2(0f, -232f);
 
-        Label(card, "ROUND BY ROUND", 22f, Fainter, FontStyles.Normal,
+        Label(card, "ROUND BY ROUND", 30f, Fainter, FontStyles.Normal,
               TextAlignmentOptions.Left, 0f, -258f, CardWidth - 110f, 30f);
 
         MoveRows();
@@ -178,7 +178,7 @@ public class GameOverCard : MonoBehaviour
         foreach (TextMeshProUGUI text in found.GetComponentsInChildren<TextMeshProUGUI>(true))
         {
             text.color = ink;
-            text.fontSize = 30f;
+            text.fontSize = 38f;
         }
 
         // Its own colours, with the thickness, light and press every button

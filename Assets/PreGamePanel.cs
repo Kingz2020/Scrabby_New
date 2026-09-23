@@ -144,6 +144,9 @@ public partial class PreGamePanel : MonoBehaviour
         // "Forgot password?" and "Delete my account" (PreGamePanel.Account.cs)
         BuildAccountLinks();
 
+        // "Continue with Google" (PreGamePanel.Google.cs)
+        AddGoogleButton();
+
         // Its own colours, with the thickness, light and press every button
         // has.
         ChunkyButton.Deepen(signInTabButton);
@@ -556,6 +559,10 @@ public partial class PreGamePanel : MonoBehaviour
                     : signedInUser.DisplayName;
 
                 SetStatus("Login successful.");
+
+                // If they came here because Google said this address already
+                // had a password, the two are joined now that it is proven.
+                LinkGoogleIfOneIsWaiting();
                 if (signedInAsText != null)
                     signedInAsText.text = "Signed in as: " + shownName;
 

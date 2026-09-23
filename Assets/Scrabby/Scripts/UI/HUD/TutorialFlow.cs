@@ -162,14 +162,14 @@ public class TutorialFlow : MonoBehaviour
         RectTransform rect = row.transform as RectTransform;
 
         // The whole row lit, so the round it describes can be read, and the
-        // hand on its Play button - the thing to press. Pointing at the middle
-        // of the row left the player to guess which part of it did anything.
+        // hand on its Review button - the thing to press. Pointing at the
+        // middle of the row left the player to guess which part did anything.
         Button button = row.ReplayButton != null ? row.ReplayButton : row.GetComponent<Button>();
         RectTransform pointAt = button != null ? button.transform as RectTransform : rect;
 
         overlay.Spotlight(rect);
         overlay.LetThemTouch(true);
-        overlay.Say("Tap <b>Play</b> to watch the round again - including " +
+        overlay.Say("Tap <b>Review</b> to watch the round again - including " +
                     "<b>the word your opponent played</b>, which you never get " +
                     "to see while the round is live.",
                     TutorialOverlay.Where.Top);
@@ -421,6 +421,34 @@ public class TutorialFlow : MonoBehaviour
                 "again after every round.",
                 TutorialOverlay.Where.Top);
         }
+
+        if (skipped)
+            yield break;
+
+        // The clock, which costs the round if it runs out - worth knowing
+        // before it happens rather than after. It is held still for the
+        // walkthrough, so there is no hurry while this is read.
+        // TimerBox is the TIME column in the heading. The object called
+        // "Timer" is the clock's script, which lives on a leftover somewhere
+        // down the left of the screen - pointing at it pointed at nothing.
+        RectTransform clock = HudPart("TimerBox") ?? HudPart("Timer");
+
+        if (clock != null)
+            overlay.Spotlight(clock, 12f);
+
+        yield return overlay.SayAndWait(
+            "You have a <b>clock</b> for each round. Run out of time and the " +
+            "round is lost - no word, no points. It is paused while we go " +
+            "through this.",
+            TutorialOverlay.Where.Bottom);
+    }
+
+    // A piece of the heading over the board, by name, for pointing at.
+    private static RectTransform HudPart(string name)
+    {
+        GameObject found = GameObject.Find(name);
+
+        return found != null ? found.transform as RectTransform : null;
     }
 
     // The hand points at something real and waits, pulsing, for the player to

@@ -1,6 +1,7 @@
 {
   "project_info": {
     "project_number": "926763938521",
+    "firebase_url": "https://partyscrabby-default-rtdb.europe-west1.firebasedatabase.app",
     "project_id": "partyscrabby",
     "storage_bucket": "partyscrabby.firebasestorage.app"
   },
@@ -12,7 +13,36 @@
           "package_name": "com.Kingz.Scrabby"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "926763938521-3cmk6iv3p3p1g8kveersuqu7a5q41jeg.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.Kingz.Scrabby",
+            "certificate_hash": "0a96685c53a3e5fd45b4927fb038de9872204e69"
+          }
+        },
+        {
+          "client_id": "926763938521-5sbg89aelibsb6s11e2d10mb6c5633i8.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.Kingz.Scrabby",
+            "certificate_hash": "8787cd187c47a5321dd914fad1f8941fd852d05e"
+          }
+        },
+        {
+          "client_id": "926763938521-mu3uh6h0f481ha5djiu4u2qmh8lomcen.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.Kingz.Scrabby",
+            "certificate_hash": "4abe7e5cfe5b04c7db2ef13e9b7256b92c3ef9c6"
+          }
+        },
+        {
+          "client_id": "926763938521-g9p46rthqolhts3cpt35t8oskjt1vrua.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyAbcYuBAH1GPOQlfUHOZOCN6yvGhZly5a8"
@@ -20,7 +50,12 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "926763938521-g9p46rthqolhts3cpt35t8oskjt1vrua.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
         }
       }
     }
