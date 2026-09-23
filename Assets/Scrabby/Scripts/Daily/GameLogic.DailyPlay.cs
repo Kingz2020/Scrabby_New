@@ -23,6 +23,21 @@ public partial class GameLogic
     // be switched back on again afterwards.
     private readonly List<Button> dailyLockedButtons = new List<Button>();
 
+    // And the parts of the heading that belong to a duel rather than a puzzle:
+    // two scores and a clock. A daily has one player, one answer and all the
+    // time in the world, so a score of 0 against an opponent who is not there,
+    // beside a countdown that means nothing, is three lies in a row.
+    //
+    // Held as references rather than found again later: something switched off
+    // cannot be found by name.
+    private readonly List<GameObject> dailyHiddenParts = new List<GameObject>();
+
+    private static readonly string[] DuelOnlyParts =
+    {
+        "HumanScoreText", "AIScoreText", "Timer",     // the numbers
+        "HumanScoreBox", "AIScoreBox", "TimerBox"     // and their headings
+    };
+
     public bool IsDailyMode { get { return dailyMode; } }
     public DailyBoard CurrentDailyDay { get { return dailyDay; } }
     public bool DailyAnswered { get { return dailyAnswered; } }
@@ -93,12 +108,53 @@ public partial class GameLogic
         }
 
         UnlockNewGameButtons();
+        ShowTheDuelHeadingAgain();
 
         dailyMode = false;
         dailyDay = null;
         dailyAnswered = false;
         dailyPlayerScore = 0;
         dailyPlayerWord = "";
+    }
+
+    // The scores and the clock, out of the way for the puzzle.
+    private void HideTheDuelHeading()
+    {
+        if (dailyHiddenParts.Count > 0)
+            return;
+
+        // The clock is stopped as well as hidden: a daily is not played
+        // against one, and a countdown reaching zero out of sight would end
+        // the turn on its own.
+        if (timer != null)
+            timer.StopTimer();
+
+        // And the round counter says what this is, rather than keeping the
+        // round number of whatever was played last.
+        if (Singleton.Instance != null && Singleton.Instance.UIManager != null)
+            Singleton.Instance.UIManager.UpdateRoundText(1, 1);
+
+        foreach (string name in DuelOnlyParts)
+        {
+            GameObject found = GameObject.Find(name);
+
+            if (found == null || !found.activeSelf)
+                continue;
+
+            found.SetActive(false);
+            dailyHiddenParts.Add(found);
+        }
+    }
+
+    private void ShowTheDuelHeadingAgain()
+    {
+        foreach (GameObject part in dailyHiddenParts)
+        {
+            if (part != null)
+                part.SetActive(true);
+        }
+
+        dailyHiddenParts.Clear();
     }
 
     // The best word, put where it belonged.
@@ -170,6 +226,8 @@ public partial class GameLogic
     {
         dailyMode = true;
         dailyDay = day;
+
+        HideTheDuelHeading();
 
         // A reveal has no rack and nothing to submit, so it counts as answered
         // - otherwise the play button would sit there inviting a turn that

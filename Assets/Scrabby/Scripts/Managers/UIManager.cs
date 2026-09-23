@@ -1498,13 +1498,23 @@ public class UIManager : MonoBehaviour
 
     public void UpdateRoundText(int currentRound, int maxRounds)
     {
-        if (roundText != null)
+        if (roundText == null)
+            return;
+
+        // A daily is one position, not a round of anything: "1 / 4" promises
+        // three more goes that are never coming.
+        GameLogic logic = Singleton.Instance != null ? Singleton.Instance.GameLogic : null;
+
+        if (logic != null && logic.IsDailyMode)
         {
-            if (roundText.gameObject.name == "DigitsText")
-                roundText.text = currentRound + " / " + maxRounds;
-            else
-                roundText.text = "Round: " + currentRound + " / " + maxRounds;
+            roundText.text = "TODAY";
+            return;
         }
+
+        if (roundText.gameObject.name == "DigitsText")
+            roundText.text = currentRound + " / " + maxRounds;
+        else
+            roundText.text = "Round: " + currentRound + " / " + maxRounds;
     }
 
     public void ShowGameOverPanel(string finalMessage, string roundSummary)

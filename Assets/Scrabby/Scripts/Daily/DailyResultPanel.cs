@@ -254,7 +254,11 @@ public static class DailyResultPanel
         rect.anchorMin = rect.anchorMax = new Vector2(0.5f, 0f);
         rect.pivot = new Vector2(0.5f, 0f);
         rect.sizeDelta = new Vector2(420f, 88f);
-        rect.anchoredPosition = new Vector2(0f, 48f);
+
+        // To the right of centre, not on it: Main Menu sits in the bottom left
+        // corner of the board screen and is wide enough to reach the middle,
+        // so a button centred here lands on top of it.
+        rect.anchoredPosition = new Vector2(160f, 48f);
 
         UnityEngine.UI.Button button = back.AddComponent<UnityEngine.UI.Button>();
         button.targetGraphic = back.GetComponent<Image>();

@@ -26,6 +26,13 @@ public static class StatsPanel
     private static readonly Color Sunk = new Color(1f, 1f, 1f, 0.055f);
     private static readonly Color Highlight = new Color(0.88f, 0.70f, 0.30f, 0.13f);
 
+    // Not "StatsPanel": the scene already has a GameObject by that name - the
+    // heading strip over the board with the round, the clock and the two
+    // scores. This card opens by finding its own old copy and destroying it,
+    // so sharing the name meant every look at "Your progress" destroyed the
+    // scoreboard instead, for good, until the game was restarted.
+    private const string PanelName = "YourProgressPanel";
+
     private const float CardWidth = 900f;
 
     private const float RowHeight = 62f;
@@ -65,7 +72,7 @@ public static class StatsPanel
             return;
         }
 
-        GameObject existing = GameObject.Find("StatsPanel");
+        GameObject existing = GameObject.Find(PanelName);
 
         if (existing != null)
             Object.Destroy(existing);
@@ -109,7 +116,7 @@ public static class StatsPanel
             46f + friendRows * RowHeight +           // friends, and theirs
             150f;                                    // the way out
 
-        GameObject root = Panel("StatsPanel", canvas.transform, Dim);
+        GameObject root = Panel(PanelName, canvas.transform, Dim);
         Stretch(root);
 
         GameObject card = Panel("Card", root.transform, Glass);
@@ -271,7 +278,7 @@ public static class StatsPanel
 
     private static void Close()
     {
-        GameObject panel = GameObject.Find("StatsPanel");
+        GameObject panel = GameObject.Find(PanelName);
 
         if (panel != null)
             Object.Destroy(panel);
