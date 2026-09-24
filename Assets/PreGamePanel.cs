@@ -147,6 +147,12 @@ public partial class PreGamePanel : MonoBehaviour
         // "Continue with Google" (PreGamePanel.Google.cs)
         AddGoogleButton();
 
+        // The box for changing your player name (PreGamePanel.Alias.cs)
+        AddAliasControls();
+
+        // "or use an email address" (PreGamePanel.WayIn.cs)
+        AddEmailFormLink();
+
         // Its own colours, with the thickness, light and press every button
         // has.
         ChunkyButton.Deepen(signInTabButton);
@@ -661,7 +667,12 @@ public partial class PreGamePanel : MonoBehaviour
 
             AddRoomToUser(roomCode);
 
-            SetStatus("Room created: " + roomCode);
+            // Straight to WhatsApp, or wherever they send things: the room is
+            // no use until somebody else is told about it, and asking for a
+            // friend's email address assumes you know it.
+            InviteLinks.Share(roomCode, hostName);
+
+            SetStatus("Room created: " + roomCode + " - send the invitation.");
             WatchRoom(roomCode);
 
             //user.activeRoomIds.Add(roomCode);
@@ -1103,6 +1114,9 @@ public partial class PreGamePanel : MonoBehaviour
     {
         bool signedIn = IsSignedIn();
 
+        if (signedIn)
+            ShowCurrentAlias();
+
         if (signedOutRoot != null || signedInRoot != null)
         {
             if (signedOutRoot != null)
@@ -1166,6 +1180,8 @@ public partial class PreGamePanel : MonoBehaviour
 
         PaintTab(signInTabButton, !creatingAccount);
         PaintTab(createAccountTabButton, creatingAccount);
+
+        ApplyWayIn();
     }
 
     // The selected tab is a letter tile; the other is left as glass.

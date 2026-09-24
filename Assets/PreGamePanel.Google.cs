@@ -24,7 +24,10 @@ public partial class PreGamePanel
     // already arranged by code.
     private void AddGoogleButton()
     {
-        if (!GoogleSignInBridge.Available || signInActionButton == null)
+        // Built everywhere, not only on Android: in the editor it cannot sign
+        // anybody in, but it has to be on screen to be laid out, and pressing
+        // it there says so rather than doing nothing.
+        if (signInActionButton == null)
             return;
 
         RectTransform anchor = signInActionButton.transform as RectTransform;
@@ -46,10 +49,24 @@ public partial class PreGamePanel
         rect.pivot = anchor.pivot;
         rect.sizeDelta = anchor.sizeDelta;
 
-        // Under Sign in, where the forgotten-password link used to be the
-        // last thing on the card; that link moves down with it.
+        // Under whichever action button is showing - they share a slot - and
+        // the forgotten-password link moves down to make room.
         rect.anchoredPosition = anchor.anchoredPosition +
-            new Vector2(0f, -(anchor.sizeDelta.y + 18f));
+            new Vector2(0f, -(anchor.sizeDelta.y + 16f));
+
+        Transform forgot = anchor.parent.Find("Forgot password?");
+
+        if (forgot != null)
+        {
+            RectTransform forgotRect = forgot as RectTransform;
+
+            if (forgotRect != null)
+            {
+                forgotRect.anchoredPosition = new Vector2(
+                    forgotRect.anchoredPosition.x,
+                    rect.anchoredPosition.y - anchor.sizeDelta.y / 2f - 34f);
+            }
+        }
 
         Image face = go.GetComponent<Image>();
         face.color = Color.white;
@@ -80,6 +97,12 @@ public partial class PreGamePanel
 
     public void OnGoogleSignInPressed()
     {
+        if (!GoogleSignInBridge.Available)
+        {
+            SetStatus("Signing in with Google only works on the phone.");
+            return;
+        }
+
         if (!EnsureFirebaseReady())
         {
             SetStatus("Not connected yet - try again in a moment.");
@@ -215,5 +238,11 @@ public partial class PreGamePanel
 
         RefreshUI();
         RefreshStartButton();
+
+        // A Google account carries somebody's real name, and that name would
+        // otherwise sit over the board for every opponent to read. So the
+        // first time they arrive they are asked what to be called, with the
+        // real name offered as the answer if they do not mind it.
+        AskForANameIfNew(user);
     }
 }

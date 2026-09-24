@@ -131,6 +131,7 @@ public partial class MatchStatusPanel : MonoBehaviour
             inviteButton.onClick.AddListener(OnInviteButtonPressed);
 
         DeepenButtons();
+        AddInviteByLinkButton();
 
         WireQuickGame();
         WireRecentOpponents();

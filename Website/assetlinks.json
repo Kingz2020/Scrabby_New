@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.Kingz.Scrabby",
+      "sha256_cert_fingerprints": [
+        "FC:0E:11:21:C6:61:F1:C3:7C:84:20:44:FA:27:65:88:2A:13:44:FC:33:00:D7:12:18:E3:92:EF:1F:7F:14:21"
+      ]
+    }
+  }
+]

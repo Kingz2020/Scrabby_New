@@ -21,6 +21,18 @@
         <category android:name="android.intent.category.LAUNCHER" />
       </intent-filter>
       <meta-data android:name="unityplayer.UnityActivity" android:value="true" />
+      <!-- Invitations arrive as links to the website. Android checks the
+           file at scrabby.gamer.free/.well-known/assetlinks.json, which names
+           this app and its signing certificate; if it matches, tapping the
+           link opens the game on the invitation instead of a browser. When it
+           does not match, the link still works - the web page has the store
+           link on it - so a mismatch is untidy rather than broken. -->
+      <intent-filter android:autoVerify="true">
+        <action android:name="android.intent.action.VIEW" />
+        <category android:name="android.intent.category.DEFAULT" />
+        <category android:name="android.intent.category.BROWSABLE" />
+        <data android:scheme="https" android:host="scrabby.gamer.free" android:pathPrefix="/join" />
+      </intent-filter>
     </activity>
     <service android:name="com.google.firebase.messaging.MessageForwardingService" android:permission="android.permission.BIND_JOB_SERVICE" android:exported="true">
     </service>
