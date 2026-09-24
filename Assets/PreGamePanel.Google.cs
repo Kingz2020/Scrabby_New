@@ -99,11 +99,25 @@ public partial class PreGamePanel
         if (googleButton != null)
             googleButton.interactable = true;
 
-        // Backing out of the account sheet is a decision, not an error.
-        bool cancelled = message != null &&
-                         (message.Contains("Cancel") || message.Contains("cancel"));
+        string said = message ?? "";
 
-        SetStatus(cancelled ? "" : "Google sign-in did not work. Try your email and password.");
+        // Play services says "cancelled" for two quite different things: the
+        // player backing out of the account sheet, and its own refusal to
+        // hand over a token for an account it wants re-checked. Only the
+        // first is silent - the second looked exactly like a button that did
+        // nothing at all.
+        if (said.Contains("reauth"))
+        {
+            SetStatus("Google could not confirm that account on this phone. " +
+                      "Sign in with your email and password instead.");
+            return;
+        }
+
+        bool cancelled = said.IndexOf("cancel", System.StringComparison.OrdinalIgnoreCase) >= 0;
+
+        SetStatus(cancelled
+            ? "Google sign-in cancelled."
+            : "Google sign-in did not work. Try your email and password.");
     }
 
     private void SignInToFirebaseWith(string idToken)

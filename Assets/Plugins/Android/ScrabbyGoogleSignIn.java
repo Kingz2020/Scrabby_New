@@ -11,6 +11,7 @@ import androidx.credentials.GetCredentialRequest;
 import androidx.credentials.GetCredentialResponse;
 import androidx.credentials.exceptions.GetCredentialException;
 
+import com.google.android.libraries.identity.googleid.GetGoogleIdOption;
 import com.google.android.libraries.identity.googleid.GetSignInWithGoogleOption;
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential;
 
@@ -53,20 +54,41 @@ public final class ScrabbyGoogleSignIn {
      *                       fails in a way that reads as "no accounts found".
      */
     public static void signIn(final Activity activity, final String serverClientId) {
-        try {
-            GetSignInWithGoogleOption option =
-                new GetSignInWithGoogleOption.Builder(serverClientId).build();
+        ask(activity, serverClientId, true);
+    }
 
-            GetCredentialRequest request = new GetCredentialRequest.Builder()
-                .addCredentialOption(option)
-                .build();
+    /**
+     * @param sheetFirst true asks with the "sign in with Google" sheet, which
+     *                   offers every account on the phone. Some accounts come
+     *                   back from that with "[16] Account reauth failed" -
+     *                   Play services declining to mint a token and reporting
+     *                   it as a cancellation - and the same account often
+     *                   works through the plain ID request, so that is tried
+     *                   second rather than giving up.
+     */
+    private static void ask(final Activity activity, final String serverClientId,
+                            final boolean sheetFirst) {
+        try {
+            GetCredentialRequest.Builder request = new GetCredentialRequest.Builder();
+
+            if (sheetFirst) {
+                request.addCredentialOption(
+                    new GetSignInWithGoogleOption.Builder(serverClientId).build());
+            } else {
+                request.addCredentialOption(
+                    new GetGoogleIdOption.Builder()
+                        .setServerClientId(serverClientId)
+                        .setFilterByAuthorizedAccounts(false)
+                        .setAutoSelectEnabled(false)
+                        .build());
+            }
 
             CredentialManager manager = CredentialManager.create(activity);
             Executor executor = Executors.newSingleThreadExecutor();
 
             manager.getCredentialAsync(
                 activity,
-                request,
+                request.build(),
                 new CancellationSignal(),
                 executor,
                 new CredentialManagerCallback<GetCredentialResponse, GetCredentialException>() {
@@ -78,10 +100,19 @@ public final class ScrabbyGoogleSignIn {
 
                     @Override
                     public void onError(GetCredentialException error) {
-                        // Cancelling is not a fault: the player changed their
-                        // mind, and the sign-in card is still there behind.
                         String message = error.getType() + ": " + error.getMessage();
                         Log.i(TAG, "sign-in did not finish - " + message);
+
+                        // Worth one second try the other way round, unless the
+                        // player themselves backed out of the sheet.
+                        boolean reauth = message != null && message.contains("reauth");
+
+                        if (sheetFirst && reauth) {
+                            Log.i(TAG, "trying again without the account sheet");
+                            ask(activity, serverClientId, false);
+                            return;
+                        }
+
                         send(ON_ERROR, message);
                     }
                 });
