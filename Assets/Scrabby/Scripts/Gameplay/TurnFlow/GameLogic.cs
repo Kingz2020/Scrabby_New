@@ -212,6 +212,28 @@ public partial class GameLogic : MonoBehaviour
     // whatever is sitting half-placed on the board.
     private bool playerRanOutOfTime;
 
+    // A fresh clock, and with it last round's verdict.
+    //
+    // The timeout used to be forgotten in StartRound alone, which runs for a
+    // new game and nothing else - so a round lost to the clock in solo made
+    // every word after it invalid, and the same in an online match, because
+    // rounds two and after start somewhere else entirely. The clock and the
+    // flag it raises are reset together now, and every round start calls
+    // this, so another path cannot forget one without the other.
+    private void RestartTheClock()
+    {
+        playerRanOutOfTime = false;
+
+        if (timer == null)
+        {
+            Debug.LogWarning("[ROUND] No timer to restart.");
+            return;
+        }
+
+        timer.ResetTimer();
+        timer.StartTimer();
+    }
+
     // Time up.
     //
     // It used to cost nothing: the number reached zero and the player carried
@@ -858,6 +880,7 @@ public partial class GameLogic : MonoBehaviour
         aiBestMoveSoFar = null;
 
         currentState = TurnState.PlayerTurn;
+        playerRanOutOfTime = false;
 
         if (timer != null)
             timer.ResetTimer();
@@ -1141,20 +1164,15 @@ public partial class GameLogic : MonoBehaviour
         SaveCurrentRoundSnapshot();
 
         if (Singleton.Instance != null && Singleton.Instance.UIManager != null)
+        {
             Singleton.Instance.UIManager.ClearRoundMessage();
             Singleton.Instance.UIManager.ShowTurnState(
                 "Your turn", UIManager.TurnTone.Yours);
+        }
 
         yield return new WaitForSeconds(1.5f);
 
-        // A new round, a new clock, and last round's timeout forgotten.
-        playerRanOutOfTime = false;
-
-        if (timer != null)
-        {
-            timer.ResetTimer();
-            timer.StartTimer();
-        }
+        RestartTheClock();
 
         VerboseLog("StartRound END");
     }
@@ -2428,17 +2446,7 @@ public partial class GameLogic : MonoBehaviour
 
         yield return new WaitForSeconds(1.5f);
 
-        if (timer != null)
-        {
-            VerboseLog("Resetting timer in StartNextRound");
-            timer.ResetTimer();
-            VerboseLog("Starting timer in StartNextRound");
-            timer.StartTimer();
-        }
-        else
-        {
-            Debug.LogWarning("StartNextRound: timer is null.");
-        }
+        RestartTheClock();
 
         VerboseLog("StartNextRound END");
     }
@@ -6209,11 +6217,7 @@ public partial class GameLogic : MonoBehaviour
 
         SaveCurrentRoundSnapshot();
 
-        if (timer != null)
-        {
-            timer.ResetTimer();
-            timer.StartTimer();
-        }
+        RestartTheClock();
 
         SetInputLocked(false);
     }
