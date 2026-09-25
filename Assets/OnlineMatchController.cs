@@ -2227,6 +2227,71 @@ ValueChangedEventArgs args)
         }
     }
 
+    // When each player committed the round being replayed. Read from the
+    // submissions, which are still there long after the round was resolved -
+    // the history entry never carried the times.
+    private long replayPlayer1SubmittedAt;
+    private long replayPlayer2SubmittedAt;
+
+    private IEnumerator ReadSubmissionTimes(int roundNumber)
+    {
+        replayPlayer1SubmittedAt = 0;
+        replayPlayer2SubmittedAt = 0;
+
+        if (!EnsureFirebaseReady() || currentMatch == null)
+            yield break;
+
+        var read = dbRoot.Child("matches").Child(currentMatch.matchId)
+                         .Child("rounds").Child(roundNumber.ToString())
+                         .Child("submissions").GetValueAsync();
+
+        float gaveUpAt = Time.realtimeSinceStartup + 4f;
+
+        yield return new WaitUntil(
+            () => read.IsCompleted || Time.realtimeSinceStartup > gaveUpAt);
+
+        if (!read.IsCompleted || read.IsFaulted || read.IsCanceled ||
+            read.Result == null || !read.Result.Exists)
+        {
+            yield break;
+        }
+
+        replayPlayer1SubmittedAt = SubmittedAt(read.Result, currentMatch.player1Uid);
+        replayPlayer2SubmittedAt = SubmittedAt(read.Result, currentMatch.player2Uid);
+    }
+
+    private static long SubmittedAt(DataSnapshot submissions, string uid)
+    {
+        if (submissions == null || string.IsNullOrEmpty(uid) || !submissions.HasChild(uid))
+            return 0;
+
+        long when;
+        long.TryParse(submissions.Child(uid).Child("submittedAtUnix").Value + "", out when);
+
+        return when;
+    }
+
+    // " at 14:32:05", or nothing at all if the time was not recorded - an old
+    // round, or one whose submission has been tidied away.
+    //
+    // Two players who finish in the same second get the fractions as well:
+    // the round was decided by that gap, and "14:32:05" against "14:32:05"
+    // explains nothing.
+    private string AtTime(long unixMilliseconds)
+    {
+        if (unixMilliseconds <= 0)
+            return "";
+
+        DateTime when = DateTimeOffset.FromUnixTimeMilliseconds(unixMilliseconds)
+                                      .ToLocalTime().DateTime;
+
+        bool bothKnown = replayPlayer1SubmittedAt > 0 && replayPlayer2SubmittedAt > 0;
+        bool closeRun = bothKnown &&
+            Math.Abs(replayPlayer1SubmittedAt - replayPlayer2SubmittedAt) < 2000;
+
+        return " at " + when.ToString(closeRun ? "HH:mm:ss.fff" : "HH:mm:ss");
+    }
+
     private IEnumerator ApplyReplayTilesAfterBoardBuild(
     OnlineRoundHistoryEntry entry)
     {
@@ -2242,6 +2307,11 @@ ValueChangedEventArgs args)
         yield return StartCoroutine(
             ShowEarlierRoundResultsBeforeReplay(entry)
         );
+
+        // When each of them committed. Two identical words are settled by
+        // who was first, and without the clock a replay of that round shows
+        // the same word twice and a winner for no visible reason.
+        yield return StartCoroutine(ReadSubmissionTimes(entry.roundNumber));
 
         uiManager.ShowRoundMessage(
             "Replay — Round " + entry.roundNumber + ": " +
@@ -2276,7 +2346,8 @@ ValueChangedEventArgs args)
                 entry.player1Word +
                 " (" +
                 entry.player1Score +
-                " points)"
+                " points)" +
+                AtTime(replayPlayer1SubmittedAt)
             );
 
             yield return StartCoroutine(
@@ -2300,7 +2371,8 @@ ValueChangedEventArgs args)
                 entry.player2Word +
                 " (" +
                 entry.player2Score +
-                " points)"
+                " points)" +
+                AtTime(replayPlayer2SubmittedAt)
             );
 
             yield return StartCoroutine(

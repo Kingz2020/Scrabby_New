@@ -759,9 +759,19 @@ public class UIManager : MonoBehaviour
         wordlistDisplay.AddMissingWord(word);
     }
 
-    // How the pill should read. Yours is the cream tile face, so "it is on you"
-    // looks like the tiles you are about to play.
+    // How the line should read. There is no panel behind it any more: a cream
+    // box on a blue sky was the one part of the board that looked stuck on,
+    // and it left room for about four words. The words are the whole thing
+    // now - big, white, outlined in navy so they hold up over a cloud - and
+    // the colour carries the mood: gold when it is your move, red when it has
+    // cost you something, green when it went well.
     public enum TurnTone { Yours, Busy, Good, Bad }
+
+    // Written on the sky, so they have to be readable against it.
+    private static readonly Color SkyTextEdge = new Color(0.039f, 0.149f, 0.267f, 1f);
+    private static readonly Color SkyTextYours = new Color(1f, 0.82f, 0.36f, 1f);
+    private static readonly Color SkyTextGood = new Color(0.60f, 1f, 0.62f, 1f);
+    private static readonly Color SkyTextBad = new Color(1f, 0.52f, 0.47f, 1f);
 
     public void ShowTurnState(string label, TurnTone tone)
     {
@@ -775,19 +785,11 @@ public class UIManager : MonoBehaviour
 
         turnPill.SetActive(true);
 
+        // The panel goes, and the row it used to occupy is given to the words.
         if (turnPillFace != null)
-        {
-            switch (tone)
-            {
-                case TurnTone.Yours: turnPillFace.color = turnYoursFace; break;
-                case TurnTone.Good:  turnPillFace.color = turnGoodFace; break;
-                case TurnTone.Bad:   turnPillFace.color = turnBadFace; break;
-                default:             turnPillFace.color = turnBusyFace; break;
-            }
-        }
+            turnPillFace.enabled = false;
 
-        if (turnPillLabel != null)
-            turnPillLabel.color = tone == TurnTone.Yours ? turnYoursInk : turnBusyInk;
+        WriteOnTheSky(turnPillLabel, tone);
 
         if (turnPillDots != null)
             turnPillDots.SetActive(tone == TurnTone.Busy);
@@ -807,6 +809,49 @@ public class UIManager : MonoBehaviour
             turnDotsRoutine = StartCoroutine(AnimateTurnDots(label));
         else
             turnPillLabel.text = label;
+    }
+
+    // One line of sky writing: as big as the row allows, outlined, and
+    // coloured by what it has to say.
+    private void WriteOnTheSky(TextMeshProUGUI text, TurnTone tone, bool isThePill = true)
+    {
+        if (text == null)
+            return;
+
+        if (isThePill)
+        {
+            RectTransform pill = turnPill != null ? turnPill.transform as RectTransform : null;
+
+            // The pill was 440 wide for a four-word message; the words can
+            // have the width of the board.
+            if (pill != null && pill.sizeDelta.x < 980f)
+                pill.sizeDelta = new Vector2(1000f, 104f);
+
+            // The label fills whatever the pill is, minus a hair either side.
+            RectTransform rect = text.rectTransform;
+            rect.anchorMin = Vector2.zero;
+            rect.anchorMax = Vector2.one;
+            rect.offsetMin = new Vector2(12f, 0f);
+            rect.offsetMax = new Vector2(-12f, 0f);
+        }
+
+        text.enableAutoSizing = true;
+        text.fontSizeMin = 34f;
+        text.fontSizeMax = 72f;
+        text.enableWordWrapping = false;
+        text.alignment = TextAlignmentOptions.Center;
+        text.fontStyle = FontStyles.Bold;
+
+        text.outlineColor = SkyTextEdge;
+        text.outlineWidth = 0.28f;
+
+        switch (tone)
+        {
+            case TurnTone.Yours: text.color = SkyTextYours; break;
+            case TurnTone.Good:  text.color = SkyTextGood; break;
+            case TurnTone.Bad:   text.color = SkyTextBad; break;
+            default:             text.color = Color.white; break;
+        }
     }
 
     // The dots are padded to a fixed three characters in a fixed-width run, so
@@ -854,7 +899,11 @@ public class UIManager : MonoBehaviour
             turnPill.SetActive(false);
 
         if (roundMessageText != null)
+        {
+            // Narration keeps its own row; only its lettering changes.
+            WriteOnTheSky(roundMessageText, TurnTone.Busy, false);
             roundMessageText.text = message;
+        }
     }
 
     public void ClearRoundMessage()

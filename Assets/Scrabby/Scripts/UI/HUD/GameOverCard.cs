@@ -25,8 +25,8 @@ public class GameOverCard : MonoBehaviour
     private static readonly Color Sunk = new Color(1f, 1f, 1f, 0.055f);
 
     private const float CardWidth = 960f;
-    private const float RowsTop = 330f;      // below the headline block
-    private const float RowHeight = 96f;     // one replay row, near enough
+    private const float RowsTop = 286f;      // below the headline block
+    private const float RowHeight = 78f;     // one replay row, near enough
     private const float ButtonBand = 300f;   // the space kept for the way out
 
     private RectTransform card;
@@ -100,8 +100,9 @@ public class GameOverCard : MonoBehaviour
         lineRect.sizeDelta = new Vector2(CardWidth - 120f, 2f);
         lineRect.anchoredPosition = new Vector2(0f, -232f);
 
-        Label(card, "ROUND BY ROUND", 30f, Fainter, FontStyles.Normal,
-              TextAlignmentOptions.Left, 0f, -258f, CardWidth - 110f, 30f);
+        // No "ROUND BY ROUND" heading: the rows underneath are plainly a
+        // round-by-round list, and the line above already separates them
+        // from the score.
 
         MoveRows();
         MoveButtons();
@@ -135,7 +136,9 @@ public class GameOverCard : MonoBehaviour
               new Vector2(150f, 78f));
 
         // Only ever on screen for an online result; the panel decides.
-        Dress("Back2MatchButton", new Color(1f, 1f, 1f, 0.10f), Cream,
+        // Dark lettering, not cream: the button's own face is pale silver,
+        // and cream on silver could not be read at all.
+        Dress("Back2MatchButton", new Color(1f, 1f, 1f, 0.10f), Ink,
               new Vector2(360f, 88f), new Vector2(0f, 196f));
 
         // The progress link the panel adds for itself.

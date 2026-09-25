@@ -75,7 +75,7 @@ public class MatchStatusRow : MonoBehaviour
         actionButtonText.text =
             data.isPendingInvite ? "Waiting..." :
             data.isInvite ? "Accept" :
-            data.isRoom ? "Open" :
+            data.isRoom ? "Invite" :
             isCompleted ? "View Results" :
             data.hasSubmittedThisRound ? "Waiting..." :
             "Resume";

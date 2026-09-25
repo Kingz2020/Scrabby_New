@@ -153,6 +153,9 @@ public partial class PreGamePanel : MonoBehaviour
         // "or use an email address" (PreGamePanel.WayIn.cs)
         AddEmailFormLink();
 
+        // The way back to the menu (PreGamePanel.WayOut.cs)
+        AddWayOutButton();
+
         // Its own colours, with the thickness, light and press every button
         // has.
         ChunkyButton.Deepen(signInTabButton);

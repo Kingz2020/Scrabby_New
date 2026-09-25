@@ -339,8 +339,10 @@ public partial class MatchStatusPanel : MonoBehaviour
         // Sync the code into PreGamePanel's input field
         preGamePanel.SetRoomCodeInput(roomCode);
 
-        // Now call the actual join logic
-        preGamePanel.OnJoinRoomPressed();
+        // By code, not through the button: with the redesigned card there is
+        // no field for the button to read, so it would refuse a code it has
+        // just been handed.
+        preGamePanel.JoinRoomByCode(roomCode);
     }
 
     private void OnResumeMatchPressed()
@@ -522,8 +524,15 @@ public partial class MatchStatusPanel : MonoBehaviour
                 continue;
             }
 
+            bool waitingOnALink = hosting && string.IsNullOrEmpty(room.guestUid) &&
+                                  string.IsNullOrEmpty(room.invitedDisplayName);
+
             if (string.IsNullOrEmpty(opponentName))
-                opponentName = sentByMe ? room.invitedDisplayName : "(waiting)";
+            {
+                opponentName = sentByMe
+                    ? room.invitedDisplayName
+                    : (waitingOnALink ? "Waiting for a friend" : "(waiting)");
+            }
 
             activeItems.Add(
                 new MatchListItemData
@@ -532,7 +541,11 @@ public partial class MatchStatusPanel : MonoBehaviour
                     isPendingInvite = pending,
                     roomCode = room.code,
                     opponentDisplayName = opponentName,
-                    status = pending ? "Waiting" : room.status
+
+                    // The code, where the status would be: it is what the
+                    // player needs if they want to read it out to somebody.
+                    status = waitingOnALink ? room.code
+                                            : (pending ? "Waiting" : room.status)
                 });
         }
 
@@ -1014,10 +1027,20 @@ public partial class MatchStatusPanel : MonoBehaviour
             return;
         }
 
-        // No match yet, but room exists: just watch the room as before
+        // No match yet, so the room is still waiting for somebody. Tapping it
+        // used to call WatchRoom and show nothing at all, which read as a
+        // dead button. Sending the invitation again is what the player wants
+        // from a game nobody has joined.
         if (!string.IsNullOrEmpty(roomCode))
         {
             preGamePanel.WatchRoom(roomCode);
+
+            string me = auth != null && auth.CurrentUser != null
+                ? auth.CurrentUser.DisplayName
+                : "";
+
+            InviteLinks.Share(roomCode, me);
+            ShowStatus("Invitation ready to send again - code " + roomCode + ".");
         }
     }
 

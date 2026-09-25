@@ -164,8 +164,11 @@ public class InviteLinks : MonoBehaviour
 
                     Debug.Log("[INVITE] Joining room " + code + " from the link.");
 
+                    // Straight to the join, not through the button: the
+                    // redesigned card has no room-code field to fill, and the
+                    // button's first act is to read that field and give up.
                     pregame.SetRoomCodeInput(code);
-                    pregame.OnJoinRoomPressed();
+                    pregame.JoinRoomByCode(code);
                     yield break;
                 }
             }
