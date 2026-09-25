@@ -91,3 +91,6 @@ signing.json
 # machine's Avast root in it. Only means anything on this laptop.
 Tools/cacerts
 Tools/avast-root.cer
+
+# Layout previews and sound pages made for a look, not for the game.
+Store/*.html

@@ -544,8 +544,16 @@ public partial class OnlineMatchController : MonoBehaviour
         string opponentName = BotOpponent.Label(
             opponentUid, amPlayer1 ? match.player2DisplayName : match.player1DisplayName);
 
+        // A game that was given up is decided by that and not by the score:
+        // somebody who resigns while ahead has still lost.
+        bool wasResigned = !string.IsNullOrEmpty(match.resignedByUid);
+        bool iResigned = wasResigned && match.resignedByUid == myUid;
+
         string finalMessage;
-        if (myScore > opponentScore)
+
+        if (wasResigned)
+            finalMessage = iResigned ? "You resigned." : "You win!";
+        else if (myScore > opponentScore)
             finalMessage = "You win!";
         else if (myScore < opponentScore)
             finalMessage = "You lose.";
@@ -580,6 +588,17 @@ public partial class OnlineMatchController : MonoBehaviour
             $"Final score: {myScore} - {opponentName} {opponentScore}" +
             $"\nRounds won: you {myRounds}, {opponentName} {opponentRounds}";
 
+        // Said before the score, because the score is not what happened.
+        if (wasResigned)
+        {
+            roundSummary =
+                (iResigned
+                    ? "You gave the game to " + opponentName + "."
+                    : opponentName + " resigned.") +
+                "\n" + roundSummary;
+        }
+
+
 
         // One line in the chart for this match. A finished match can be opened
         // again as often as the player likes, so PlayerStats counts it by its
@@ -594,7 +613,10 @@ public partial class OnlineMatchController : MonoBehaviour
 
         if (matchIsOver)
         {
-            PlayerStats.Result result = PlayerStats.ResultOf(myScore, opponentScore);
+            PlayerStats.Result result =
+                wasResigned
+                    ? (iResigned ? PlayerStats.Result.Lost : PlayerStats.Result.Won)
+                    : PlayerStats.ResultOf(myScore, opponentScore);
 
             // Recorded as the opponent it appeared to be. Filing a bot game
             // under the solo levels would put it on the progress card as a
@@ -607,7 +629,9 @@ public partial class OnlineMatchController : MonoBehaviour
 
         // A tie counts as yours: nobody wants the losing sound for a game
         // they did not lose.
-        Sound.Play(myScore >= opponentScore ? Sound.RoundWon : Sound.RoundLost);
+        bool soundsLikeAWin = wasResigned ? !iResigned : myScore >= opponentScore;
+
+        Sound.Play(soundsLikeAWin ? Sound.RoundWon : Sound.RoundLost);
 
         ShowOnlineRoundReplayRows(match,amPlayer1,opponentName);
     }

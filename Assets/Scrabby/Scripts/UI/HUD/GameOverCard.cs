@@ -35,9 +35,11 @@ public class GameOverCard : MonoBehaviour
 
     private TextMeshProUGUI summary;         // the panel's own text, now hidden
     private RectTransform rows;
+    private RectTransform removeLink;
 
     private string lastText = "";
     private int lastRowCount = -1;
+    private bool lastRemoveShowing;
 
     // Added by the panel the first time it opens.
     public static void DressPanel(GameObject panel)
@@ -153,6 +155,21 @@ public class GameOverCard : MonoBehaviour
             rect.sizeDelta = new Vector2(400f, 52f);
             rect.anchoredPosition = new Vector2(0f, 300f);
         }
+
+        // And the way to put a finished game away, above it - only there on
+        // a match opened from the finished list, so the card grows the extra
+        // line only when it is showing.
+        Transform remove = transform.Find("RemoveGameLink");
+
+        if (remove != null)
+        {
+            removeLink = remove as RectTransform;
+            removeLink.SetParent(card, false);
+            removeLink.anchorMin = removeLink.anchorMax = new Vector2(0.5f, 0f);
+            removeLink.pivot = new Vector2(0.5f, 0.5f);
+            removeLink.sizeDelta = new Vector2(400f, 48f);
+            removeLink.anchoredPosition = new Vector2(0f, 362f);
+        }
     }
 
     private void Dress(string name, Color face, Color ink, Vector2 size, Vector2 where)
@@ -215,10 +232,12 @@ public class GameOverCard : MonoBehaviour
         }
 
         int count = rows != null ? rows.childCount : 0;
+        bool removeShowing = removeLink != null && removeLink.gameObject.activeSelf;
 
-        if (force || count != lastRowCount)
+        if (force || count != lastRowCount || removeShowing != lastRemoveShowing)
         {
             lastRowCount = count;
+            lastRemoveShowing = removeShowing;
             Fit(count);
             DressRows();
         }
@@ -259,7 +278,12 @@ public class GameOverCard : MonoBehaviour
         if (card == null)
             return;
 
-        float height = RowsTop + Mathf.Max(1, rowCount) * RowHeight + ButtonBand;
+        // The extra is what the removal link needs: its own line, the gap to
+        // Your progress under it, and the gap to the rounds above.
+        float band = ButtonBand +
+                     (removeLink != null && removeLink.gameObject.activeSelf ? 100f : 0f);
+
+        float height = RowsTop + Mathf.Max(1, rowCount) * RowHeight + band;
 
         card.sizeDelta = new Vector2(CardWidth, Mathf.Clamp(height, 760f, 1500f));
     }

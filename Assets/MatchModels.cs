@@ -67,6 +67,11 @@ public class MatchData
 
     public string status; // "active" | "finished"
 
+    // Set when a player gave the game up rather than played it out. The
+    // scores stay as they were - the game is decided by this, not by them.
+    public string resignedByUid;
+    public long resignedAtUnix;
+
     public int currentRoundNumber;
 
     public string boardStateJson;

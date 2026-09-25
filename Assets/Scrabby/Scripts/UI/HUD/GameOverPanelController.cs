@@ -18,9 +18,12 @@ public class GameOverPanelController : MonoBehaviour
 {
     [SerializeField] private GameObject backToMatchesButton;
 
+    private GameObject removeLink;
+
     private void OnEnable()
     {
         AddStatsLink();
+        AddRemoveGameLink();
 
         // The link is added first, because the card collects it along with
         // everything else the panel already had.
@@ -38,21 +41,35 @@ public class GameOverPanelController : MonoBehaviour
     // is sometimes enabled before the match result it is about has been set.
     public void Refresh()
     {
-        if (backToMatchesButton == null)
+        if (backToMatchesButton != null)
+            backToMatchesButton.SetActive(ShowingAnOnlineResult());
+
+        RefreshRemoveLink();
+    }
+
+    // The result is sometimes put up before the match behind it has arrived,
+    // so what the panel offers is checked as it goes rather than once.
+    private void Update()
+    {
+        RefreshRemoveLink();
+    }
+
+    private void RefreshRemoveLink()
+    {
+        if (removeLink == null)
             return;
 
-        backToMatchesButton.SetActive(ShowingAnOnlineResult());
+        bool offer = Singleton.Instance != null &&
+                     Singleton.Instance.OnlineMatchController != null &&
+                     Singleton.Instance.OnlineMatchController.CanRemoveCurrentMatch();
+
+        if (removeLink.activeSelf != offer)
+            removeLink.SetActive(offer);
     }
 
     private bool AlreadyThere(string name)
     {
-        foreach (Transform child in GetComponentsInChildren<Transform>(true))
-        {
-            if (child != null && child.name == name)
-                return true;
-        }
-
-        return false;
+        return FindAnywhere(name) != null;
     }
 
     private static bool ShowingAnOnlineResult()
@@ -97,6 +114,65 @@ public class GameOverPanelController : MonoBehaviour
         Button button = go.GetComponent<Button>();
         button.targetGraphic = label;
         button.onClick.AddListener(ShowStats);
+    }
+
+    // A finished game could be looked at for ever and never put away. This
+    // is the only place it can be: on the result itself, which is what the
+    // finished list opens. It takes the game off this player's list alone -
+    // the other player keeps theirs - so it is not offered on a solo game or
+    // on a result that is being seen for the first time straight off the
+    // board, only on one opened from the finished games.
+    private void AddRemoveGameLink()
+    {
+        Transform found = FindAnywhere("RemoveGameLink");
+
+        if (found != null)
+        {
+            removeLink = found.gameObject;
+            return;
+        }
+
+        GameObject go = new GameObject("RemoveGameLink",
+            typeof(RectTransform), typeof(TextMeshProUGUI), typeof(Button));
+
+        go.transform.SetParent(transform, false);
+
+        TextMeshProUGUI label = go.GetComponent<TextMeshProUGUI>();
+        label.text = "Remove this game";
+        label.fontSize = 28f;
+        label.color = new Color(1f, 0.72f, 0.66f, 0.95f);
+        label.fontStyle = FontStyles.Underline;
+        label.alignment = TextAlignmentOptions.Center;
+        label.raycastTarget = true;
+
+        RectTransform rect = go.GetComponent<RectTransform>();
+        rect.anchorMin = rect.anchorMax = rect.pivot = new Vector2(0.5f, 0.5f);
+        rect.sizeDelta = new Vector2(400f, 48f);
+        rect.anchoredPosition = new Vector2(0f, -590f);
+
+        Button button = go.GetComponent<Button>();
+        button.targetGraphic = label;
+        button.onClick.AddListener(RemoveThisGame);
+
+        removeLink = go;
+        removeLink.SetActive(false);
+    }
+
+    private Transform FindAnywhere(string name)
+    {
+        foreach (Transform child in GetComponentsInChildren<Transform>(true))
+        {
+            if (child != null && child.name == name)
+                return child;
+        }
+
+        return null;
+    }
+
+    private void RemoveThisGame()
+    {
+        if (Singleton.Instance != null && Singleton.Instance.OnlineMatchController != null)
+            Singleton.Instance.OnlineMatchController.AskToRemoveCurrentMatch();
     }
 
     // The chart opens on the row this result belongs to - the level just

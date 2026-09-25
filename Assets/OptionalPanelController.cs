@@ -121,6 +121,10 @@ public class OptionPanelController : MonoBehaviour
         AddStatsLink();
         AddSettingsButton();
         AddGameplayMainMenuButton();
+
+        // Beside it, for a game that is being given up rather than left.
+        ResignButton.AddTo(gameplayPanel);
+
         DressPlayScreenButtons();
 
         // First time only, and led rather than read: a card of rules is only
