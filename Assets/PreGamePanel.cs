@@ -1751,6 +1751,11 @@ public partial class PreGamePanel : MonoBehaviour
                     updatedRoom.guestUid, updatedRoom.guestDisplayName,
                     roomSnapshot.totalRounds > 0 ? roomSnapshot.totalRounds : 4);
 
+                // Refused: no bonus squares or a short rack. Nothing is
+                // written, so the room is still there to try again with.
+                if (match == null)
+                    return;
+
                 string matchJson = JsonUtility.ToJson(match);
 
                 dbRoot.Child("matches").Child(matchId).SetRawJsonValueAsync(matchJson)
@@ -1830,17 +1835,52 @@ public partial class PreGamePanel : MonoBehaviour
             rack, bag, gameLogic, "new match " + matchId);
         BoardStateData board = CreateInitialBoard();
 
+        // The bonus squares, and no match without them.
+        //
+        // A board with nothing scattered on it is not a game of Scrabby: every
+        // round would be a plain word score, and both players would see it and
+        // assume the game was broken, which it would be. The generator gives
+        // up quietly when its bag is not ready, handing back a board with no
+        // squares on it - valid JSON, so nothing downstream noticed - so what
+        // is checked here is how many squares came back, not whether a string
+        // arrived.
+        GameLogic logic = gameLogic != null
+            ? gameLogic
+            : (Singleton.Instance != null ? Singleton.Instance.GameLogic : null);
+
         string bonusBoardJson = "";
 
-        if (gameLogic != null)
+        if (logic != null)
         {
-            gameLogic.SetBoardSize(9, 9);
-            bonusBoardJson = gameLogic.GenerateBonusBoardJsonForOnlineMatch();
+            logic.SetBoardSize(9, 9);
+            bonusBoardJson = logic.GenerateBonusBoardJsonForOnlineMatch();
+
+            // One retry: the bag is set up as the board is, and the first
+            // attempt of a session can land before it is ready.
+            if (GameLogic.BonusSquaresIn(bonusBoardJson) == 0)
+            {
+                Debug.LogWarning("[MATCH] No bonus squares first time for " + matchId + "; trying again.");
+                logic.SetBoardSize(9, 9);
+                bonusBoardJson = logic.GenerateBonusBoardJsonForOnlineMatch();
+            }
         }
         else
         {
-            Debug.LogWarning("[MATCH] gameLogic was null building match " + matchId +
-                             "; it has no bonus squares.");
+            Debug.LogError("[MATCH] No GameLogic to build " + matchId + " with.");
+        }
+
+        int bonusSquares = GameLogic.BonusSquaresIn(bonusBoardJson);
+
+        if (bonusSquares == 0 || rack.tiles == null ||
+            rack.tiles.Count < OnlineMatchController.HandSize)
+        {
+            Debug.LogError("[MATCH] Refusing to start " + matchId + ": " +
+                           bonusSquares + " bonus squares and " +
+                           (rack.tiles == null ? 0 : rack.tiles.Count) + " letters. " +
+                           "A game with either missing is not worth dealing.");
+
+            SetStatus("Could not set the board up - try again in a moment.");
+            return null;
         }
 
         long now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
@@ -1943,15 +1983,16 @@ public partial class PreGamePanel : MonoBehaviour
             score = move != null ? move.score : 0,
             isValid = move != null && move.isValid,
             simulatedTilesJson = SerializeSimulatedTiles(move),
-            submittedAtUnix = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
-        };
 
-        string json = JsonUtility.ToJson(submission);
+            // The server stamps this one too, so ties are settled by one
+            // clock rather than by whose phone is fast.
+            submittedAtUnix = 0
+        };
 
         dbRoot.Child("matches").Child(currentMatch.matchId)
             .Child("rounds").Child(roundNumber.ToString())
             .Child("submissions").Child(uid)
-            .SetRawJsonValueAsync(json)
+            .SetValueAsync(OnlineMatchController.WithServerTime(submission))
             .ContinueWithOnMainThread(task =>
             {
                 if (task.IsFaulted)

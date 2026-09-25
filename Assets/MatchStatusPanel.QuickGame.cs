@@ -349,6 +349,14 @@ public partial class MatchStatusPanel
             "", "",
             QuickGameRounds);
 
+        // Refused: the board had no bonus squares or the rack was short, and
+        // a game like that is worse than no game.
+        if (match == null)
+        {
+            QuickGameFailed("Could not set the board up.", false);
+            return;
+        }
+
         ScrabbyLog.Trace("[QUICK] Step 2b: writing new open game matches/" + matchId);
 
         dbRoot.Child("matches").Child(matchId)

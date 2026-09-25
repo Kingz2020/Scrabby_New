@@ -767,11 +767,62 @@ public class UIManager : MonoBehaviour
     // cost you something, green when it went well.
     public enum TurnTone { Yours, Busy, Good, Bad }
 
-    // Written on the sky, so they have to be readable against it.
-    private static readonly Color SkyTextEdge = new Color(0.039f, 0.149f, 0.267f, 1f);
-    private static readonly Color SkyTextYours = new Color(1f, 0.82f, 0.36f, 1f);
-    private static readonly Color SkyTextGood = new Color(0.60f, 1f, 0.62f, 1f);
-    private static readonly Color SkyTextBad = new Color(1f, 0.52f, 0.47f, 1f);
+    // Written on the sky, so they have to be readable against it. All of it is
+    // here on the inspector rather than in the code, because it is the sort of
+    // thing that is judged by looking: drag while the game is playing and the
+    // line on screen changes with it.
+    [Header("Sky writing")]
+    [Tooltip("How heavy the navy edge round each letter is. Past about 0.4 the letters start to fill in.")]
+    [Range(0f, 0.6f)][SerializeField] private float skyTextOutline = 0.19f;
+
+    [Tooltip("The biggest the message is allowed to be. It shrinks from here when a message is long.")]
+    [Range(40f, 140f)][SerializeField] private float skyTextMaxSize = 86f;
+
+    [Tooltip("How dark the shadow under the letters is.")]
+    [Range(0f, 1f)][SerializeField] private float skyTextShadow = 0.55f;
+
+    [SerializeField] private Color skyTextEdge = new Color(0.039f, 0.149f, 0.267f, 1f);
+
+    // Green for go: the one message that means "the board is yours now".
+    [SerializeField] private Color skyTextYours = new Color(0.153f, 0.745f, 0.200f, 1f);
+
+    // A result that went well is gold rather than green, so the two are not
+    // the same colour saying two different things.
+    [SerializeField] private Color skyTextGood = new Color(1f, 0.85f, 0.40f, 1f);
+    [SerializeField] private Color skyTextBad = new Color(1f, 0.52f, 0.47f, 1f);
+
+    // What is on screen now, so a slider dragged mid-game can be applied to it
+    // without waiting for the next message.
+    private TurnTone lastTone = TurnTone.Busy;
+    private float lastAppliedOutline = -1f;
+    private float lastAppliedSize = -1f;
+    private float lastAppliedShadow = -1f;
+
+#if UNITY_EDITOR
+    // In the editor only, and only while playing: dragging a slider changes
+    // the line already on screen instead of the next one. Judging lettering
+    // means looking at it, and looking at it means not having to play another
+    // round after every nudge.
+    private void Update()
+    {
+        if (!Application.isPlaying || turnPillLabel == null)
+            return;
+
+        bool changed =
+            !Mathf.Approximately(lastAppliedOutline, skyTextOutline) ||
+            !Mathf.Approximately(lastAppliedSize, skyTextMaxSize) ||
+            !Mathf.Approximately(lastAppliedShadow, skyTextShadow);
+
+        if (!changed)
+            return;
+
+        lastAppliedOutline = skyTextOutline;
+        lastAppliedSize = skyTextMaxSize;
+        lastAppliedShadow = skyTextShadow;
+
+        WriteOnTheSky(turnPillLabel, lastTone);
+    }
+#endif
 
     public void ShowTurnState(string label, TurnTone tone)
     {
@@ -789,6 +840,7 @@ public class UIManager : MonoBehaviour
         if (turnPillFace != null)
             turnPillFace.enabled = false;
 
+        lastTone = tone;
         WriteOnTheSky(turnPillLabel, tone);
 
         if (turnPillDots != null)
@@ -824,8 +876,8 @@ public class UIManager : MonoBehaviour
 
             // The pill was 440 wide for a four-word message; the words can
             // have the width of the board.
-            if (pill != null && pill.sizeDelta.x < 980f)
-                pill.sizeDelta = new Vector2(1000f, 104f);
+            if (pill != null && (pill.sizeDelta.x < 980f || pill.sizeDelta.y < 120f))
+                pill.sizeDelta = new Vector2(1000f, 130f);
 
             // The label fills whatever the pill is, minus a hair either side.
             RectTransform rect = text.rectTransform;
@@ -836,20 +888,41 @@ public class UIManager : MonoBehaviour
         }
 
         text.enableAutoSizing = true;
-        text.fontSizeMin = 34f;
-        text.fontSizeMax = 72f;
+        text.fontSizeMin = Mathf.Min(40f, skyTextMaxSize);
+        text.fontSizeMax = skyTextMaxSize;
         text.enableWordWrapping = false;
         text.alignment = TextAlignmentOptions.Center;
         text.fontStyle = FontStyles.Bold;
 
-        text.outlineColor = SkyTextEdge;
-        text.outlineWidth = 0.28f;
+        // The outline has to go on this label's own material, not the font's
+        // shared one: text.outlineWidth edits the material every label in the
+        // game shares, and TextMeshPro quietly declines to show it. Asking
+        // for fontMaterial makes a copy that belongs to this label alone, and
+        // the padding has to be recalculated or the outline is cut off at the
+        // edge of each letter's patch of atlas.
+        Material own = text.fontMaterial;
+
+        if (own != null)
+        {
+            own.SetColor(ShaderUtilities.ID_OutlineColor, skyTextEdge);
+            own.SetFloat(ShaderUtilities.ID_OutlineWidth, skyTextOutline);
+
+            // A shadow under it as well, so it holds up over a white cloud.
+            own.EnableKeyword("UNDERLAY_ON");
+            own.SetColor(ShaderUtilities.ID_UnderlayColor,
+                         new Color(0.02f, 0.10f, 0.20f, skyTextShadow));
+            own.SetFloat(ShaderUtilities.ID_UnderlayOffsetX, 0f);
+            own.SetFloat(ShaderUtilities.ID_UnderlayOffsetY, -0.28f);
+            own.SetFloat(ShaderUtilities.ID_UnderlaySoftness, 0.22f);
+
+            text.UpdateMeshPadding();
+        }
 
         switch (tone)
         {
-            case TurnTone.Yours: text.color = SkyTextYours; break;
-            case TurnTone.Good:  text.color = SkyTextGood; break;
-            case TurnTone.Bad:   text.color = SkyTextBad; break;
+            case TurnTone.Yours: text.color = skyTextYours; break;
+            case TurnTone.Good:  text.color = skyTextGood; break;
+            case TurnTone.Bad:   text.color = skyTextBad; break;
             default:             text.color = Color.white; break;
         }
     }

@@ -348,15 +348,14 @@ public partial class OnlineMatchController : MonoBehaviour
 
             secondsRemaining = Mathf.Max(0, Mathf.CeilToInt(secondsRemaining)),
 
-            submittedAtUnix = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
+            // Filled in by the server, not from here - see below.
+            submittedAtUnix = 0
         };
-
-        string json = JsonUtility.ToJson(submission);
 
         dbRoot.Child("matches").Child(currentMatch.matchId)
               .Child("rounds").Child(roundNumber.ToString())
               .Child("submissions").Child(uid)
-              .SetRawJsonValueAsync(json)
+              .SetValueAsync(WithServerTime(submission))
               .ContinueWithOnMainThread(task =>
               {
                   if (task.IsFaulted)
@@ -380,6 +379,28 @@ public partial class OnlineMatchController : MonoBehaviour
                   // An opponent who is not a person answers from here.
                   AskTheBotToAnswer(roundNumber);
               });
+    }
+
+    // A submission, with the moment of it left to the server.
+    //
+    // Two players with the same word are separated by who committed first,
+    // so that number decides rounds - and it used to be written by each
+    // player's own phone. A phone whose clock runs two minutes fast would
+    // lose every tie it should have won, and nothing would look wrong.
+    // ServerValue.Timestamp is filled in by Firebase as the write lands, so
+    // both players are measured by one clock.
+    public static Dictionary<string, object> WithServerTime(RoundSubmissionData submission)
+    {
+        return new Dictionary<string, object>
+        {
+            { "uid", submission.uid },
+            { "word", submission.word ?? "" },
+            { "score", submission.score },
+            { "isValid", submission.isValid },
+            { "simulatedTilesJson", submission.simulatedTilesJson ?? "" },
+            { "secondsRemaining", submission.secondsRemaining },
+            { "submittedAtUnix", ServerValue.Timestamp }
+        };
     }
 
     /// <summary>
@@ -1307,10 +1328,24 @@ public partial class OnlineMatchController : MonoBehaviour
             {
                 gameLogic.LoadBoardStateIntoValidatedTiles(board);
                 string newBonusJson = gameLogic.GenerateBonusBoardJsonForOnlineMatch();
-                liveMatch.bonusBoardJson = newBonusJson;
 
-                VerboseLog("[ONLINE] Regenerated bonusBoardJson for next round, length=" +
-                          (string.IsNullOrEmpty(newBonusJson) ? 0 : newBonusJson.Length));
+                // Only if it actually produced squares. The generator gives up
+                // quietly when its bag is not ready and hands back an empty
+                // board, and taking that would strip the bonuses out of a game
+                // that had them - the next round would be played on bare
+                // squares with nothing to say why.
+                int squares = GameLogic.BonusSquaresIn(newBonusJson);
+
+                if (squares > 0)
+                {
+                    liveMatch.bonusBoardJson = newBonusJson;
+                    VerboseLog("[ONLINE] Next round has " + squares + " bonus squares.");
+                }
+                else
+                {
+                    Debug.LogError("[ONLINE] Bonus regeneration produced nothing for round " +
+                                   (roundNumber + 1) + "; keeping the board this round used.");
+                }
             }
             catch (Exception ex)
             {
@@ -1780,6 +1815,29 @@ public partial class OnlineMatchController : MonoBehaviour
 
         // From here the board is this match's, and the bot may search it.
         BoardNowHolds(currentMatch.matchId);
+
+        // A match already saved without bonus squares - dealt before this was
+        // guarded - is mended rather than played bare. Only player one does
+        // it, so the two of them cannot each scatter a different board.
+        if (GameLogic.BonusSquaresIn(currentMatch.bonusBoardJson) == 0)
+        {
+            Debug.LogError("[ONLINE] " + currentMatch.matchId +
+                           " has no bonus squares; mending it.");
+
+            if (isPlayer1 && gameLogic != null && EnsureFirebaseReady())
+            {
+                gameLogic.SetBoardSize(9, 9);
+                string mended = gameLogic.GenerateBonusBoardJsonForOnlineMatch();
+
+                if (GameLogic.BonusSquaresIn(mended) > 0)
+                {
+                    currentMatch.bonusBoardJson = mended;
+
+                    dbRoot.Child("matches").Child(currentMatch.matchId)
+                          .Child("bonusBoardJson").SetValueAsync(mended);
+                }
+            }
+        }
 
         try
         {

@@ -6298,6 +6298,22 @@ public partial class GameLogic : MonoBehaviour
             boardBonusTiles = new BonusTile[boardSizeX, boardSizeY];
     }
 
+    // How many bonus squares a stored board actually carries.
+    //
+    // The generator answers "{\"cells\":[]}" when it cannot do its job - a
+    // board with no bonus squares on it, which is valid JSON and not an empty
+    // string, so every check that asked "is this empty?" said yes, this is
+    // fine, and dealt a game with a bare board. Count them instead.
+    public static int BonusSquaresIn(string bonusBoardJson)
+    {
+        if (string.IsNullOrEmpty(bonusBoardJson))
+            return 0;
+
+        BonusBoardData board = JsonUtility.FromJson<BonusBoardData>(bonusBoardJson);
+
+        return board != null && board.cells != null ? board.cells.Count : 0;
+    }
+
     public string GenerateBonusBoardJsonForOnlineMatch()
     {
         VerboseLog("[BONUS] GenerateBonusBoardJsonForOnlineMatch ENTER");
