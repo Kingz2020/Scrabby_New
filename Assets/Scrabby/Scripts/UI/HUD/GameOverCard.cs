@@ -2,17 +2,18 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
-// The result, dressed like the rest of the game.
+// The result board. One card, whatever was played.
 //
-// The game-over screen was the one panel that never got the glass-card
-// treatment: a cartoon frame, a sky, text in four colours at three sizes and
-// buttons scattered along the bottom. Everything on it worked, so this does
-// not rebuild any of it - it turns off the frame, puts a card in the middle,
-// and moves what is already there onto the card: the summary, the round rows
-// with their replay buttons, and the way out.
+// It reads a ResultSheet and nothing else: the verdict, the rounds, and
+// which ways out this game deserves. It does not ask the game or the match
+// controller what sort of game it was, and it no longer borrows the panel's
+// own buttons by name and drags them onto itself - it builds its own, which
+// is why the buttons on it can be relied on to be there, be pressable, and
+// mean the same thing on every card.
 //
-// Nothing here knows whether the game was solo, online or a tutorial. It
-// reads what the panel was given and lays it out.
+// What it inherited and kept: the panel's round rows, because the rows are
+// spawned into the panel's container by UIManager and keeping that means one
+// prefab and one spawner.
 public class GameOverCard : MonoBehaviour
 {
     private static readonly Color Dim = new Color(0.01f, 0.04f, 0.08f, 0.72f);
@@ -20,26 +21,36 @@ public class GameOverCard : MonoBehaviour
     private static readonly Color Cream = new Color(0.945f, 0.878f, 0.733f, 1f);
     private static readonly Color Ink = new Color(0.227f, 0.173f, 0.094f, 1f);
     private static readonly Color Faint = new Color(1f, 1f, 1f, 0.72f);
-    private static readonly Color Fainter = new Color(1f, 1f, 1f, 0.38f);
     private static readonly Color Amber = new Color(0.88f, 0.70f, 0.30f, 1f);
+    private static readonly Color Silver = new Color(0.90f, 0.92f, 0.94f, 1f);
+    private static readonly Color Warn = new Color(1f, 0.72f, 0.66f, 0.95f);
     private static readonly Color Sunk = new Color(1f, 1f, 1f, 0.055f);
 
     private const float CardWidth = 960f;
     private const float RowsTop = 286f;      // below the headline block
     private const float RowHeight = 78f;     // one replay row, near enough
-    private const float ButtonBand = 300f;   // the space kept for the way out
+
+    // The panel's own furniture, which the card replaces.
+    private static readonly string[] PanelFurniture =
+    {
+        "Background", "gameOverSummaryText", "newgame", "MainMenuButton",
+        "Back2MatchButton", "StatsLink", "RemoveGameLink"
+    };
 
     private RectTransform card;
     private TextMeshProUGUI headline;
     private TextMeshProUGUI detail;
-
-    private TextMeshProUGUI summary;         // the panel's own text, now hidden
     private RectTransform rows;
-    private RectTransform removeLink;
 
-    private string lastText = "";
+    private Button mainMenu;
+    private Button anotherGame;
+    private Button backToMatches;
+    private Button removeGame;
+    private Button progress;
+
+    private ResultSheet shown;
+    private Transform lastFirstRow;
     private int lastRowCount = -1;
-    private bool lastRemoveShowing;
 
     // Added by the panel the first time it opens.
     public static void DressPanel(GameObject panel)
@@ -51,15 +62,15 @@ public class GameOverCard : MonoBehaviour
     private void OnEnable()
     {
         Build();
-        Sync(true);
+        Apply(UIManager.CurrentResult, true);
     }
 
     private void Update()
     {
-        // The summary is written before the panel is shown, and again when an
-        // online result arrives late, so the card follows it rather than
-        // reading it once.
-        Sync(false);
+        // A result can arrive after the panel is up - an online one is read
+        // from the match - and the rows are spawned a moment after that. Both
+        // are noticed here rather than assumed to have happened already.
+        Apply(UIManager.CurrentResult, false);
     }
 
     // ------------------------------------------------------------- building --
@@ -71,12 +82,13 @@ public class GameOverCard : MonoBehaviour
 
         RectTransform panel = transform as RectTransform;
 
-        // The cartoon frame and its sky go. Everything that matters moves onto
-        // the card below.
-        Transform background = transform.Find("Background");
+        foreach (string name in PanelFurniture)
+        {
+            Transform found = FindAnywhere(name);
 
-        if (background != null)
-            background.gameObject.SetActive(false);
+            if (found != null)
+                found.gameObject.SetActive(false);
+        }
 
         GameObject dim = Panel("Dim", panel, Dim);
         Stretch(dim.GetComponent<RectTransform>());
@@ -102,24 +114,20 @@ public class GameOverCard : MonoBehaviour
         lineRect.sizeDelta = new Vector2(CardWidth - 120f, 2f);
         lineRect.anchoredPosition = new Vector2(0f, -232f);
 
-        // No "ROUND BY ROUND" heading: the rows underneath are plainly a
-        // round-by-round list, and the line above already separates them
-        // from the score.
-
         MoveRows();
-        MoveButtons();
+        BuildWaysOut();
     }
 
-    // The rows keep their prefab, their replay buttons and their wiring; they
-    // simply hang under the card now.
+    // The rows keep their prefab and their spawner; they hang under the card.
     private void MoveRows()
     {
-        Transform container = transform.Find("RoundListContainer");
+        Transform container = FindAnywhere("RoundListContainer");
 
         if (container == null)
             return;
 
         rows = container as RectTransform;
+        rows.gameObject.SetActive(true);
         rows.SetParent(card, false);
         rows.anchorMin = rows.anchorMax = new Vector2(0.5f, 1f);
         rows.pivot = new Vector2(0.5f, 1f);
@@ -127,168 +135,115 @@ public class GameOverCard : MonoBehaviour
         rows.anchoredPosition = new Vector2(0f, -RowsTop);
     }
 
-    private void MoveButtons()
+    // Built once, shown or hidden per sheet. Its own buttons, with its own
+    // geometry: nothing here can be moved, disabled or covered by something
+    // else on the panel.
+    private void BuildWaysOut()
     {
-        // Main Menu is the one everybody wants, so it is the solid one.
-        Dress("MainMenuButton", Cream, Ink, new Vector2(320f, 96f),
-              new Vector2(-178f, 78f));
+        mainMenu = Key("MainMenuKey", "Main Menu", Cream, Ink, 320f, 96f, 38f);
 
-        // Another game: the icon button that was in the corner.
-        Dress("newgame", Amber, Ink, new Vector2(110f, 96f),
-              new Vector2(150f, 78f));
+        // A word, not a symbol: the font has no glyph for a circular arrow,
+        // so it drew the empty box that means "no such character". It says
+        // what it does now, which the symbol never did either.
+        anotherGame = Key("AnotherGameKey", "New game", Amber, Ink, 280f, 96f, 34f);
+        backToMatches = Key("BackToMatchesKey", "Back to Match", Silver, Ink, 360f, 88f, 36f);
 
-        // Only ever on screen for an online result; the panel decides.
-        // Dark lettering, not cream: the button's own face is pale silver,
-        // and cream on silver could not be read at all.
-        Dress("Back2MatchButton", new Color(1f, 1f, 1f, 0.10f), Ink,
-              new Vector2(360f, 88f), new Vector2(0f, 196f));
-
-        // The progress link the panel adds for itself.
-        Transform stats = transform.Find("StatsLink");
-
-        if (stats != null)
-        {
-            RectTransform rect = stats as RectTransform;
-            rect.SetParent(card, false);
-            rect.anchorMin = rect.anchorMax = new Vector2(0.5f, 0f);
-            rect.pivot = new Vector2(0.5f, 0.5f);
-            rect.sizeDelta = new Vector2(400f, 52f);
-            rect.anchoredPosition = new Vector2(0f, 300f);
-        }
-
-        // And the way to put a finished game away, above it - only there on
-        // a match opened from the finished list, so the card grows the extra
-        // line only when it is showing.
-        Transform remove = transform.Find("RemoveGameLink");
-
-        if (remove != null)
-        {
-            removeLink = remove as RectTransform;
-            removeLink.SetParent(card, false);
-            removeLink.anchorMin = removeLink.anchorMax = new Vector2(0.5f, 0f);
-            removeLink.pivot = new Vector2(0.5f, 0.5f);
-            removeLink.sizeDelta = new Vector2(400f, 48f);
-            removeLink.anchoredPosition = new Vector2(0f, 362f);
-        }
+        removeGame = Link("RemoveGameLink", "Remove this game", Warn, 28f);
+        progress = Link("ProgressLink", "Your progress", new Color(0.945f, 0.878f, 0.733f, 0.95f), 30f);
     }
 
-    private void Dress(string name, Color face, Color ink, Vector2 size, Vector2 where)
-    {
-        Transform found = transform.Find(name);
+    // ------------------------------------------------------------- content --
 
-        if (found == null)
+    private void Apply(ResultSheet sheet, bool force)
+    {
+        if (sheet == null || card == null)
             return;
 
-        RectTransform rect = found as RectTransform;
-        rect.SetParent(card, false);
-        rect.anchorMin = rect.anchorMax = new Vector2(0.5f, 0f);
-        rect.pivot = new Vector2(0.5f, 0.5f);
-        rect.sizeDelta = size;
-        rect.anchoredPosition = where;
-
-        Image image = found.GetComponent<Image>();
-
-        // A button with its own artwork keeps it; a plain one takes the
-        // card's colours.
-        if (image != null && image.sprite == null)
-            image.color = face;
-        else if (image != null)
-            image.color = Color.white;
-
-        foreach (TextMeshProUGUI text in found.GetComponentsInChildren<TextMeshProUGUI>(true))
+        if (force || sheet != shown)
         {
-            text.color = ink;
-            text.fontSize = 38f;
+            shown = sheet;
+
+            headline.text = sheet.Headline ?? "";
+            detail.text = sheet.Detail ?? "";
+
+            Wire(mainMenu, sheet.MainMenu, true);
+            Wire(anotherGame, sheet.AnotherGame, sheet.OfferAnotherGame);
+            Wire(backToMatches, sheet.BackToMatches, sheet.OfferBackToMatches);
+            Wire(removeGame, sheet.RemoveGame, sheet.OfferRemoveGame);
+            Wire(progress, () => StatsPanel.Show(sheet.ProgressKey), sheet.OfferProgress);
+
+            LayOutWaysOut(sheet);
         }
 
-        // Its own colours, with the thickness, light and press every button
-        // has. After the move onto the card, so its thickness goes with it.
-        ChunkyButton.Deepen(found.GetComponent<Button>());
-    }
-
-    // -------------------------------------------------------------- content --
-
-    private void Sync(bool force)
-    {
-        if (summary == null)
-        {
-            Transform found = transform.Find("gameOverSummaryText");
-
-            if (found != null)
-            {
-                summary = found.GetComponent<TextMeshProUGUI>();
-
-                // Kept alive so whatever writes it can go on writing it; the
-                // card is what gets read.
-                if (summary != null)
-                    summary.enabled = false;
-            }
-        }
-
-        if (summary != null && (force || summary.text != lastText))
-        {
-            lastText = summary.text;
-            Split(lastText);
-        }
-
+        // The rows are spawned into the container after the sheet arrives, and
+        // four rows replaced by four rows is a change the count alone cannot
+        // see - which is how a second game of the same length used to keep the
+        // first game's dressing.
         int count = rows != null ? rows.childCount : 0;
-        bool removeShowing = removeLink != null && removeLink.gameObject.activeSelf;
+        Transform firstRow = count > 0 ? rows.GetChild(0) : null;
 
-        if (force || count != lastRowCount || removeShowing != lastRemoveShowing)
+        if (force || count != lastRowCount || firstRow != lastFirstRow)
         {
             lastRowCount = count;
-            lastRemoveShowing = removeShowing;
-            Fit(count);
+            lastFirstRow = firstRow;
+
             DressRows();
+            Fit(count, shown);
         }
     }
 
-    // First line is the verdict, the rest is the detail under it.
-    private void Split(string text)
+    // From the bottom up, so what is not offered leaves no hole behind it.
+    private void LayOutWaysOut(ResultSheet sheet)
     {
-        if (headline == null || detail == null)
-            return;
+        float y = 30f;
 
-        string[] lines = (text ?? "").Split('\n');
-        string first = "";
-        string rest = "";
+        // The way out everybody needs, with another game beside it when there
+        // is one to deal.
+        Place(mainMenu, sheet.OfferAnotherGame ? -160f : 0f, y + 48f);
+        Place(anotherGame, 160f, y + 48f);
+        y += 96f;
 
-        foreach (string line in lines)
+        if (sheet.OfferBackToMatches)
         {
-            if (string.IsNullOrWhiteSpace(line))
-                continue;
-
-            if (first.Length == 0)
-                first = line.Trim();
-            else
-                rest += (rest.Length > 0 ? "\n" : "") + line.Trim();
+            y += 26f;
+            Place(backToMatches, 0f, y + 44f);
+            y += 88f;
         }
 
-        // "Game over." said over a panel that says GAME OVER is a word wasted.
-        first = first.Replace("Game over. ", "").Replace("Game over.", "Game over");
+        if (sheet.OfferProgress)
+        {
+            y += 34f;
+            Place(progress, 0f, y + 26f);
+            y += 52f;
+        }
 
-        headline.text = first;
-        detail.text = rest;
+        if (sheet.OfferRemoveGame)
+        {
+            y += 12f;
+            Place(removeGame, 0f, y + 24f);
+            y += 48f;
+        }
+
+        band = y + 14f;
     }
 
-    // The card is as tall as what is on it: one round after the tutorial, four
-    // after a real game.
-    private void Fit(int rowCount)
+    private float band = 300f;
+
+    // The card is as tall as what is on it: one round after the walkthrough,
+    // four after a real game, and taller again when there is more to offer.
+    private void Fit(int rowCount, ResultSheet sheet)
     {
         if (card == null)
             return;
 
-        // The extra is what the removal link needs: its own line, the gap to
-        // Your progress under it, and the gap to the rounds above.
-        float band = ButtonBand +
-                     (removeLink != null && removeLink.gameObject.activeSelf ? 100f : 0f);
-
         float height = RowsTop + Mathf.Max(1, rowCount) * RowHeight + band;
 
-        card.sizeDelta = new Vector2(CardWidth, Mathf.Clamp(height, 760f, 1500f));
+        card.sizeDelta = new Vector2(CardWidth, Mathf.Clamp(height, 700f, 1500f));
     }
 
     // The rows were coloured for the light blue panel they used to sit on.
+    // They dress themselves now; this is the card having its say about a row
+    // it can see, and costs nothing when there is nothing to change.
     private void DressRows()
     {
         if (rows == null)
@@ -299,6 +254,87 @@ public class GameOverCard : MonoBehaviour
     }
 
     // ------------------------------------------------------------- plumbing --
+
+    private void Wire(Button button, System.Action action, bool offered)
+    {
+        if (button == null)
+            return;
+
+        button.gameObject.SetActive(offered);
+        button.onClick.RemoveAllListeners();
+
+        if (offered && action != null)
+            button.onClick.AddListener(() => action());
+    }
+
+    private static void Place(Button button, float x, float y)
+    {
+        if (button == null)
+            return;
+
+        RectTransform rect = button.transform as RectTransform;
+        rect.anchoredPosition = new Vector2(x, y);
+    }
+
+    private Button Key(string name, string caption, Color face, Color ink,
+                       float width, float height, float size)
+    {
+        GameObject go = Panel(name, card, face);
+
+        RectTransform rect = go.GetComponent<RectTransform>();
+        rect.anchorMin = rect.anchorMax = new Vector2(0.5f, 0f);
+        rect.pivot = new Vector2(0.5f, 0.5f);
+        rect.sizeDelta = new Vector2(width, height);
+
+        Label(go.transform as RectTransform, caption, size, ink, FontStyles.Bold,
+              TextAlignmentOptions.Center, 0f, 0f, width, height, true);
+
+        Button button = go.AddComponent<Button>();
+        button.targetGraphic = go.GetComponent<Image>();
+
+        ChunkyButton.Deepen(button);
+
+        return button;
+    }
+
+    private Button Link(string name, string caption, Color colour, float size)
+    {
+        GameObject go = new GameObject(name, typeof(RectTransform),
+                                       typeof(TextMeshProUGUI), typeof(Button));
+        go.transform.SetParent(card, false);
+
+        TextMeshProUGUI text = go.GetComponent<TextMeshProUGUI>();
+        text.text = caption;
+        text.fontSize = size;
+        text.color = colour;
+        text.fontStyle = FontStyles.Underline;
+        text.alignment = TextAlignmentOptions.Center;
+        text.raycastTarget = true;
+
+        RectTransform rect = go.GetComponent<RectTransform>();
+        rect.anchorMin = rect.anchorMax = new Vector2(0.5f, 0f);
+        rect.pivot = new Vector2(0.5f, 0.5f);
+        rect.sizeDelta = new Vector2(420f, size + 20f);
+
+        Button button = go.GetComponent<Button>();
+        button.targetGraphic = text;
+
+        return button;
+    }
+
+    // Anywhere under the panel, not just the top level: the row container is
+    // moved onto the card on the first open, so looking only at direct
+    // children finds it once and never again.
+    private Transform FindAnywhere(string name)
+    {
+        foreach (Transform child in GetComponentsInChildren<Transform>(true))
+        {
+            if (child != null && child.name == name)
+                return child;
+        }
+
+        return null;
+    }
 
     private static GameObject Panel(string name, Transform parent, Color colour)
     {
@@ -319,7 +355,7 @@ public class GameOverCard : MonoBehaviour
     private static TextMeshProUGUI Label(
         Transform parent, string content, float size, Color colour,
         FontStyles style, TextAlignmentOptions align,
-        float x, float y, float width, float height)
+        float x, float y, float width, float height, bool fill = false)
     {
         GameObject go = new GameObject("Label", typeof(RectTransform),
                                        typeof(TextMeshProUGUI));
@@ -335,6 +371,13 @@ public class GameOverCard : MonoBehaviour
         text.raycastTarget = false;
 
         RectTransform rect = go.GetComponent<RectTransform>();
+
+        if (fill)
+        {
+            Stretch(rect);
+            return text;
+        }
+
         rect.anchorMin = rect.anchorMax = new Vector2(0.5f, 1f);
         rect.pivot = new Vector2(0.5f, 1f);
         rect.sizeDelta = new Vector2(width, height);

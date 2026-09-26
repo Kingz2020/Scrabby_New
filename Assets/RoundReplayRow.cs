@@ -14,9 +14,24 @@ public class RoundReplayRow : MonoBehaviour
         get { return replayButton; }
     }
 
-    // The rows moved onto the game-over card, which is dark glass; the prefab
-    // was coloured for the light blue panel they used to sit on. Told what to
-    // wear rather than deciding, so the card owns the palette.
+    // The card's palette, kept here because the row wears it whoever built it.
+    //
+    // It used to be pushed in from the game-over card, which re-dressed the
+    // rows when it noticed their number had changed. Both builders make their
+    // rows after the panel is already up, and Unity destroys the old ones at
+    // the end of the frame, so a second game of the same length ended with
+    // the same count as the first - no change noticed, no dressing done, and
+    // the prefab's own "PLAY" left on a card that says REVIEW everywhere
+    // else. A row that dresses itself cannot be missed that way.
+    private static readonly Color CardRowFace = new Color(1f, 1f, 1f, 0.055f);
+    private static readonly Color CardRowInk = Color.white;
+    private static readonly Color CardButtonFace = new Color(0.88f, 0.70f, 0.30f, 1f);
+    private static readonly Color CardButtonInk = new Color(0.227f, 0.173f, 0.094f, 1f);
+
+    // The rows sit on the game-over card, which is dark glass; the prefab was
+    // coloured for the light blue panel they used to sit on. The card may
+    // still say what it wants - it owns the look - but a row that is never
+    // told comes out right anyway.
     public void DressForDarkCard(Color rowFace, Color textColour,
                                  Color buttonFace, Color buttonInk)
     {
@@ -63,6 +78,11 @@ public class RoundReplayRow : MonoBehaviour
     // it, and what it replays, are the caller's business.
     public void Setup(string rowText, System.Action replayAction)
     {
+        // Dressed as it is filled: every row that exists has been through
+        // here, whichever builder made it, so this is the one place that
+        // cannot be skipped.
+        DressForDarkCard(CardRowFace, CardRowInk, CardButtonFace, CardButtonInk);
+
         if (roundText != null)
             roundText.text = rowText;
 

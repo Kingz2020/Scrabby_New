@@ -625,7 +625,33 @@ public partial class OnlineMatchController : MonoBehaviour
             PlayerStats.RecordOnline(match.matchId, opponentUid, opponentName, result);
         }
 
-        uiManager.ShowGameOverPanel(finalMessage, roundSummary);
+        ResultSheet sheet = new ResultSheet
+        {
+            Headline = finalMessage,
+            Detail = roundSummary,
+            OpponentName = opponentName,
+
+            OfferAnotherGame = false,
+            OfferBackToMatches = true,
+
+            // A finished match is the player's to drop, however they came to
+            // be looking at it. It used to depend on the route - the flag is
+            // only set when a result is opened from the matches list - so the
+            // player who was still in the game when it ended never saw the
+            // link and thought the other one had a privilege.
+            OfferRemoveGame = matchIsOver,
+
+            OfferProgress = true,
+            ProgressKey = PlayerStats.OpponentKey(opponentUid),
+
+            BackToMatches = OnBackToMatchFromReplay,
+            RemoveGame = AskToRemoveCurrentMatch,
+            MainMenu = ResultSheet.BackToTheMenu
+        };
+
+        FillRounds(sheet, match, amPlayer1);
+
+        uiManager.ShowResult(sheet);
 
         // A tie counts as yours: nobody wants the losing sound for a game
         // they did not lose.
@@ -633,7 +659,6 @@ public partial class OnlineMatchController : MonoBehaviour
 
         Sound.Play(soundsLikeAWin ? Sound.RoundWon : Sound.RoundLost);
 
-        ShowOnlineRoundReplayRows(match,amPlayer1,opponentName);
     }
 
     // Which row of the chart the result on screen belongs to, so the stats
@@ -649,148 +674,6 @@ public partial class OnlineMatchController : MonoBehaviour
         return PlayerStats.OpponentKey(
             amPlayer1 ? currentMatch.player2Uid : currentMatch.player1Uid);
     }
-
-    private IEnumerator LoadOnlineRoundHistoryForGameOver(
-    MatchData match,
-    string finalMessage,
-    string opponentName,
-    bool amPlayer1)
-    {
-        if (match == null || string.IsNullOrEmpty(match.matchId))
-            yield break;
-
-        if (!EnsureFirebaseReady())
-            yield break;
-
-        var historyRef = dbRoot
-            .Child("matches")
-            .Child(match.matchId)
-            .Child("roundHistory");
-
-        var task = historyRef.GetValueAsync();
-
-        yield return new WaitUntil(() => task.IsCompleted);
-
-        if (task.IsFaulted ||
-            task.IsCanceled ||
-            task.Result == null ||
-            !task.Result.Exists)
-        {
-            Debug.LogWarning(
-                "[OnlineMatchController] Could not load game-over roundHistory."
-            );
-            yield break;
-        }
-
-        List<OnlineRoundHistoryEntry> history =
-            new List<OnlineRoundHistoryEntry>();
-
-        foreach (DataSnapshot child in task.Result.Children)
-        {
-            string rawJson = child.GetRawJsonValue();
-
-            if (string.IsNullOrEmpty(rawJson))
-                continue;
-
-            OnlineRoundHistoryEntry entry =
-                JsonUtility.FromJson<OnlineRoundHistoryEntry>(rawJson);
-
-            if (entry != null)
-                history.Add(entry);
-        }
-
-        history.Sort((a, b) =>
-        {
-            if (a == null && b == null) return 0;
-            if (a == null) return 1;
-            if (b == null) return -1;
-
-            return a.roundNumber.CompareTo(b.roundNumber);
-        });
-
-        if (history.Count == 0)
-        {
-            Debug.LogWarning(
-                "[OnlineMatchController] game-over roundHistory was empty."
-            );
-            yield break;
-        }
-
-        int myFinalScore = amPlayer1
-            ? match.player1Score
-            : match.player2Score;
-
-        int opponentFinalScore = amPlayer1
-            ? match.player2Score
-            : match.player1Score;
-
-        string summary =
-            $"Final score: {myFinalScore} - {opponentName} {opponentFinalScore} " +
-            $"(played {history.Count} rounds)";
-
-        summary += "\n\nRounds";
-
-        foreach (OnlineRoundHistoryEntry round in history)
-        {
-            if (round == null)
-                continue;
-
-            string myWord = amPlayer1
-                ? round.player1Word
-                : round.player2Word;
-
-            string opponentWord = amPlayer1
-                ? round.player2Word
-                : round.player1Word;
-
-            int myScore = amPlayer1
-                ? round.player1Score
-                : round.player2Score;
-
-            int opponentScore = amPlayer1
-                ? round.player2Score
-                : round.player1Score;
-
-            bool iWonRound =
-                !string.IsNullOrEmpty(round.winnerUid) &&
-                round.winnerUid == GetCurrentUser()?.UserId;
-
-            string winnerLabel;
-
-            if (!round.anyValidMove)
-            {
-                winnerLabel = "No valid move";
-            }
-            else if (iWonRound)
-            {
-                winnerLabel = "You won";
-            }
-            else
-            {
-                winnerLabel = opponentName + " won";
-            }
-
-            summary +=
-                $"\nRound {round.roundNumber}: " +
-                $"{myWord} ({myScore}) vs " +
-                $"{opponentWord} ({opponentScore}) — " +
-                winnerLabel;
-        }
-
-        if (uiManager != null)
-        {
-            uiManager.UpdateGameOverSummary(
-                finalMessage,
-                summary
-            );
-        }
-
-        VerboseLog(
-            "[OnlineMatchController] Game-over round history loaded: " +
-            history.Count + " rounds."
-        );
-    }
-
 
     
 
@@ -2231,81 +2114,54 @@ ValueChangedEventArgs args)
             );
         }
     }
-    private void ShowOnlineRoundReplayRows(
-    MatchData match,
-    bool amPlayer1,
-    string opponentName)
+    // The match's rounds, as this player saw them, onto the sheet. The board
+    // writes the line; this only says what happened.
+    private void FillRounds(ResultSheet sheet, MatchData match, bool amPlayer1)
     {
-        if (match == null)
-        {
-            Debug.LogWarning(
-                "[REPLAY] Cannot show replay rows: match is null."
-            );
+        if (sheet == null || match == null || match.roundHistory == null)
             return;
-        }
 
-        if (match.roundHistory == null ||
-            match.roundHistory.Count == 0)
-        {
-            Debug.LogWarning(
-                "[REPLAY] No roundHistory found in completed match."
-            );
-
-            if (uiManager != null)
-            {
-                uiManager.ClearRoundReplayRows();
-            }
-
-            return;
-        }
-
-        List<OnlineRoundHistoryEntry> history =
-            new List<OnlineRoundHistoryEntry>();
+        List<OnlineRoundHistoryEntry> history = new List<OnlineRoundHistoryEntry>();
 
         foreach (OnlineRoundHistoryEntry entry in match.roundHistory)
         {
-            if (entry == null ||
-                entry.roundNumber <= 0)
-            {
-                continue;
-            }
-
-            history.Add(entry);
+            if (entry != null && entry.roundNumber > 0)
+                history.Add(entry);
         }
 
-        if (history.Count == 0)
-        {
-            Debug.LogWarning(
-                "[REPLAY] roundHistory exists, but it contains no valid rounds."
-            );
+        history.Sort((a, b) => a.roundNumber.CompareTo(b.roundNumber));
 
-            if (uiManager != null)
+        foreach (OnlineRoundHistoryEntry entry in history)
+        {
+            OnlineRoundHistoryEntry captured = entry;
+
+            sheet.Rounds.Add(new ResultSheet.Round
             {
-                uiManager.ClearRoundReplayRows();
-            }
+                Number = entry.roundNumber,
 
-            return;
-        }
+                MyWord = amPlayer1 ? entry.player1Word : entry.player2Word,
+                MyScore = amPlayer1 ? entry.player1Score : entry.player2Score,
 
-        history.Sort((a, b) =>
-            a.roundNumber.CompareTo(b.roundNumber)
-        );
+                // No word means the round was passed or lost to the clock,
+                // and the row says so with a dash rather than a blank.
+                IPlayed = !string.IsNullOrEmpty(
+                    amPlayer1 ? entry.player1Word : entry.player2Word),
 
-        VerboseLog(
-            "[REPLAY] Showing " +
-            history.Count +
-            " valid history rows. First round=" +
-            history[0].roundNumber
-        );
+                TheirWord = amPlayer1 ? entry.player2Word : entry.player1Word,
+                TheirScore = amPlayer1 ? entry.player2Score : entry.player1Score,
 
-        if (uiManager != null)
-        {
-            uiManager.ShowOnlineRoundReplayRows(
-                history,
-                amPlayer1,
-                opponentName,
-                ReplayRoundFromGameOver
-            );
+                TheyPlayed = !string.IsNullOrEmpty(
+                    amPlayer1 ? entry.player2Word : entry.player1Word),
+
+                Result =
+                    !entry.anyValidMove
+                        ? ResultSheet.Verdict.Nobody
+                        : entry.winnerIsPlayer1 == amPlayer1
+                            ? ResultSheet.Verdict.Mine
+                            : ResultSheet.Verdict.Theirs,
+
+                Replay = () => ReplayRoundFromGameOver(captured)
+            });
         }
     }
 

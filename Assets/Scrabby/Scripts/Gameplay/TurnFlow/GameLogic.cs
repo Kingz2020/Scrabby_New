@@ -3163,11 +3163,69 @@ public partial class GameLogic : MonoBehaviour
             currentSoloDifficulty,
             PlayerStats.ResultOf(humanTotalScore, aiTotalScore));
 
-        Singleton.Instance.UIManager.ShowGameOverPanel(finalMessage, roundSummary);
+        Singleton.Instance.UIManager.ShowResult(SoloResultSheet(roundSummary));
+    }
 
-        Singleton.Instance.UIManager.ShowSoloRoundReplayRows(
-            roundHistory,
-            round => StartCoroutine(PlaySoloReplayFromGameOver(round)));
+    // What the solo game hands the result board: the verdict, the rounds as
+    // both players saw them, and the two things a finished solo game can
+    // offer - another one, and the chart.
+    //
+    // The board knows nothing about solo; it reads this.
+    private ResultSheet SoloResultSheet(string detail)
+    {
+        ResultSheet sheet = new ResultSheet();
+
+        // The same words the online card uses, so a win reads the same
+        // wherever it was won.
+        if (humanTotalScore > aiTotalScore)
+            sheet.Headline = "You win!";
+        else if (aiTotalScore > humanTotalScore)
+            sheet.Headline = "You lose.";
+        else
+            sheet.Headline = "It's a tie!";
+
+        sheet.Detail = detail;
+        sheet.OpponentName = "AI";
+
+        sheet.OfferAnotherGame = !tutorialGame;
+        sheet.OfferBackToMatches = false;
+        sheet.OfferRemoveGame = false;
+        sheet.OfferProgress = !tutorialGame;
+        sheet.ProgressKey = PlayerStats.SoloKey(currentSoloDifficulty);
+
+        sheet.AnotherGame = BeginGameFromButton;
+        sheet.MainMenu = ResultSheet.BackToTheMenu;
+
+        if (roundHistory != null)
+        {
+            foreach (RoundResult round in roundHistory)
+            {
+                if (round == null)
+                    continue;
+
+                RoundResult captured = round;
+
+                sheet.Rounds.Add(new ResultSheet.Round
+                {
+                    Number = round.roundNumber,
+                    MyWord = round.humanWord,
+                    MyScore = round.humanScore,
+                    IPlayed = round.humanValid,
+                    TheirWord = round.aiWord,
+                    TheirScore = round.aiScore,
+                    TheyPlayed = round.aiValid,
+                    Result =
+                        !round.humanValid && !round.aiValid
+                            ? ResultSheet.Verdict.Nobody
+                            : round.humanWasWinner
+                                ? ResultSheet.Verdict.Mine
+                                : ResultSheet.Verdict.Theirs,
+                    Replay = () => StartCoroutine(PlaySoloReplayFromGameOver(captured))
+                });
+            }
+        }
+
+        return sheet;
     }
 
     // The panel covers the board, so it steps aside for the replay and comes

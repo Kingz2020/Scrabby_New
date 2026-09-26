@@ -1639,44 +1639,6 @@ public class UIManager : MonoBehaviour
             roundText.text = "Round: " + currentRound + " / " + maxRounds;
     }
 
-    public void ShowGameOverPanel(string finalMessage, string roundSummary)
-    {
-        gameOverPanel.SetActive(true);
-        gameOverSummaryText.text = finalMessage + "\n\n" + roundSummary;
-
-        bool isOnlineMatch =
-        Singleton.Instance != null &&
-        Singleton.Instance.GameLogic != null &&
-        Singleton.Instance.GameLogic.IsOnlineMatch;
-
-        VerboseLog(
-            "[GAME OVER] isOnlineMatch=" + isOnlineMatch +
-            " | backToMatchButton=" +
-            (backToMatchButton != null ? backToMatchButton.name : "NULL")
-        );
-
-        if (backToMatchButton != null)
-        {
-            backToMatchButton.SetActive(isOnlineMatch);
-
-            VerboseLog(
-            "[GAME OVER] Back button active after SetActive: " +
-            backToMatchButton.activeSelf);
-        }
-    }
-
-    public void UpdateGameOverSummary(
-    string finalMessage,
-    string roundSummary)
-    {
-        if (gameOverPanel == null || gameOverSummaryText == null)
-            return;
-
-        gameOverPanel.SetActive(true);
-        gameOverSummaryText.text =
-            finalMessage + "\n\n" + roundSummary;
-    }
-
     // Replays last round's winning word over the tiles already committed to the
     // board, at the top of a new online round. Same cascade as a round replay,
     // but these tiles belong to the board, so they are highlighted and handed
@@ -1760,135 +1722,104 @@ public class UIManager : MonoBehaviour
         }
     }
 
-    public void ShowOnlineRoundReplayRows(
-    List<OnlineRoundHistoryEntry> history,
-    bool amPlayer1,
-    string opponentName,
-    Action<OnlineRoundHistoryEntry> onReplay)
+    // ------------------------------------------------------------- results --
+
+    // The last result put on screen. The card and the panel controller read
+    // it rather than asking the game or the match controller what sort of
+    // game it was - which is how the two of them drifted apart.
+    public static ResultSheet CurrentResult { get; private set; }
+
+    // The one way a result appears. Solo, online and the walkthrough all
+    // arrive here with a sheet; nothing downstream asks where it came from.
+    public void ShowResult(ResultSheet sheet)
+    {
+        if (sheet == null)
+            return;
+
+        CurrentResult = sheet;
+
+        if (gameOverPanel != null)
+            gameOverPanel.SetActive(true);
+
+        // Kept in step for anything still reading the old summary text, and
+        // for the card, which shows the two lines separately.
+        if (gameOverSummaryText != null)
+            gameOverSummaryText.text = sheet.Headline + "\n\n" + sheet.Detail;
+
+        ShowResultRows(sheet);
+    }
+
+    // One composer, one prefab, one container - so a round reads the same
+    // whoever played it.
+    public void ShowResultRows(ResultSheet sheet)
     {
         ClearRoundReplayRows();
 
-        if (roundListContainer == null ||
-            roundReplayRowPrefab == null ||
-            history == null)
+        if (roundListContainer == null || roundReplayRowPrefab == null ||
+            sheet == null || sheet.Rounds == null)
         {
-            Debug.LogWarning(
-                "[UIManager] Cannot create round replay rows: missing setup."
-            );
+            Debug.LogWarning("[UIManager] Cannot build result rows: missing setup.");
             return;
         }
 
-        foreach (OnlineRoundHistoryEntry round in history)
+        string them = ShortOpponent(sheet.OpponentName);
+
+        foreach (ResultSheet.Round round in sheet.Rounds)
         {
             if (round == null)
                 continue;
 
-            string myWord = amPlayer1
-                ? round.player1Word
-                : round.player2Word;
+            RoundReplayRow row = Instantiate(roundReplayRowPrefab, roundListContainer);
 
-            string opponentWord = amPlayer1
-                ? round.player2Word
-                : round.player1Word;
+            ResultSheet.Round captured = round;
 
-            int myScore = amPlayer1
-                ? round.player1Score
-                : round.player2Score;
-
-            int opponentScore = amPlayer1
-                ? round.player2Score
-                : round.player1Score;
-
-            string winnerText;
-
-            if (!round.anyValidMove)
+            row.Setup(RoundLine(round, them), () =>
             {
-                winnerText = "No valid move";
-            }
-            else if (round.winnerIsPlayer1 == amPlayer1)
-            {
-                winnerText = "You won";
-            }
-            else
-            {
-                winnerText = opponentName + " won";
-            }
-
-            string rowText =
-                $"Round {round.roundNumber}: " +
-                $"{myWord} ({myScore}) vs " +
-                $"{opponentWord} ({opponentScore}) — " +
-                winnerText;
-
-            OnlineRoundHistoryEntry captured = round;
-
-            RoundReplayRow row = Instantiate(
-                roundReplayRowPrefab,
-                roundListContainer
-            );
-
-            row.Setup(rowText, () => onReplay?.Invoke(captured));
+                if (captured.Replay != null)
+                    captured.Replay();
+            });
 
             spawnedRoundRows.Add(row);
         }
     }
 
-    public void ShowSoloRoundReplayRows(
-        List<RoundResult> history,
-        Action<RoundResult> onReplay)
+    // Kept to one line: the label shrinks rather than wraps, so the verdict
+    // has to be short enough to stay legible beside the words. The gaps are
+    // measured rather than spelled with spaces - a space at this size is
+    // wide, and four of them cost about a letter and a half of word.
+    private static string RoundLine(ResultSheet.Round round, string them)
     {
-        ClearRoundReplayRows();
+        string verdict;
 
-        if (roundListContainer == null ||
-            roundReplayRowPrefab == null ||
-            history == null)
-        {
-            Debug.LogWarning(
-                "[UIManager] Cannot create solo round replay rows: missing setup."
-            );
-            return;
-        }
+        if (round.Result == ResultSheet.Verdict.Nobody)
+            verdict = "<color=#FFFFFF60>no play</color>";
+        else if (round.Result == ResultSheet.Verdict.Mine)
+            verdict = "<b><color=#E0B34D>YOU</color></b>";
+        else
+            verdict = "<b><color=#C75447>" + them + "</color></b>";
 
-        foreach (RoundResult round in history)
-        {
-            if (round == null)
-                continue;
+        return
+            $"<b>R{round.Number}</b><space=0.6em>" +
+            $"{(round.IPlayed ? round.MyWord : "—")} <b>{round.MyScore}</b>" +
+            $"<space=0.5em><color=#FFFFFF60>v</color><space=0.5em>" +
+            $"{(round.TheyPlayed ? round.TheirWord : "—")} <b>{round.TheirScore}</b>" +
+            $"<space=0.6em>{verdict}";
+    }
 
-            string winnerText;
+    // A round line has room for a word, a word and a name. "Kingsley Obeng"
+    // spent that room and ran under the REVIEW button, so the name on the
+    // rows is the first of it, and short.
+    private static string ShortOpponent(string name)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+            return "THEM";
 
-            // The rows sit on the dark glass card now, so the verdict is the
-            // card's own amber for a win and its rust for a loss - dark greens
-            // and reds were chosen for the light blue panel and disappear here.
-            if (!round.humanValid && !round.aiValid)
-                winnerText = "<color=#FFFFFF60>no play</color>";
-            else if (round.humanWasWinner)
-                winnerText = "<b><color=#E0B34D>YOU</color></b>";
-            else
-                winnerText = "<b><color=#C75447>AI</color></b>";
+        string first = name.Trim().Split(' ')[0];
 
-            // Kept to one line: the label auto-shrinks rather than wrapping, so
-            // the verdict has to be short enough to stay legible next to the words.
-            // The gaps are measured rather than spelled with spaces: a space
-            // at this size is wide, and four of them cost about a letter and
-            // a half of word - which is what the line shrinks to pay for.
-            string rowText =
-                $"<b>R{round.roundNumber}</b><space=0.6em>" +
-                $"{(round.humanValid ? round.humanWord : "—")} <b>{round.humanScore}</b>" +
-                $"<space=0.5em><color=#FFFFFF60>v</color><space=0.5em>" +
-                $"{(round.aiValid ? round.aiWord : "—")} <b>{round.aiScore}</b>" +
-                $"<space=0.6em>{winnerText}";
+        if (first.Length > 9)
+            first = first.Substring(0, 8) + "…";
 
-            RoundResult captured = round;
-
-            RoundReplayRow row = Instantiate(
-                roundReplayRowPrefab,
-                roundListContainer
-            );
-
-            row.Setup(rowText, () => onReplay?.Invoke(captured));
-
-            spawnedRoundRows.Add(row);
-        }
+        return first.ToUpperInvariant();
     }
 
     public void ClearRoundReplayRows()
