@@ -259,24 +259,49 @@ public partial class OnlineMatchController : MonoBehaviour
         TraceMatch("WatchMatch AFTER subscribe");
     }
 
-    public void EnterReplayFromGameOver()
-    {
+    // The board's own key, which the scene has always had and nothing ever
+    // switched on. The code switched on the other one - the key inside the
+    // result panel, which a replay has just hidden - so it lit up where
+    // nobody could see it.
+    //
+    // Wired here rather than in the scene because what it means depends on
+    // where it is: on the board during a replay it goes back to the result,
+    // while the same words on the result card go back to the matches list.
+    private UnityEngine.UI.Button replayWayBack;
 
-        if (gameOverPanel != null)
-            gameOverPanel.SetActive(false);
+    private void ShowTheWayBackFromReplay(bool showing)
+    {
+        if (replayWayBack == null && gameplayPanel != null)
+        {
+            Transform found = gameplayPanel.transform.Find("BacktoMatchButton");
+
+            if (found != null)
+            {
+                replayWayBack = found.GetComponent<UnityEngine.UI.Button>();
+
+                if (replayWayBack != null)
+                {
+                    replayWayBack.onClick.RemoveAllListeners();
+                    replayWayBack.onClick.AddListener(ReturnToResultFromReplay);
+                }
+            }
+        }
+
+        if (replayWayBack != null)
+            replayWayBack.gameObject.SetActive(showing);
+    }
+
+    // Back to the result that sent them here. The card still holds the sheet,
+    // so it comes up saying what it said before.
+    public void ReturnToResultFromReplay()
+    {
+        ShowTheWayBackFromReplay(false);
 
         if (gameplayPanel != null)
-            gameplayPanel.SetActive(true);
+            gameplayPanel.SetActive(false);
 
-        if (matchStatusPanel != null)
-            matchStatusPanel.gameObject.SetActive(false);
-
-        // Show the back button only in replay mode
-        if (backToMatchButton != null)
-            backToMatchButton.SetActive(true);
-        
-        // Start your existing replay flow here (coroutine, etc.)
-        // e.g. StartCoroutine(PlayReplaySequence());
+        if (uiManager != null && uiManager.gameOverPanel != null)
+            uiManager.gameOverPanel.SetActive(true);
     }
 
     // Called by the "Back to Match" button on the board UI
@@ -1691,6 +1716,10 @@ public partial class OnlineMatchController : MonoBehaviour
 
     public void StartGameplayForCurrentMatch(string uid)
     {
+        // Not a replay: the way back to the result has no meaning yet, and
+        // the scene leaves the key switched on.
+        ShowTheWayBackFromReplay(false);
+
         VerboseLog("[OnlineMatchController] StartGameplayForCurrentMatch START | uid=" + uid);
 
         if (gameLogic == null || currentMatch == null || string.IsNullOrEmpty(uid))
@@ -2516,6 +2545,12 @@ ValueChangedEventArgs args)
         {
             uiManager.gameOverPanel.SetActive(false);
         }
+
+        // The way back, on the board where it can be seen. A solo replay
+        // puts the result up again when the animation ends; this one waits
+        // to be told, and without this it waited for ever - the only key on
+        // the board was Main menu, which leaves the game altogether.
+        ShowTheWayBackFromReplay(true);
 
         // Lets Unity activate the board hierarchy and run BoardGen.Start().
         yield return null;
