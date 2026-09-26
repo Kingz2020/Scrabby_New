@@ -192,7 +192,7 @@ public partial class PreGamePanel
             return;
         }
 
-        if (wanted == auth.CurrentUser.DisplayName)
+        if (wanted == PlayerName.Of(auth.CurrentUser))
         {
             SetStatus("That is already your name.");
             return;
@@ -221,12 +221,15 @@ public partial class PreGamePanel
                 return;
             }
 
-            // The account has it; now the profile the rest of the game reads.
+            // The account has it; now the profile the rest of the game reads,
+            // which is the copy that counts.
             if (EnsureFirebaseReady())
             {
                 dbRoot.Child("users").Child(user.UserId).Child("displayName")
                       .SetValueAsync(wanted);
             }
+
+            PlayerName.Remember(wanted, user.UserId);
 
             if (aliasButton != null)
                 aliasButton.interactable = true;

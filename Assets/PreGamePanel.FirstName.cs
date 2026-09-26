@@ -187,6 +187,8 @@ public partial class PreGamePanel
                 dbRoot.Child("users").Child(user.UserId).Child("displayName")
                       .SetValueAsync(wanted);
 
+                PlayerName.Remember(wanted, user.UserId);
+
                 // Remembered, so the question is asked once and not at every
                 // sign-in on every phone they own.
                 dbRoot.Child("users").Child(user.UserId).Child("chosenName")

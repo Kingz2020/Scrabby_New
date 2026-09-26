@@ -36,9 +36,7 @@ public partial class MatchStatusPanel
             return;
         }
 
-        string myName = string.IsNullOrWhiteSpace(auth.CurrentUser.DisplayName)
-            ? auth.CurrentUser.Email
-            : auth.CurrentUser.DisplayName;
+        string myName = PlayerName.Of(auth.CurrentUser);
 
         InviteRequestData request = new InviteRequestData
         {

@@ -562,8 +562,7 @@ public partial class MatchStatusPanel
 
     private string MyQuickGameName()
     {
-        string name = auth.CurrentUser.DisplayName;
-        return string.IsNullOrWhiteSpace(name) ? auth.CurrentUser.Email : name;
+        return PlayerName.Of(auth.CurrentUser);
     }
 
     private static string DescribeSlot(object raw, Dictionary<string, object> map, long now)
