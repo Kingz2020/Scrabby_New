@@ -242,9 +242,9 @@ public partial class MatchStatusPanel : MonoBehaviour
             return;
         }
 
-        string shownName = string.IsNullOrWhiteSpace(user.DisplayName)
-            ? user.Email
-            : user.DisplayName;
+        // PlayerName falls back to the account and then the address, so
+        // there is nothing left to choose between here.
+        string shownName = PlayerName.Of(user);
 
         //emailInput.SetTextWithoutNotify(signedInUser.Email ?? "");
         //emailInput.ForceLabelUpdate();
@@ -473,6 +473,12 @@ public partial class MatchStatusPanel : MonoBehaviour
         List<string> declinedRooms = new List<string>();
         List<string> declinedBy = new List<string>();
 
+        // Rooms that are not invitations any more: the game started, the room
+        // is gone, or nobody ever answered and the link has gone stale. They
+        // are taken off this player's list as the list is read, so they do not
+        // come back the next time.
+        List<string> spentRooms = new List<string>();
+
         //
         // ROOMS
         //
@@ -489,6 +495,9 @@ public partial class MatchStatusPanel : MonoBehaviour
                 roomTask.Result == null ||
                 !roomTask.Result.Exists)
             {
+                // The room itself is gone; the player should not keep a
+                // pointer to it.
+                spentRooms.Add(roomCode);
                 continue;
             }
 
@@ -497,9 +506,37 @@ public partial class MatchStatusPanel : MonoBehaviour
                     roomTask.Result.GetRawJsonValue());
 
             if (room == null)
+            {
+                spentRooms.Add(roomCode);
                 continue;
+            }
 
             bool hosting = room.hostUid == myUid;
+
+            // The game started, so the room has done its job. The match is in
+            // the list below - keeping the room as well left a row reading
+            // "in_game" with an Invite button, for a game already being
+            // played.
+            if (!string.IsNullOrEmpty(room.matchId) ||
+                room.status == "in_game" ||
+                room.status == "finished")
+            {
+                spentRooms.Add(room.code);
+                continue;
+            }
+
+            // Nobody came, and it has been long enough that nobody will. The
+            // room goes with it if it is this player's to delete, so the code
+            // is not left claimed for ever.
+            if (string.IsNullOrEmpty(room.guestUid) && InviteHasGoneStale(room.createdAtUnix))
+            {
+                spentRooms.Add(room.code);
+
+                if (hosting)
+                    dbRoot.Child("rooms").Child(room.code).RemoveValueAsync();
+
+                continue;
+            }
 
             string opponentName = hosting
                 ? room.guestDisplayName
@@ -825,6 +862,9 @@ public partial class MatchStatusPanel : MonoBehaviour
             ShowStatus($"{total} games found");
         }
 
+        if (spentRooms.Count > 0)
+            RemoveRoomsFromCurrentUser(spentRooms);
+
         if (declinedRooms.Count > 0)
         {
             ShowStatus(declinedRooms.Count == 1
@@ -838,6 +878,27 @@ public partial class MatchStatusPanel : MonoBehaviour
     // The counterpart to AddRoomToCurrentUser. Only the player can write their
     // own rooms, so the one who declined could not tidy this up - it happens
     // here, the next time the sender's list is loaded.
+    // How long an unanswered invitation is worth keeping.
+    //
+    // A day was tempting, but an invitation sent on a Friday evening is often
+    // opened on the Monday, and expiring it kills the link as well as the row
+    // - the friend taps it and finds nothing. A week is long enough to be
+    // generous about that and short enough that a list does not silt up with
+    // invitations nobody took.
+    private const long InviteLifetimeSeconds = 7L * 24L * 60L * 60L;
+
+    private static bool InviteHasGoneStale(long createdAtUnix)
+    {
+        // No timestamp at all means it was made before there were any: old
+        // enough by definition, which is what clears out the rooms left by
+        // earlier versions.
+        if (createdAtUnix <= 0)
+            return true;
+
+        return DateTimeOffset.UtcNow.ToUnixTimeSeconds() - createdAtUnix
+               > InviteLifetimeSeconds;
+    }
+
     private void RemoveRoomsFromCurrentUser(List<string> roomCodes)
     {
         if (auth == null || auth.CurrentUser == null || dbRoot == null)
@@ -1029,19 +1090,55 @@ public partial class MatchStatusPanel : MonoBehaviour
 
         // No match yet, so the room is still waiting for somebody. Tapping it
         // used to call WatchRoom and show nothing at all, which read as a
-        // dead button. Sending the invitation again is what the player wants
-        // from a game nobody has joined.
+        // dead button. There are two things worth doing with an invitation
+        // nobody has taken - send it again, or give up on it - so the tap
+        // asks which rather than guessing.
         if (!string.IsNullOrEmpty(roomCode))
         {
             preGamePanel.WatchRoom(roomCode);
 
-            string me = auth != null && auth.CurrentUser != null
-                ? auth.CurrentUser.DisplayName
-                : "";
+            string code = roomCode;
 
-            InviteLinks.Share(roomCode, me);
-            ShowStatus("Invitation ready to send again - code " + roomCode + ".");
+            ConfirmCard.Pick(
+                "Invitation " + code,
+                "Nobody has joined this one yet.",
+                "Send again", () => ShareInviteAgain(code),
+                "Cancel invitation", () => CancelInvitation(code));
         }
+    }
+
+    private void ShareInviteAgain(string roomCode)
+    {
+        string me = auth != null ? PlayerName.Of(auth.CurrentUser) : "";
+
+        InviteLinks.Share(roomCode, me);
+        ShowStatus("Invitation ready to send again - code " + roomCode + ".");
+    }
+
+    // Given up on: off this player's list, and the room deleted so the link
+    // that was sent stops working rather than opening a game nobody is
+    // waiting in.
+    private void CancelInvitation(string roomCode)
+    {
+        if (dbRoot == null || auth == null || auth.CurrentUser == null)
+            return;
+
+        preGamePanel.StopWatchingRoom();
+
+        RemoveRoomsFromCurrentUser(new List<string> { roomCode });
+
+        dbRoot.Child("rooms").Child(roomCode).RemoveValueAsync()
+              .ContinueWithOnMainThread(task =>
+        {
+            if (task.IsFaulted)
+            {
+                Debug.LogWarning("[INVITE] Could not delete room " + roomCode +
+                                 ": " + task.Exception);
+            }
+
+            ShowStatus("Invitation " + roomCode + " cancelled.");
+            ForceRefresh();
+        });
     }
 
 
@@ -1374,9 +1471,7 @@ public partial class MatchStatusPanel : MonoBehaviour
         string roomCode = GenerateRoomCode();
         string myUid = auth.CurrentUser.UserId;
 
-        string displayName = string.IsNullOrWhiteSpace(auth.CurrentUser.DisplayName)
-            ? auth.CurrentUser.Email
-            : auth.CurrentUser.DisplayName;
+        string displayName = PlayerName.Of(auth.CurrentUser);
 
         RoomData room = new RoomData
         {

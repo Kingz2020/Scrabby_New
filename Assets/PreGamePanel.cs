@@ -283,9 +283,7 @@ public partial class PreGamePanel : MonoBehaviour
             {
                 RepairCurrentUserProfileIfMissing();
 
-                string shownName = string.IsNullOrWhiteSpace(user.DisplayName)
-                    ? user.Email
-                    : user.DisplayName;
+                string shownName = PlayerName.Of(user);
 
                 // Leave the form alone - it belongs to signing in, and signing
                 // in is over. Only the password is cleared, so no value is left
@@ -563,9 +561,7 @@ public partial class PreGamePanel : MonoBehaviour
 
             RunOnMainThread(() =>
             {
-                string shownName = string.IsNullOrWhiteSpace(signedInUser.DisplayName)
-                    ? signedInUser.Email
-                    : signedInUser.DisplayName;
+                string shownName = PlayerName.Of(signedInUser);
 
                 SetStatus("Login successful.");
 
@@ -1048,6 +1044,7 @@ public partial class PreGamePanel : MonoBehaviour
             Singleton.Instance.OnlineMatchController.StopWatchingCurrentMatch();
 
         auth.SignOut();
+        PlayerName.Forget();
 
         // Back to the tab most people want next.
         creatingAccount = false;
@@ -1097,8 +1094,11 @@ public partial class PreGamePanel : MonoBehaviour
         if (auth == null || auth.CurrentUser == null)
             return "Unknown";
 
-        if (!string.IsNullOrWhiteSpace(auth.CurrentUser.DisplayName))
-            return auth.CurrentUser.DisplayName;
+        // The name they chose, not the one their Google account carries.
+        string chosen = PlayerName.Of(auth.CurrentUser);
+
+        if (!string.IsNullOrWhiteSpace(chosen))
+            return chosen;
 
         if (displayNameInput != null &&
             !string.IsNullOrWhiteSpace(displayNameInput.text))
@@ -1118,7 +1118,15 @@ public partial class PreGamePanel : MonoBehaviour
         bool signedIn = IsSignedIn();
 
         if (signedIn)
+        {
+            // Every path that signs somebody in ends up here, so this is
+            // where the name they chose is read and put back on the account
+            // - before anything writes it onto a room or a match.
+            if (EnsureFirebaseReady())
+                PlayerName.Settle(dbRoot, auth.CurrentUser);
+
             ShowCurrentAlias();
+        }
 
         if (signedOutRoot != null || signedInRoot != null)
         {
@@ -1375,7 +1383,7 @@ public partial class PreGamePanel : MonoBehaviour
         ScrabbyLog.Trace("[ROOM WATCH] Watching room " + roomCode);
     }
 
-    private void StopWatchingRoom()
+    public void StopWatchingRoom()
     {
         if (watchedRoomRef != null &&
             roomWatcher != null)
@@ -1495,7 +1503,17 @@ public partial class PreGamePanel : MonoBehaviour
                 ScrabbyLog.Trace("[PregamePanel] Loading existing match: " + room.matchId);
 
                 ScrabbyLog.Trace($"[STARTFLOW] Existing match detected matchId={room.matchId}");
-                AddMatchToUser(auth.CurrentUser.UserId, room.matchId);
+
+                // The match goes on this player's list and the room comes off
+                // it. Only the client that built the match used to drop the
+                // room, so whoever came in the other way - the one who
+                // accepted the invitation - kept the invitation as a row,
+                // with the other player's name on it, for a game they were
+                // already playing.
+                string mine = auth.CurrentUser.UserId;
+
+                AddMatchToUser(mine, room.matchId, () => RemoveRoomFromUser(mine, roomCode));
+
                 Singleton.Instance.OnlineMatchController.ResumeMatch(room.matchId);
                 ScrabbyLog.Trace("[STARTFLOW] WatchMatch called for existing match");
 

@@ -19,7 +19,24 @@ public static class ConfirmCard
     private static readonly Color Ink = new Color(0.227f, 0.173f, 0.094f, 1f);
     private static readonly Color Faint = new Color(1f, 1f, 1f, 0.78f);
 
+    // Two things it could be, and neither of them is "are you sure". Used
+    // where a tap has more than one sensible meaning - a waiting invitation
+    // can be sent again or given up on - so the tap opens the choice rather
+    // than guessing at it.
+    public static void Pick(string question, string detail,
+                            string first, Action onFirst,
+                            string second, Action onSecond)
+    {
+        Ask(question, detail, second, onSecond, first, onFirst);
+    }
+
     public static void Ask(string question, string detail, string yes, Action onYes)
+    {
+        Ask(question, detail, yes, onYes, null, null);
+    }
+
+    private static void Ask(string question, string detail, string yes, Action onYes,
+                            string other, Action onOther)
     {
         Canvas canvas = TopCanvas();
 
@@ -45,18 +62,41 @@ public static class ConfirmCard
         GameObject card = Panel("Card", root.transform, Glass);
         RectTransform cardRect = card.GetComponent<RectTransform>();
         cardRect.anchorMin = cardRect.anchorMax = cardRect.pivot = new Vector2(0.5f, 0.5f);
-        cardRect.sizeDelta = new Vector2(840f, 460f);
+        // A third way out needs a line of its own.
+        bool choosing = other != null;
+
+        cardRect.sizeDelta = new Vector2(840f, choosing ? 580f : 460f);
 
         Label(card.transform, question, 44f, Color.white, FontStyles.Bold, 0f, -46f, 740f, 120f);
         Label(card.transform, detail, 28f, Faint, FontStyles.Normal, 0f, -180f, 740f, 110f);
 
-        // The one that does it, and the one that does not. Cancel is the
-        // wider, nearer, plainer of the two.
-        Button no = TextButton(card.transform, "Cancel", -186f, 46f, 360f, Cream, Ink);
-        Button go = TextButton(card.transform, yes, 186f, 46f, 360f,
+        // The one that does it, and the one that does not. The plain way out
+        // is the left-hand one, and it is the one a stray tap finds.
+        float choiceRow = choosing ? 166f : 46f;
+
+        Button no = TextButton(card.transform, choosing ? other : "Cancel",
+                               -186f, choiceRow, 360f, Cream, Ink);
+
+        Button go = TextButton(card.transform, yes, 186f, choiceRow, 360f,
                                new Color(0.62f, 0.20f, 0.18f, 1f), Color.white);
 
-        no.onClick.AddListener(delegate { UnityEngine.Object.Destroy(root); });
+        no.onClick.AddListener(delegate
+        {
+            UnityEngine.Object.Destroy(root);
+
+            if (onOther != null)
+                onOther();
+        });
+
+        // With two things to choose between, neither of them is "leave it
+        // alone", so there has to be a third way out.
+        if (choosing)
+        {
+            Button close = TextButton(card.transform, "Close", 0f, 44f, 240f,
+                                      new Color(1f, 1f, 1f, 0.14f), Color.white);
+
+            close.onClick.AddListener(delegate { UnityEngine.Object.Destroy(root); });
+        }
 
         go.onClick.AddListener(delegate
         {
